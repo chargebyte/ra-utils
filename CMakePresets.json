@@ -1,0 +1,17 @@
+{
+    "version": 8,
+    "configurePresets": [
+        {
+            "name": "GCC 12.2.0 arm-linux-gnueabihf",
+            "displayName": "GCC 12.2.0 arm-linux-gnueabihf",
+            "description": "Using compilers: C = /usr/bin/arm-linux-gnueabihf-gcc, CXX = /usr/bin/arm-linux-gnueabihf-g++",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_C_COMPILER": "/usr/bin/arm-linux-gnueabihf-gcc",
+                "CMAKE_CXX_COMPILER": "/usr/bin/arm-linux-gnueabihf-g++",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        }
+    ]
+}
