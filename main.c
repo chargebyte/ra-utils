@@ -33,9 +33,9 @@
  * local constants;
  *--------------------------------------------------------------------*/
 
-#define GPIO_CHIP "/dev/gpiochip0"
-#define PIN_RESET_SAFETY_UC  "GPIO17"  // GPIO17 corresponds to pin 11
-#define PIN_MD_SAFETY_UC     "GPIO27"  // GPIO27 corresponds to pin 13
+#define GPIO_CHIP "/dev/gpiochip2"
+#define PIN_RESET_SAFETY_UC  "nSAFETY_RESET_INT"
+#define PIN_MD_SAFETY_UC     "SAFETY_BOOTMODE_SET"
 
 #define SAFETY_UPDATE_TASK_STACK_SIZE 4096 ///< Task stack size for this module's task
 #define UART_RX_BUFFER 512
