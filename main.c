@@ -503,7 +503,7 @@ static int safety_update_initialize_communication(int *uart_stream)
     usleep(500000);
 
     // Open the UART device file
-    *uart_stream = open("/dev/serial0", O_RDWR | O_NOCTTY | O_NDELAY);
+    *uart_stream = open("/dev/ttyLP2", O_RDWR | O_NOCTTY | O_NDELAY);
     if (*uart_stream == -1)
     {
         printf("Error - Unable to open UART.\n");
