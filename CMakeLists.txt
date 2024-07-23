@@ -1,17 +1,22 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(Renesas_Updater)
+project(renesas_updater
+    VERSION 0.1.0
+    DESCRIPTION "Command line tool to flash the Renesas MCU (aka safety controller)"
+    LANGUAGES C
+)
 
-# Find the libgpiod package
+# search for package PkgConfig
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GPIOD REQUIRED libgpiod)
 
-add_executable(renesas_updater main.c)
+# search for libgpiod
+pkg_search_module(LIBGPIOD REQUIRED libgpiod)
 
+add_subdirectory(src)
 
-# Include the directories for libgpiod
-include_directories(${GPIOD_INCLUDE_DIRS})
+include(GNUInstallDirs)
 
-# Link the libgpiod library
-target_link_libraries(renesas_updater ${GPIOD_LIBRARIES})
-
+install(
+    FILES safety_sw.bin
+    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}
+)
