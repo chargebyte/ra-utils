@@ -18,3 +18,13 @@ target_link_libraries(ra-update
 )
 
 install(TARGETS ra-update DESTINATION sbin)
+
+add_executable(ra-raw
+    ra-raw.c
+    tools.c
+    uart.c
+    cb_protocol.c
+    crc8_j1850.c
+)
+
+install(TARGETS ra-raw DESTINATION sbin)
