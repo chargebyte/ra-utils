@@ -157,7 +157,7 @@ void parse_cli(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-    struct safety_controller data = { .duty_cycle = 5 };
+    struct safety_controller data = { .duty_cycle = 5, .pp_sae_iec = true };
     struct uart_ctx uart = { .fd = -1 };
     int rc = EXIT_FAILURE;
     int rv;
@@ -173,6 +173,10 @@ int main(int argc, char *argv[])
     }
 
     while (1) {
+        /* (re-)enable PP pull-up: since we read the hardware state back
+         * we must prevent that it is turned off by accident */
+        data.pp_sae_iec = true;
+
         /* query all data to our stucture */
         rv = cb_single_run(&uart, &data);
         if (rv) {
