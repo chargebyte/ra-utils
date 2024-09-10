@@ -123,6 +123,7 @@ static int cb_send_do(struct uart_ctx *uart, struct safety_controller *data)
     DATA_PKT_SET_BIT(1, 2, data->cp_rst_pos_peak_det);
     DATA_PKT_SET_BIT(1, 3, data->cp_rst_neg_peak_det);
     DATA_PKT_SET_BIT(1, 4, data->cp_state_c);
+    DATA_PKT_SET_BIT(1, 5, data->pp_sae_iec);
 
     request.data8[1] = data->duty_cycle;
 
