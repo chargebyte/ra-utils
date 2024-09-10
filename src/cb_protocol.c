@@ -52,6 +52,10 @@ static int cb_request_data(struct uart_ctx *uart, uint8_t com, struct data_pkt *
     uint8_t crc;
     ssize_t c;
 
+    c = uart_flush_input(uart);
+    if (c < 0)
+        return c;
+
     /* prepare inquiry packet */
     memset(&request, 0, sizeof(request));
     request.sof = CB_SOF;
