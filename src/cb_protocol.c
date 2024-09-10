@@ -125,7 +125,7 @@ static int cb_send_do(struct uart_ctx *uart, struct safety_controller *data)
     DATA_PKT_SET_BIT(1, 4, data->cp_state_c);
     DATA_PKT_SET_BIT(1, 5, data->pp_sae_iec);
 
-    request.data8[1] = data->duty_cycle;
+    request.data8[2] = data->duty_cycle;
 
     request.crc = crc8_j1850(&request.com, sizeof(request.com) + sizeof(request.data8));
     request.eof = CB_EOF;
