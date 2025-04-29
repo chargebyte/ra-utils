@@ -1,13 +1,19 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  */
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdbool.h>
+#include <time.h>
 #include "uart.h"
 
 /* the MCU is expected to answer requests within this time, in ms */
-#define RESPONSE_TIMEOUT 15
+#define RESPONSE_TIMEOUT_MS 20
 
 /* maximum count of PT1000 channels */
 #define MAX_PT1000_CHANNELS 4
@@ -64,5 +70,20 @@ struct safety_controller {
     unsigned int int_refvolt;
 };
 
-int cb_single_run(struct uart_ctx *uart, struct safety_controller *data);
+struct safety_ctx {
+    /* the UART context */
+    struct uart_ctx uart;
+
+    /* the current/desired MCU state */
+    struct safety_controller data;
+
+    /* timestamp when next query is scheduled (CLOCK_MONOTONIC) */
+    struct timespec ts_next_query;
+};
+
+int cb_single_run(struct safety_ctx *ctx);
 void cb_dump_data(struct safety_controller *data);
+
+#ifdef __cplusplus
+}
+#endif

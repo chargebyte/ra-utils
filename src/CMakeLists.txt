@@ -1,6 +1,7 @@
 add_executable(ra-update
     ra-update.c
     tools.c
+    logging.c
     uart.c
     ra_protocol.c
     ra_gpio.c
@@ -22,6 +23,7 @@ install(TARGETS ra-update DESTINATION sbin)
 add_executable(ra-raw
     ra-raw.c
     tools.c
+    logging.c
     uart.c
     cb_protocol.c
     crc8_j1850.c

@@ -27,6 +27,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "cb_protocol.h"
+#include "logging.h"
 #include "stringify.h"
 #include "tools.h"
 #include "uart.h"
@@ -96,14 +97,28 @@ static bool verbose = false;
 /* here, too - to simplify, use these as globals */
 static char *uart_device = DEFAULT_UART_INTERFACE;
 
-void debug(const char *format, ...)
+static void debug_cb(const char *format, va_list args)
+{
+    if (verbose) {
+        printf("debug: ");
+        vprintf(format, args);
+        printf("\n");
+    }
+}
+
+static void error_cb(const char *format, va_list args)
+{
+    fprintf(stderr, "Error: ");
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+}
+
+static void xdebug(const char *format, ...)
 {
     if (verbose) {
         va_list args;
         va_start(args, format);
-        printf("debug: ");
-        vprintf(format, args);
-        printf("\n");
+        debug_cb(format, args);
         va_end(args);
     }
 }
@@ -157,16 +172,22 @@ void parse_cli(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-    struct safety_controller data = { .duty_cycle = 5, .pp_sae_iec = true };
-    struct uart_ctx uart = { .fd = -1 };
+    struct safety_ctx ctx = {
+        .uart = { .fd = -1 },
+        .data = { .duty_cycle = 5, .pp_sae_iec = true },
+    };
     int rc = EXIT_FAILURE;
     int rv;
 
     /* handle command line options */
     parse_cli(argc, argv);
 
+    /* register debug and error message callbacks */
+    libcbuart_set_error_msg_cb(error_cb);
+    libcbuart_set_debug_msg_cb(debug_cb);
+
     /* the baudrate of the MCU with running firmware should be 115200 */
-    rv = uart_open(&uart, uart_device, 115200);
+    rv = uart_open(&ctx.uart, uart_device, 115200);
     if (rv) {
         error("opening '%s' failed: %m", uart_device);
         return -1;
@@ -175,10 +196,10 @@ int main(int argc, char *argv[])
     while (1) {
         /* (re-)enable PP pull-up: since we read the hardware state back
          * we must prevent that it is turned off by accident */
-        data.pp_sae_iec = true;
+        ctx.data.pp_sae_iec = true;
 
         /* query all data to our stucture */
-        rv = cb_single_run(&uart, &data);
+        rv = cb_single_run(&ctx);
         if (rv) {
             error("Error while retrieving data: %m");
             goto close_out;
@@ -189,14 +210,14 @@ int main(int argc, char *argv[])
             printf("\033[H\033[J");
 
         /* dump it */
-        cb_dump_data(&data);
+        cb_dump_data(&ctx.data);
     }
 
     rc = EXIT_SUCCESS;
 
 close_out:
-    if (uart.fd != -1) {
-        rv = uart_close(&uart);
+    if (ctx.uart.fd != -1) {
+        rv = uart_close(&ctx.uart);
         if (rv)
             error("closing UART failed: %m");
     }

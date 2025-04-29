@@ -45,6 +45,7 @@
 #include "ra_gpio.h"
 #include "ra_protocol.h"
 #include "stringify.h"
+#include "logging.h"
 #include "tools.h"
 #include "uart.h"
 
@@ -181,14 +182,36 @@ static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
 static enum cmd cmd = CMD_MAX;
 static char *fw_filename = NULL;
 
-void debug(const char *format, ...)
+static void debug_cb(const char *format, va_list args)
+{
+    if (verbose) {
+        printf("debug: ");
+        vprintf(format, args);
+        printf("\n");
+    }
+}
+
+static void error_cb(const char *format, va_list args)
+{
+    fprintf(stderr, "Error: ");
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+}
+
+static void xerror(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    error_cb(format, args);
+    va_end(args);
+}
+
+static void xdebug(const char *format, ...)
 {
     if (verbose) {
         va_list args;
         va_start(args, format);
-        printf("debug: ");
-        vprintf(format, args);
-        printf("\n");
+        debug_cb(format, args);
         va_end(args);
     }
 }
@@ -294,42 +317,42 @@ static int setup_uart_communication(struct gpio_ctx *gpio, struct uart_ctx *uart
 
     rv = ra_reset_to_bootloader(gpio);
     if (rv) {
-        error("forcing into bootloader failed: %m");
+        xerror("forcing into bootloader failed: %m");
         return -1;
     }
 
     /* we must open the UART with fixed baudrate in this bootmode */
     rv = uart_open(uart, uart_device, 9600);
     if (rv) {
-        error("opening '%s' failed: %m", uart_device);
+        xerror("opening '%s' failed: %m", uart_device);
         return -1;
     }
 
     rv = ra_comm_setup(uart);
     if (rv) {
-        error("communication setup with MCU failed: %m");
+        xerror("communication setup with MCU failed: %m");
         return -1;
     }
 
     /* the manual proposes to send an inquiry command now and check for the correct response */
     rv = ra_inquiry(uart);
     if (rv) {
-        error("inquiry command before baudrate change failed: %m");
+        xerror("inquiry command before baudrate change failed: %m");
         return -1;
     }
 
     /* now let's upgrade the baudrate */
     rv = ra_set_baudrate(uart, 115200);
     if (rv) {
-        error("changing the baudrate from 9600 to 115200 failed: %m");
+        xerror("changing the baudrate from 9600 to 115200 failed: %m");
         return -1;
     }
 
-    debug("switching baudrate now");
+    xdebug("switching baudrate now");
 
     rv = uart_reconfigure_baudrate(uart, 115200);
     if (rv) {
-        error("switching UART baudrate to 115200 failed: %m");
+        xerror("switching UART baudrate to 115200 failed: %m");
         return -1;
     }
 
@@ -337,7 +360,7 @@ static int setup_uart_communication(struct gpio_ctx *gpio, struct uart_ctx *uart
 
     rv = ra_inquiry(uart);
     if (rv) {
-        error("inquiry command after baudrate change failed: %m");
+        xerror("inquiry command after baudrate change failed: %m");
         return -1;
     }
 
@@ -358,11 +381,15 @@ int main(int argc, char *argv[])
     /* handle command line options */
     parse_cli(argc, argv);
 
+    /* register debug and error message callbacks */
+    libcbuart_set_error_msg_cb(error_cb);
+    libcbuart_set_debug_msg_cb(debug_cb);
+
     /* we need the GPIO stuff always except when only printing the fw_info from a file */
     if (!(cmd == CMD_FW_INFO && fw_filename)) {
         gpio = ra_gpio_init(gpiochip, reset_gpioname, md_gpioname);
         if (!gpio) {
-            error("could not acquire GPIOs: %m");
+            xerror("could not acquire GPIOs: %m");
             goto close_out;
         }
 
@@ -373,7 +400,7 @@ int main(int argc, char *argv[])
     if (fw_filename) {
         rv = fw_mmap(fw_filename, &fw_content, &fw_filesize);
         if (rv) {
-            error("Could not open '%s': %m", fw_filename);
+            xerror("Could not open '%s': %m", fw_filename);
             goto close_out;
         }
     }
@@ -382,7 +409,7 @@ int main(int argc, char *argv[])
     case CMD_RESET:
         rv = ra_reset_to_normal(gpio);
         if (rv) {
-            error("reset failed: %m");
+            xerror("reset failed: %m");
             goto close_out;
         }
         break;
@@ -390,7 +417,7 @@ int main(int argc, char *argv[])
     case CMD_HOLD_IN_RESET:
         rv = ra_hold_reset(gpio);
         if (rv) {
-            error("reset failed: %m");
+            xerror("reset failed: %m");
             goto close_out;
         }
         break;
@@ -398,7 +425,7 @@ int main(int argc, char *argv[])
     case CMD_BOOTLOADER:
         rv = ra_reset_to_bootloader(gpio);
         if (rv) {
-            error("forcing into bootloader failed: %m");
+            xerror("forcing into bootloader failed: %m");
             goto close_out;
         }
         break;
@@ -417,7 +444,7 @@ int main(int argc, char *argv[])
 
             rv = ra_read(&uart, (uint8_t *)&version_info, CODE_FIRMWARE_INFORMATION_START_ADDRESS, sizeof(version_info));
             if (rv) {
-                error("reading version app infoblock failed: %m");
+                xerror("reading version app infoblock failed: %m");
                 goto reset_to_normal_out;
             }
         }
@@ -446,14 +473,14 @@ int main(int argc, char *argv[])
 
         rv = ra_rwe_cmd(&uart, RWE_ERASE, CODE_FLASH_START_ADDRESS, CODE_FLASH_END_ADDRESS);
         if (rv) {
-            error("Erasing the MCU's flash memory failed: %m");
+            xerror("Erasing the MCU's flash memory failed: %m");
             goto reset_to_normal_out;
         }
 
         if (cmd == CMD_FLASH) {
             rv = ra_write(&uart, CODE_FLASH_START_ADDRESS, fw_content, fw_filesize);
             if (rv) {
-                error("Flashing the new firmware failed: %m");
+                xerror("Flashing the new firmware failed: %m");
                 goto reset_to_normal_out;
             }
         }
@@ -462,7 +489,7 @@ int main(int argc, char *argv[])
         break;
 
     default:
-        error("unknown command");
+        xerror("unknown command");
     }
 
     rc = EXIT_SUCCESS;
@@ -473,14 +500,14 @@ reset_to_normal_out:
     if (gpio) {
         rv = ra_reset_to_normal(gpio);
         if (rv)
-            error("resetting into normal mode failed: %m");
+            xerror("resetting into normal mode failed: %m");
     }
 
 close_out:
     if (uart.fd != -1) {
         rv = uart_close(&uart);
         if (rv)
-            error("closing UART failed: %m");
+            xerror("closing UART failed: %m");
     }
     if (gpio)
         ra_gpio_close(gpio);

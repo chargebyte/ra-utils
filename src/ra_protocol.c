@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "uart.h"
+#include "logging.h"
 #include "tools.h"
 #include "ra_protocol.h"
 

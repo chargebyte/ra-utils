@@ -1,11 +1,18 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  */
+#include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
 #include "tools.h"
 
 #define NSEC_PER_SEC 1000000000L
+
+bool timespec_is_set(const struct timespec *ts)
+{
+    return ts->tv_sec || ts->tv_nsec;
+}
 
 void set_normalized_timespec(struct timespec *ts, time_t sec, int64_t nsec)
 {

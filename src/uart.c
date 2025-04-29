@@ -1,5 +1,6 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  */
 #include <sys/file.h>
 #include <sys/ioctl.h>
@@ -17,6 +18,7 @@
 #include <unistd.h>
 #include "uart.h"
 #include "tools.h"
+#include "logging.h"
 
 static speed_t baudrate_to_speed(int baudrate)
 {
@@ -252,13 +254,13 @@ int uart_flush_input(struct uart_ctx *ctx)
     return tcflush(ctx->fd, TCIFLUSH);
 }
 
-int uart_wait_frame(struct uart_ctx *ctx, int timeout)
+int uart_wait_frame(struct uart_ctx *ctx, int timeout_ms)
 {
     struct pollfd pollfd = { ctx->fd, POLLIN, 0 };
     int rv;
 
     /* use poll to handle the general response timeout */
-    rv = poll(&pollfd, 1, timeout);
+    rv = poll(&pollfd, 1, timeout_ms);
     if (rv < 0) {
         debug("poll() failed: %m");
         return -1;
@@ -292,7 +294,7 @@ ssize_t uart_write_drain(struct uart_ctx *ctx, const uint8_t *buf, size_t count)
     return bytes_written;
 }
 
-ssize_t uart_read_with_timeout(struct uart_ctx *ctx, uint8_t *buf, size_t count, int timeout)
+ssize_t uart_read_with_timeout(struct uart_ctx *ctx, uint8_t *buf, size_t count, int timeout_ms)
 {
     struct timespec ts_timeout, ts_now;
     size_t bytes_read = 0;
@@ -303,7 +305,7 @@ ssize_t uart_read_with_timeout(struct uart_ctx *ctx, uint8_t *buf, size_t count,
     if (rv)
         return rv;
 
-    timespec_add_ms(&ts_timeout, timeout);
+    timespec_add_ms(&ts_timeout, timeout_ms);
 
     while (bytes_read < count) {
         int remaining_timeout;

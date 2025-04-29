@@ -1,15 +1,17 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  */
 #include <endian.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include "uart.h"
 #include "tools.h"
-#include "tools.h"
+#include "logging.h"
 #include "crc8_j1850.h"
 #include "cb_protocol.h"
 
@@ -71,7 +73,7 @@ static int cb_request_data(struct uart_ctx *uart, uint8_t com, struct data_pkt *
 
     debug("waiting for response");
 
-    c = uart_read_with_timeout(uart, (uint8_t *)response, sizeof(*response), RESPONSE_TIMEOUT);
+    c = uart_read_with_timeout(uart, (uint8_t *)response, sizeof(*response), RESPONSE_TIMEOUT_MS);
     if (c < 0)
         return c;
 
@@ -81,10 +83,12 @@ static int cb_request_data(struct uart_ctx *uart, uint8_t com, struct data_pkt *
     /* check field patterns */
     if (response->sof != CB_SOF) {
         error("SOF pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, CB_SOF, response->sof);
+        errno = EBADMSG;
         return -1;
     }
     if (response->eof != CB_EOF) {
         error("EOF pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, CB_EOF, response->eof);
+        errno = EBADMSG;
         return -1;
     }
 
@@ -92,10 +96,34 @@ static int cb_request_data(struct uart_ctx *uart, uint8_t com, struct data_pkt *
     crc = crc8_j1850(&response->com, sizeof(response->com) + sizeof(response->data8));
     if (crc != response->crc) {
         error("CRC pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, crc, response->crc);
+        errno = EBADMSG;
         return -1;
     }
 
     debug("received response looks valid (SOF, EOF, CRC)");
+
+    return 0;
+}
+
+static int cb_wait_throttle_timeout(struct safety_ctx *ctx)
+{
+    int rv;
+
+    /* only wait when the timestamp was set at all */
+    if (timespec_is_set(&ctx->ts_next_query)) {
+        /* sleep until the MCU accepts the next request */
+        rv = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ctx->ts_next_query, NULL);
+        if (rv)
+            return rv;
+    }
+
+    /* calculate the next timestamp... */
+    rv = clock_gettime(CLOCK_MONOTONIC, &ctx->ts_next_query);
+    if (rv)
+        return rv;
+
+    /* ...we must only add half of the timeout since this is our query interval */
+    timespec_add_ms(&ctx->ts_next_query, RESPONSE_TIMEOUT_MS / 2);
 
     return 0;
 }
@@ -146,14 +174,24 @@ static int cb_send_do(struct uart_ctx *uart, struct safety_controller *data)
 #define DATA_PKT_GET_BIT(offset, bit) \
     ((response.data8[(offset)] >> (bit)) & 1)
 
-int cb_single_run(struct uart_ctx *uart, struct safety_controller *data)
+int cb_single_run(struct safety_ctx *ctx)
 {
+    struct safety_controller *data = &ctx->data;
+    struct uart_ctx *uart = &ctx->uart;
     struct data_pkt response;
     int i, rv;
+
+    rv = cb_wait_throttle_timeout(ctx);
+    if (rv)
+        return rv;
 
     debug("sending COM_DIGITAL_OUTPUT_01");
 
     rv = cb_send_do(uart, data);
+    if (rv)
+        return rv;
+
+    rv = cb_wait_throttle_timeout(ctx);
     if (rv)
         return rv;
 
@@ -188,6 +226,10 @@ int cb_single_run(struct uart_ctx *uart, struct safety_controller *data)
     data->sc_dev_1 =        DATA_PKT_GET_BIT(2, 6);
     data->cp_state_c =      DATA_PKT_GET_BIT(2, 7);
 
+    rv = cb_wait_throttle_timeout(ctx);
+    if (rv)
+        return rv;
+
     debug("sending COM_ANALOG_INPUT_01");
 
     rv = cb_request_data(uart, COM_ANALOG_INPUT_01, &response);
@@ -196,6 +238,10 @@ int cb_single_run(struct uart_ctx *uart, struct safety_controller *data)
 
     for (i = 0; i < MAX_PT1000_CHANNELS; i++)
         data->ptx_vfb[i] = le16toh(response.data16[i]);
+
+    rv = cb_wait_throttle_timeout(ctx);
+    if (rv)
+        return rv;
 
     debug("sending COM_ANALOG_INPUT_02");
 
@@ -208,6 +254,10 @@ int cb_single_run(struct uart_ctx *uart, struct safety_controller *data)
     data->pp_value = le16toh(response.data16[2]);
     data->u_in = le16toh(response.data16[3]);
 
+    rv = cb_wait_throttle_timeout(ctx);
+    if (rv)
+        return rv;
+
     debug("sending COM_ANALOG_INPUT_03");
 
     rv = cb_request_data(uart, COM_ANALOG_INPUT_03, &response);
@@ -218,6 +268,10 @@ int cb_single_run(struct uart_ctx *uart, struct safety_controller *data)
     data->hs1_cfb = le16toh(response.data16[1]);
     data->hs2_cfb = le16toh(response.data16[2]);
     data->pt_1_2_cfb = le16toh(response.data16[3]);
+
+    rv = cb_wait_throttle_timeout(ctx);
+    if (rv)
+        return rv;
 
     debug("sending COM_ANALOG_INPUT_04");
 
