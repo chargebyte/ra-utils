@@ -12,6 +12,7 @@ find_package(PkgConfig REQUIRED)
 # search for libgpiod
 pkg_search_module(LIBGPIOD REQUIRED libgpiod)
 
+add_subdirectory(libcbuart)
 add_subdirectory(src)
 
 include(GNUInstallDirs)

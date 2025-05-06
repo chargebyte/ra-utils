@@ -41,13 +41,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <ra_protocol.h>
+#include <logging.h>
+#include <tools.h>
+#include <uart.h>
 #include "fw_file.h"
 #include "ra_gpio.h"
-#include "ra_protocol.h"
 #include "stringify.h"
-#include "logging.h"
-#include "tools.h"
-#include "uart.h"
 
 /* define used flash size/area of MCU */
 #define CODE_FLASH_START_ADDRESS 0x00000000

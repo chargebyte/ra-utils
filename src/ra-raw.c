@@ -26,11 +26,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "cb_protocol.h"
-#include "logging.h"
+#include <cb_protocol.h>
+#include <logging.h>
+#include <tools.h>
+#include <uart.h>
 #include "stringify.h"
-#include "tools.h"
-#include "uart.h"
 
 /* default uart interface */
 #define DEFAULT_UART_INTERFACE "/dev/ttyLP2"

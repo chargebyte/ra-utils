@@ -14,8 +14,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <tools.h>
 #include "fw_file.h"
-#include "tools.h"
 
 int fw_mmap(const char *filename, uint8_t **content, unsigned long *filesize)
 {
