@@ -131,6 +131,39 @@ struct baudrate_cmd {
     uint8_t etx;
 } __attribute__((packed));
 
+struct signature_cmd {
+    uint8_t soh;
+    union {
+        struct {
+            uint8_t lnh;
+            uint8_t lnl;
+        } __attribute__((packed));
+        uint16_t length;
+    } __attribute__((packed));
+    uint8_t com;
+    uint8_t sum;
+    uint8_t etx;
+} __attribute__((packed));
+
+#define SIGNATURE_RSP_LENGTH 0x000D
+
+struct area_info_cmd {
+    uint8_t soh;
+    union {
+        struct {
+            uint8_t lnh;
+            uint8_t lnl;
+        } __attribute__((packed));
+        uint16_t length;
+    } __attribute__((packed));
+    uint8_t com;
+    uint8_t num;
+    uint8_t sum;
+    uint8_t etx;
+} __attribute__((packed));
+
+#define AREA_INFO_RSP_LENGTH 0x0012
+
 struct common_data_header {
     uint8_t sod;
     union {
@@ -374,6 +407,169 @@ int ra_set_baudrate(struct uart_ctx *uart, int baudrate)
 
     debug("BAUDRATE_SETTING_CMD succeeded");
     return 0;
+}
+
+/* sci and rmb are already converted to host byte order; bfv not, use major, minor bytes instead */
+int ra_get_signature(struct uart_ctx *uart, struct signature_rsp *signatur_rsp)
+{
+    struct signature_cmd signature_cmd = { SOH, 0x00, 0x01, SIGNATURE_REQUEST_CMD, 0x00, ETX };
+    struct status_rsp *status_rsp = (struct status_rsp *)signatur_rsp;
+    const size_t remaining_bytes = sizeof(*signatur_rsp) - sizeof(*status_rsp);
+    ssize_t c;
+
+    /* checksum without SOH, SUM itself and without ETX */
+    ra_update_checksum(&signature_cmd.lnh, sizeof(signature_cmd) - 3, &signature_cmd.sum);
+
+    debug("sending SIGNATURE_REQUEST_CMD");
+
+    c = uart_write_drain(uart, (const uint8_t *)&signature_cmd, sizeof(signature_cmd));
+    if (c < 0)
+        return c;
+
+    debug("waiting for SIGNATURE_REQUEST_CMD response");
+
+    /* We should receive either the desired response, or the shorter status response in
+     * case of error. This is why we just request the shorter packet length here, then check whether
+     * it is actually an error response, and if not we receive the trailing data.
+     */
+    c = uart_read_with_timeout(uart, (uint8_t *)status_rsp, sizeof(*status_rsp), RESPONSE_TIMEOUT);
+    if (c < 0)
+        return c;
+
+    if (!ra_is_invalid_status_pkt(status_rsp, SIGNATURE_REQUEST_CMD)) {
+        if (status_rsp->res != SIGNATURE_REQUEST_CMD || status_rsp->sts != STATUSCODE_OK) {
+            error("SIGNATURE_REQUEST_CMD failed: RES=0x%02" PRIx8 ", STS=0x%02" PRIx8 " (%s)",
+                  status_rsp->res, status_rsp->sts, statuscode_str(status_rsp->sts));
+            return -1;
+        }
+
+        error("unexpected response while trying to get signature");
+        uart_dump_frame(false, (uint8_t *)status_rsp, sizeof(*status_rsp));
+        return -1;
+    }
+
+    /* So far it looks like that we got no error, so retrieve remaining bytes;
+     * this should be possible without timeout since the packet should already
+     * be present in our fifo/buffers completely, but let just use a small dummy one.
+     */
+    c = uart_read_with_timeout(uart, (uint8_t *)signatur_rsp + sizeof(*status_rsp),
+                               remaining_bytes, 5);
+    if (c < 0 || c != remaining_bytes) {
+        debug("SIGNATURE_REQUEST_CMD failed");
+        return -1;
+    }
+
+    if (// invalid SOD
+        signatur_rsp->sod != SOD
+        // invalid ETX
+        || signatur_rsp->etx != ETX
+        // invalid length
+        || be16toh(signatur_rsp->length) != SIGNATURE_RSP_LENGTH
+        // res is neither cmd nor ERR(cmd)
+        || (signatur_rsp->res != SIGNATURE_REQUEST_CMD && signatur_rsp->res != (SIGNATURE_REQUEST_CMD | RES_ERR_MASK))
+        // invalid checksum
+        || ra_is_checksum_invalid(&signatur_rsp->lnh, sizeof(struct signature_rsp) - 3, signatur_rsp->sum)) {
+        error("unexpected response while trying to get signature");
+        uart_dump_frame(false, (uint8_t *)signatur_rsp, sizeof(*signatur_rsp));
+        return -1;
+    }
+
+    /* convert to host byte order */
+    signatur_rsp->sci = be32toh(signatur_rsp->sci);
+    signatur_rsp->rmb = be32toh(signatur_rsp->rmb);
+
+    debug("SIGNATURE_REQUEST_CMD succeeded");
+    return 0;
+}
+
+/* sad, ead and wau are already converted to host byte order */
+int ra_get_area_info(struct uart_ctx *uart, uint8_t num, struct area_info_rsp *area_info_rsp)
+{
+    struct area_info_cmd area_info_cmd = { SOH, 0x00, 0x02, AREA_INFORMATION_CMD, num, 0x00, ETX };
+    struct status_rsp *status_rsp = (struct status_rsp *)area_info_rsp;
+    const size_t remaining_bytes = sizeof(*area_info_rsp) - sizeof(*status_rsp);
+    ssize_t c;
+
+    /* checksum without SOH, SUM itself and without ETX */
+    ra_update_checksum(&area_info_cmd.lnh, sizeof(area_info_cmd) - 3, &area_info_cmd.sum);
+
+    debug("sending AREA_INFORMATION_CMD");
+
+    c = uart_write_drain(uart, (const uint8_t *)&area_info_cmd, sizeof(area_info_cmd));
+    if (c < 0)
+        return c;
+
+    debug("waiting for AREA_INFORMATION_CMD response");
+
+    /* We should receive either the desired response, or the shorter status response in
+     * case of error. This is why we just request the shorter packet length here, then check whether
+     * it is actually an error response, and if not we receive the trailing data.
+     */
+    c = uart_read_with_timeout(uart, (uint8_t *)status_rsp, sizeof(*status_rsp), RESPONSE_TIMEOUT);
+    if (c < 0)
+        return c;
+
+    if (!ra_is_invalid_status_pkt(status_rsp, AREA_INFORMATION_CMD)) {
+        if (status_rsp->res != AREA_INFORMATION_CMD || status_rsp->sts != STATUSCODE_OK) {
+            error("AREA_INFORMATION_CMD failed: RES=0x%02" PRIx8 ", STS=0x%02" PRIx8 " (%s)",
+                  status_rsp->res, status_rsp->sts, statuscode_str(status_rsp->sts));
+            return -1;
+        }
+
+        error("unexpected response while trying to get area information");
+        uart_dump_frame(false, (uint8_t *)status_rsp, sizeof(*status_rsp));
+        return -1;
+    }
+
+    /* So far it looks like that we got no error, so retrieve remaining bytes;
+     * this should be possible without timeout since the packet should already
+     * be present in our fifo/buffers completely, but let just use a small dummy one.
+     */
+    c = uart_read_with_timeout(uart, (uint8_t *)area_info_rsp + sizeof(*status_rsp),
+                               remaining_bytes, 5);
+    if (c < 0 || c != remaining_bytes) {
+        debug("AREA_INFORMATION_CMD failed");
+        return -1;
+    }
+
+    if (// invalid SOD
+        area_info_rsp->sod != SOD
+        // invalid ETX
+        || area_info_rsp->etx != ETX
+        // invalid length
+        || be16toh(area_info_rsp->length) != AREA_INFO_RSP_LENGTH
+        // res is neither cmd nor ERR(cmd)
+        || (area_info_rsp->res != AREA_INFORMATION_CMD && area_info_rsp->res != (AREA_INFORMATION_CMD | RES_ERR_MASK))
+        // invalid checksum
+        || ra_is_checksum_invalid(&area_info_rsp->lnh, sizeof(struct area_info_rsp) - 3, area_info_rsp->sum)) {
+        error("unexpected response while trying to get area info");
+        uart_dump_frame(false, (uint8_t *)area_info_rsp, sizeof(*area_info_rsp));
+        return -1;
+    }
+
+    /* convert to host byte order */
+    area_info_rsp->sad = be32toh(area_info_rsp->sad);
+    area_info_rsp->ead = be32toh(area_info_rsp->ead);
+    area_info_rsp->eau = be32toh(area_info_rsp->eau);
+    area_info_rsp->wau = be32toh(area_info_rsp->wau);
+
+    debug("AREA_INFORMATION_CMD succeeded");
+    return 0;
+}
+
+/* keep in sync with enum koa_type */
+static const char *koa_to_str[] = {
+    "user area in code flash",
+    "user area in data flash",
+    "config area",
+};
+
+const char *koa_str(enum koa_type koa)
+{
+    if (koa >= KOA_TYPE_MAX)
+        return "unknown area type";
+
+    return koa_to_str[koa];
 }
 
 int ra_rwe_cmd(struct uart_ctx *uart, enum rwe_command rwe, uint32_t start_addr, uint32_t end_addr)

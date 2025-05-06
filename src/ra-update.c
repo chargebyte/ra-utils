@@ -33,6 +33,7 @@
 #endif
 #include <errno.h>
 #include <getopt.h>
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -68,6 +69,7 @@ enum cmd {
     CMD_FW_INFO,
     CMD_ERASE,
     CMD_FLASH,
+    CMD_CHIPINFO,
     CMD_MAX
 };
 
@@ -78,6 +80,7 @@ static const char *cmd_strings[CMD_MAX] = {
     "fw_info",
     "erase",
     "flash",
+    "chipinfo",
 };
 
 static const char *cmd_args[CMD_MAX] = {
@@ -87,6 +90,7 @@ static const char *cmd_args[CMD_MAX] = {
     "[<filename>]",
     NULL,
     "<filename>",
+    NULL,
 };
 
 static const char *cmd_descs[CMD_MAX] = {
@@ -95,7 +99,8 @@ static const char *cmd_descs[CMD_MAX] = {
     "reset MCU and force bootloader mode",
     "print firmware info (if the  optional filename is given, read the info from this file)",
     "erase MCU's flash",
-    "write given filename to MCU's flash"
+    "write given filename to MCU's flash",
+    "print chip info",
 };
 
 /* command line options */
@@ -214,6 +219,15 @@ static void xdebug(const char *format, ...)
         debug_cb(format, args);
         va_end(args);
     }
+}
+
+static void xprint(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    printf("\n");
+    va_end(args);
 }
 
 void parse_cli(int argc, char *argv[])
@@ -367,6 +381,49 @@ static int setup_uart_communication(struct gpio_ctx *gpio, struct uart_ctx *uart
     return 0;
 }
 
+static int get_chip_info(struct uart_ctx *uart)
+{
+    struct signature_rsp signatur_rsp;
+    struct area_info_rsp area_info_rsp;
+    uint8_t i;
+    int rv;
+
+    rv = ra_get_signature(uart, &signatur_rsp);
+    if (rv) {
+        xerror("retrieving chip signature failed: %m");
+        return -1;
+    }
+
+    xprint("SCI Operating Clock Frequency [Hz]: %" PRIu32, signatur_rsp.sci);
+    xprint("Recommended Maximum UART Baudrate [bps]: %" PRIu32, signatur_rsp.rmb);
+    xprint("Number of Recordable Areas: %" PRIu8, signatur_rsp.noa);
+    xprint("Type Code: 0x%" PRIx8, signatur_rsp.typ);
+    xprint("Boot Firmware Version: %"  PRIu8 ".%" PRIu8, signatur_rsp.bfv_major, signatur_rsp.bfv_minor);
+    xprint("");
+
+    for (i = 0; i < signatur_rsp.noa; ++i) {
+        uint32_t size;
+
+        rv = ra_get_area_info(uart, i, &area_info_rsp);
+        if (rv) {
+            xerror("retrieving area information for area %" PRIu8 " failed: %m", i);
+            return -1;
+        }
+
+        size = area_info_rsp.ead - area_info_rsp.sad + 1;
+
+        xprint("== Area %" PRIu8 " (%s) ==", i, koa_str(area_info_rsp.koa));
+        xprint("Start Address: 0x%08" PRIx32, area_info_rsp.sad);
+        xprint("End Address: 0x%08" PRIx32, area_info_rsp.ead);
+        xprint("  => Size: %" PRIu32 " (0x%08" PRIx32 ")", size, size);
+        xprint("Erase Access Unit [bytes]: %" PRIu32 " (0x%08" PRIx32 ")", area_info_rsp.eau, area_info_rsp.eau);
+        xprint("Write Access Unit [bytes]: %" PRIu32 " (0x%08" PRIx32 ")", area_info_rsp.wau, area_info_rsp.wau);
+        xprint("");
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     struct version_app_infoblock version_info;
@@ -484,6 +541,18 @@ int main(int argc, char *argv[])
                 goto reset_to_normal_out;
             }
         }
+
+        reset_to_normal_on_exit = true;
+        break;
+
+    case CMD_CHIPINFO:
+        rv = setup_uart_communication(gpio, &uart);
+        if (rv) {
+            /* no error logging here required, already done */
+            goto reset_to_normal_out;
+        }
+
+        get_chip_info(&uart);
 
         reset_to_normal_on_exit = true;
         break;
