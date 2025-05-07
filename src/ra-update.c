@@ -495,6 +495,14 @@ int main(int argc, char *argv[])
             goto reset_to_normal_out;
         }
 
+        /* before we do anything, let's check the filesize: we require it to match the write unit size */
+        if (cmd == CMD_FLASH &&
+            fw_filesize % chipinfo.code.write_unit_size != 0) {
+            xerror("This file cannot be flashed. The file's size must be divisible by %zu without a remainder.",
+                   chipinfo.code.write_unit_size);
+            goto reset_to_normal_out;
+        }
+
         /* to keep it simple, we erase the whole area */
         rv = ra_rwe_cmd(&uart, RWE_ERASE, chipinfo.code.start_address, chipinfo.code.end_address);
         if (rv) {
