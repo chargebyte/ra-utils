@@ -15,6 +15,7 @@
  *         hold-in-reset        -- reset MCU, hold reset until Ctrl+C is pressed, then release reset and exit
  *         bootloader           -- reset MCU and force bootloader mode
  *         fw_info [<filename>] -- print firmware info (if the  optional filename is given, read the info from this file)
+ *         chipinfo             -- print chip info
  *         erase                -- erase MCU's flash
  *         flash <filename>     -- write given filename to MCU's flash
  *
@@ -24,6 +25,7 @@
  *         -m, --md-gpio           GPIO name for controlling MD pin of MCU (default: SAFETY_BOOTMODE_SET)
  *         -d, --uart              UART interface (default: /dev/ttyLP2)
  *         -p, --reset-period      reset duration (in ms, default: 500)
+ *         -a, --flash-area        target flash area (code or data, default: code)
  *         -v, --verbose           verbose operation
  *         -V, --version           print version and exit
  *         -h, --help              print this usage and exit
