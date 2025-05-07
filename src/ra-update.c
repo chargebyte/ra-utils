@@ -508,12 +508,20 @@ int main(int argc, char *argv[])
             goto reset_to_normal_out;
         }
 
-        /* before we do anything, let's check the filesize: we require it to match the write unit size */
-        if (cmd == CMD_FLASH &&
-            fw_filesize % flash_area_info->write_unit_size != 0) {
-            xerror("This file cannot be flashed. The file's size must be divisible by %zu without a remainder.",
-                    flash_area_info->write_unit_size);
-            goto reset_to_normal_out;
+        /* before we do anything, let's check the filesize */
+        if (cmd == CMD_FLASH) {
+            /* it must not be larger than the area */
+            if (fw_filesize > flash_area_info->size) {
+                xerror("This file cannot be flashed, it is too large (maximum possible size: %zu bytes).",
+                       flash_area_info->size);
+                goto reset_to_normal_out;
+            }
+            /* we require it to match the write unit size */
+            if (fw_filesize % flash_area_info->write_unit_size != 0) {
+                xerror("This file cannot be flashed. The file's size must be divisible by %zu without a remainder.",
+                       flash_area_info->write_unit_size);
+                goto reset_to_normal_out;
+            }
         }
 
         /* to keep it simple, we erase the whole area */
