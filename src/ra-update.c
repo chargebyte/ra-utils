@@ -50,10 +50,6 @@
 #include "ra_gpio.h"
 #include "stringify.h"
 
-/* define used flash size/area of MCU */
-#define CODE_FLASH_START_ADDRESS 0x00000000
-#define CODE_FLASH_END_ADDRESS   0x0000FFFF
-
 /* default uart interface */
 #define DEFAULT_UART_INTERFACE "/dev/ttyLP2"
 
@@ -67,9 +63,9 @@ enum cmd {
     CMD_HOLD_IN_RESET,
     CMD_BOOTLOADER,
     CMD_FW_INFO,
+    CMD_CHIPINFO,
     CMD_ERASE,
     CMD_FLASH,
-    CMD_CHIPINFO,
     CMD_MAX
 };
 
@@ -78,9 +74,9 @@ static const char *cmd_strings[CMD_MAX] = {
     "hold-in-reset",
     "bootloader",
     "fw_info",
+    "chipinfo",
     "erase",
     "flash",
-    "chipinfo",
 };
 
 static const char *cmd_args[CMD_MAX] = {
@@ -89,8 +85,8 @@ static const char *cmd_args[CMD_MAX] = {
     NULL,
     "[<filename>]",
     NULL,
-    "<filename>",
     NULL,
+    "<filename>",
 };
 
 static const char *cmd_descs[CMD_MAX] = {
@@ -98,9 +94,9 @@ static const char *cmd_descs[CMD_MAX] = {
     "reset MCU, hold reset until Ctrl+C is pressed, then release reset and exit",
     "reset MCU and force bootloader mode",
     "print firmware info (if the  optional filename is given, read the info from this file)",
+    "print chip info",
     "erase MCU's flash",
     "write given filename to MCU's flash",
-    "print chip info",
 };
 
 /* command line options */
@@ -186,6 +182,7 @@ static char *uart_device = DEFAULT_UART_INTERFACE;
 static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
 static enum cmd cmd = CMD_MAX;
 static char *fw_filename = NULL;
+static struct ra_chipinfo chipinfo;
 
 static void debug_cb(const char *format, va_list args)
 {
@@ -381,49 +378,6 @@ static int setup_uart_communication(struct gpio_ctx *gpio, struct uart_ctx *uart
     return 0;
 }
 
-static int get_chip_info(struct uart_ctx *uart)
-{
-    struct signature_rsp signatur_rsp;
-    struct area_info_rsp area_info_rsp;
-    uint8_t i;
-    int rv;
-
-    rv = ra_get_signature(uart, &signatur_rsp);
-    if (rv) {
-        xerror("retrieving chip signature failed: %m");
-        return -1;
-    }
-
-    xprint("SCI Operating Clock Frequency [Hz]: %" PRIu32, signatur_rsp.sci);
-    xprint("Recommended Maximum UART Baudrate [bps]: %" PRIu32, signatur_rsp.rmb);
-    xprint("Number of Recordable Areas: %" PRIu8, signatur_rsp.noa);
-    xprint("Type Code: 0x%" PRIx8, signatur_rsp.typ);
-    xprint("Boot Firmware Version: %"  PRIu8 ".%" PRIu8, signatur_rsp.bfv_major, signatur_rsp.bfv_minor);
-    xprint("");
-
-    for (i = 0; i < signatur_rsp.noa; ++i) {
-        uint32_t size;
-
-        rv = ra_get_area_info(uart, i, &area_info_rsp);
-        if (rv) {
-            xerror("retrieving area information for area %" PRIu8 " failed: %m", i);
-            return -1;
-        }
-
-        size = area_info_rsp.ead - area_info_rsp.sad + 1;
-
-        xprint("== Area %" PRIu8 " (%s) ==", i, koa_str(area_info_rsp.koa));
-        xprint("Start Address: 0x%08" PRIx32, area_info_rsp.sad);
-        xprint("End Address: 0x%08" PRIx32, area_info_rsp.ead);
-        xprint("  => Size: %" PRIu32 " (0x%08" PRIx32 ")", size, size);
-        xprint("Erase Access Unit [bytes]: %" PRIu32 " (0x%08" PRIx32 ")", area_info_rsp.eau, area_info_rsp.eau);
-        xprint("Write Access Unit [bytes]: %" PRIu32 " (0x%08" PRIx32 ")", area_info_rsp.wau, area_info_rsp.wau);
-        xprint("");
-    }
-
-    return 0;
-}
-
 int main(int argc, char *argv[])
 {
     struct version_app_infoblock version_info;
@@ -499,7 +453,14 @@ int main(int argc, char *argv[])
                 goto reset_to_normal_out;
             }
 
-            rv = ra_read(&uart, (uint8_t *)&version_info, CODE_FIRMWARE_INFORMATION_START_ADDRESS, sizeof(version_info));
+            rv = ra_get_chipinfo(&uart, &chipinfo, verbose);
+            if (rv) {
+                /* no error logging here required, already done */
+                goto reset_to_normal_out;
+            }
+
+            rv = ra_read(&uart, (uint8_t *)&version_info,
+                         chipinfo.code.start_address + CODE_FIRMWARE_INFORMATION_START_ADDRESS, sizeof(version_info));
             if (rv) {
                 xerror("reading version app infoblock failed: %m");
                 goto reset_to_normal_out;
@@ -528,14 +489,21 @@ int main(int argc, char *argv[])
             goto reset_to_normal_out;
         }
 
-        rv = ra_rwe_cmd(&uart, RWE_ERASE, CODE_FLASH_START_ADDRESS, CODE_FLASH_END_ADDRESS);
+        rv = ra_get_chipinfo(&uart, &chipinfo, verbose);
+        if (rv) {
+            /* no error logging here required, already done */
+            goto reset_to_normal_out;
+        }
+
+        /* to keep it simple, we erase the whole area */
+        rv = ra_rwe_cmd(&uart, RWE_ERASE, chipinfo.code.start_address, chipinfo.code.end_address);
         if (rv) {
             xerror("Erasing the MCU's flash memory failed: %m");
             goto reset_to_normal_out;
         }
 
         if (cmd == CMD_FLASH) {
-            rv = ra_write(&uart, CODE_FLASH_START_ADDRESS, fw_content, fw_filesize);
+            rv = ra_write(&uart, chipinfo.code.start_address, fw_content, fw_filesize);
             if (rv) {
                 xerror("Flashing the new firmware failed: %m");
                 goto reset_to_normal_out;
@@ -552,7 +520,7 @@ int main(int argc, char *argv[])
             goto reset_to_normal_out;
         }
 
-        get_chip_info(&uart);
+        ra_get_chipinfo(&uart, &chipinfo, true);
 
         reset_to_normal_on_exit = true;
         break;

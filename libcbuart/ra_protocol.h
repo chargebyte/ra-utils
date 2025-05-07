@@ -3,6 +3,7 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "uart.h"
 
@@ -97,3 +98,19 @@ int ra_read_data(struct uart_ctx *uart, uint8_t *buffer, size_t bufsize, bool ac
 
 int ra_read(struct uart_ctx *uart, uint8_t *buffer, uint32_t start_addr, size_t len);
 int ra_write(struct uart_ctx *uart, uint32_t start_addr, uint8_t *buffer, size_t len);
+
+/* retrieve chip information */
+struct ra_flash_area_info {
+    uint32_t start_address;
+    uint32_t end_address;
+    size_t size;
+    size_t erase_unit_size;
+    size_t write_unit_size;
+};
+
+struct ra_chipinfo {
+    struct ra_flash_area_info code;
+    struct ra_flash_area_info data;
+};
+
+int ra_get_chipinfo(struct uart_ctx *uart, struct ra_chipinfo *info, bool verbose);

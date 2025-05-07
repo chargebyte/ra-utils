@@ -838,3 +838,70 @@ int ra_write(struct uart_ctx *uart, uint32_t start_addr, uint8_t *buffer, size_t
 
     return 0;
 }
+
+int ra_get_chipinfo(struct uart_ctx *uart, struct ra_chipinfo *info, bool verbose)
+{
+    struct signature_rsp signatur_rsp;
+    struct area_info_rsp area_info_rsp;
+    uint8_t i;
+    int rv;
+
+    rv = ra_get_signature(uart, &signatur_rsp);
+    if (rv) {
+        error("retrieving chip signature failed: %m");
+        return -1;
+    }
+
+    if (verbose) {
+        printf("SCI Operating Clock Frequency [Hz]: %" PRIu32 "\n", signatur_rsp.sci);
+        printf("Recommended Maximum UART Baudrate [bps]: %" PRIu32 "\n", signatur_rsp.rmb);
+        printf("Number of Recordable Areas: %" PRIu8 "\n", signatur_rsp.noa);
+        printf("Type Code: 0x%" PRIx8 "\n", signatur_rsp.typ);
+        printf("Boot Firmware Version: %"  PRIu8 ".%" PRIu8 "\n", signatur_rsp.bfv_major, signatur_rsp.bfv_minor);
+        printf("\n");
+    }
+
+    for (i = 0; i < signatur_rsp.noa; ++i) {
+        struct ra_flash_area_info *ai = NULL;
+        size_t size;
+
+        rv = ra_get_area_info(uart, i, &area_info_rsp);
+        if (rv) {
+            error("retrieving area information for area %" PRIu8 " failed: %m", i);
+            return -1;
+        }
+
+        size = area_info_rsp.ead - area_info_rsp.sad + 1;
+
+        if (verbose) {
+            printf("== Area %" PRIu8 " (%s) ==\n", i, koa_str(area_info_rsp.koa));
+            printf("Start Address: 0x%08" PRIx32 "\n", area_info_rsp.sad);
+            printf("End Address: 0x%08" PRIx32 "\n", area_info_rsp.ead);
+            printf("  => Size: %zu (0x%08zx)\n", size, size);
+            printf("Erase Access Unit [bytes]: %" PRIu32 " (0x%08" PRIx32 ")\n", area_info_rsp.eau, area_info_rsp.eau);
+            printf("Write Access Unit [bytes]: %" PRIu32 " (0x%08" PRIx32 ")\n", area_info_rsp.wau, area_info_rsp.wau);
+            printf("\n");
+        }
+
+        switch (area_info_rsp.koa) {
+        case KOA_USER_AREA_IN_CODE_FLASH:
+            ai = &info->code;
+            break;
+        case KOA_USER_AREA_IN_DATA_FLASH:
+            ai = &info->data;
+            break;
+        default:
+            /* not interested in */
+        }
+
+        if (ai) {
+            ai->start_address = area_info_rsp.sad;
+            ai->end_address = area_info_rsp.ead;
+            ai->size = size;
+            ai->erase_unit_size = area_info_rsp.eau;
+            ai->write_unit_size = area_info_rsp.wau;
+        }
+    }
+
+    return 0;
+}
