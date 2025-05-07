@@ -106,6 +106,7 @@ static const struct option long_options[] = {
     { "md-gpio",            required_argument,      0,      'm' },
     { "uart",               required_argument,      0,      'd' },
     { "reset-period",       required_argument,      0,      'p' },
+    { "flash-area",         required_argument,      0,      'a' },
 
     { "verbose",            no_argument,            0,      'v' },
     { "version",            no_argument,            0,      'V' },
@@ -113,7 +114,7 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "c:r:m:d:p:vVh";
+static const char *short_options = "c:r:m:d:p:a:vVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
@@ -122,6 +123,7 @@ static const char *long_options_descs[] = {
     "GPIO name for controlling MD pin of MCU (default: " DEFAULT_RA_GPIO_MD_PIN ")",
     "UART interface (default: " DEFAULT_UART_INTERFACE ")",
     "reset duration (in ms, default: " __stringify(DEFAULT_RA_RESET_DELAY) ")",
+    "target flash area (code or data, default: code)",
 
     "verbose operation",
     "print version and exit",
@@ -183,6 +185,7 @@ static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
 static enum cmd cmd = CMD_MAX;
 static char *fw_filename = NULL;
 static struct ra_chipinfo chipinfo;
+static struct ra_flash_area_info *flash_area_info = &chipinfo.code; /* default to code */
 
 static void debug_cb(const char *format, va_list args)
 {
@@ -256,6 +259,16 @@ void parse_cli(int argc, char *argv[])
         case 'p':
             reset_duration = atoi(optarg);
             break;
+        case 'a':
+            if (strcasecmp(optarg, "code") == 0) {
+                flash_area_info = &chipinfo.code;
+            } else if (strcasecmp(optarg, "data") == 0) {
+                flash_area_info = &chipinfo.data;
+            } else {
+                fprintf(stderr, "Unknown flash-area '%s'.\n", optarg);
+                usage(argv[0], rc);
+            }
+            break;
 
         case 'v':
             verbose = true;
@@ -273,7 +286,7 @@ void parse_cli(int argc, char *argv[])
             break;
         default:
             rc = EXIT_FAILURE;
-            fprintf(stderr, "Unknown option '%c'.\n", (char) c);
+            fprintf(stderr, "Unknown option '%c'.\n", (char)c);
             usage(argv[0], rc);
         }
     }
@@ -497,23 +510,23 @@ int main(int argc, char *argv[])
 
         /* before we do anything, let's check the filesize: we require it to match the write unit size */
         if (cmd == CMD_FLASH &&
-            fw_filesize % chipinfo.code.write_unit_size != 0) {
+            fw_filesize % flash_area_info->write_unit_size != 0) {
             xerror("This file cannot be flashed. The file's size must be divisible by %zu without a remainder.",
-                   chipinfo.code.write_unit_size);
+                    flash_area_info->write_unit_size);
             goto reset_to_normal_out;
         }
 
         /* to keep it simple, we erase the whole area */
-        rv = ra_rwe_cmd(&uart, RWE_ERASE, chipinfo.code.start_address, chipinfo.code.end_address);
+        rv = ra_rwe_cmd(&uart, RWE_ERASE, flash_area_info->start_address, flash_area_info->end_address);
         if (rv) {
             xerror("Erasing the MCU's flash memory failed: %m");
             goto reset_to_normal_out;
         }
 
         if (cmd == CMD_FLASH) {
-            rv = ra_write(&uart, chipinfo.code.start_address, fw_content, fw_filesize);
+            rv = ra_write(&uart, flash_area_info->start_address, fw_content, fw_filesize);
             if (rv) {
-                xerror("Flashing the new firmware failed: %m");
+                xerror("Flashing the file failed: %m");
                 goto reset_to_normal_out;
             }
         }
