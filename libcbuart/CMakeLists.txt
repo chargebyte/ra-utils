@@ -4,6 +4,7 @@ add_library(libcbuart STATIC)
 
 target_sources(libcbuart
     PRIVATE
+        "cb_uart.c"
         "cb_protocol.c"
         "ra_protocol.c"
         "crc8_j1850.c"
@@ -11,3 +12,5 @@ target_sources(libcbuart
         "tools.c"
         "uart.c"
 )
+
+target_link_libraries(libcbuart m)
