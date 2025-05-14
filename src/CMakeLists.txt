@@ -33,3 +33,14 @@ target_link_libraries(ra-raw
 )
 
 install(TARGETS ra-raw DESTINATION sbin)
+
+add_executable(ra-gen-param-block
+    ra-gen-param-block.c
+)
+
+target_include_directories(ra-gen-param-block
+    PRIVATE
+        ${LIBCBUART_INCLUDE_DIR}
+)
+
+install(TARGETS ra-gen-param-block DESTINATION bin)
