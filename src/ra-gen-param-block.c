@@ -4,11 +4,15 @@
  * This is a command line tool which generates a parameter block used by the
  * chargebyte's safety controller on e.g. Charge SOM.
  *
- * Usage: ra-gen-param-block [<options>] <temp1> <temp2> <temp3> <temp4> <filename>
+ * Usage: ra-gen-param-block [<options>] <temp1> <temp2> <temp3> <temp4> <contactor1> <contactor2> <estop1> <estop2> <estop3> <filename>
  *
  * The temperatures are the thresholds in [0.1 °C] for each PTx channel of the safety controller.
  * E.g. use the value of 800 for 80.0 °C.
  * To disable a channel, use the special word 'disable'.
+ *
+ * For contactorX (high-voltage contactors), use 'none', 'with-feedback' or 'without-feedback'.
+ *
+ * For estopX (emergency stop inputs), use 'disable' or 'active-low'.
  *
  * The parameter block is saved to the file given as last parameter.
  *
@@ -58,10 +62,12 @@ static void usage(char *p, int exitcode)
 
     fprintf(stderr,
             "%s (%s) -- Command line tool to generate a binary parameter block for the Renesas safety MCU\n\n"
-            "Usage: %s [<options>] <temp1> <temp2> <temp3> <temp4> <filename>\n\n"
+            "Usage: %s [<options>] <temp1> <temp2> <temp3> <temp4> <contactor1> <contactor2> <estop1> <estop2> <estop3> <filename>\n\n"
             "The temperatures are the thresholds in [0.1 °C] for each PTx channel of the safety controller.\n"
             "E.g. use the value of 800 for 80.0 °C.\n"
             "To disable a channel, use the special word 'disable'.\n\n"
+            "For contactorX (high-voltage contactors), use 'none', 'with-feedback' or 'without-feedback'.\n\n"
+            "For estopX (emergency stop inputs), use 'disable' or 'active-low'.\n\n"
             "The parameter block is saved to the file given as last parameter.\n\n",
             p, PACKAGE_STRING, p);
 
@@ -89,6 +95,8 @@ static void usage(char *p, int exitcode)
 struct param_block {
     uint32_t sob;
     int16_t temp[MAX_PT1000_CHANNELS];
+    uint8_t contactor[MAX_CONTACTORS];
+    uint8_t estop[MAX_ESTOP_CHANNELS];
     uint32_t eob;
     uint8_t crc;
 } __attribute__((packed));
@@ -96,6 +104,52 @@ struct param_block {
 /* to keep things easy, we use global variables here */
 FILE *f;
 struct param_block param_block;
+
+#define ARGC_COUNT (MAX_PT1000_CHANNELS + MAX_CONTACTORS + MAX_ESTOP_CHANNELS + 1 /* filename */)
+
+enum contactor_type {
+    CONTACTOR_NONE = 0,
+    CONTACTOR_WITHOUT_FEEDBACK,
+    CONTACTOR_WITH_FEEDBACK,
+    CONTACTOR_MAX,
+};
+
+static const char *contactor_type_to_str[CONTACTOR_MAX] = {
+    "none",
+    "without-feedback",
+    "with-feedback",
+};
+
+enum contactor_type str_to_contactor_type(const char *s) {
+    unsigned int i;
+
+    for (i = CONTACTOR_NONE; i < CONTACTOR_MAX; ++i)
+        if (strcasecmp(s, contactor_type_to_str[i]) == 0)
+            return i;
+
+    return CONTACTOR_MAX;
+}
+
+enum emergeny_stop_type {
+    EMERGENY_STOP_NONE = 0,
+    EMERGENY_STOP_ACTIVE_LOW,
+    EMERGENY_STOP_MAX,
+};
+
+static const char *emergeny_stop_to_str[EMERGENY_STOP_MAX] = {
+    "disable",
+    "active-low",
+};
+
+enum emergeny_stop_type str_to_emergeny_stop_type(const char *s) {
+    unsigned int i;
+
+    for (i = EMERGENY_STOP_NONE; i < EMERGENY_STOP_MAX; ++i)
+        if (strcasecmp(s, emergeny_stop_to_str[i]) == 0)
+            return i;
+
+    return EMERGENY_STOP_MAX;
+}
 
 void parse_cli(int argc, char *argv[])
 {
@@ -132,7 +186,7 @@ void parse_cli(int argc, char *argv[])
     argv += optind;
 
     /* check whether additional command line arguments were given */
-    if (argc != MAX_PT1000_CHANNELS + 1)
+    if (argc != ARGC_COUNT)
         usage(program_invocation_short_name, EXIT_FAILURE);
 
     for (i = 0; i < MAX_PT1000_CHANNELS; ++i) {
@@ -143,7 +197,7 @@ void parse_cli(int argc, char *argv[])
             long int val = strtol(argv[i], &endptr, 10);
 
             if (*endptr != '\0' || val < -800 || val > 2000) {
-                fprintf(stderr, "Invalid temperature value: %s (allowed range: -80.0 °C - 200.0 °C)\n\n", argv[i]);
+                fprintf(stderr, "Error: invalid temperature value: %s (allowed range: -80.0 °C - 200.0 °C)\n\n", argv[i]);
                 usage(program_invocation_short_name, EXIT_FAILURE);
             }
 
@@ -154,9 +208,31 @@ void parse_cli(int argc, char *argv[])
     argc -= MAX_PT1000_CHANNELS;
     argv += MAX_PT1000_CHANNELS;
 
+    for (i = 0; i < MAX_CONTACTORS; ++i) {
+        param_block.contactor[i] = str_to_contactor_type(argv[i]);
+        if (param_block.contactor[i] == CONTACTOR_MAX) {
+            fprintf(stderr, "Error: invalid contactor specification: %s\n\n", argv[i]);
+            usage(program_invocation_short_name, EXIT_FAILURE);
+        }
+    }
+
+    argc -= MAX_CONTACTORS;
+    argv += MAX_CONTACTORS;
+
+    for (i = 0; i < MAX_ESTOP_CHANNELS; ++i) {
+        param_block.estop[i] = str_to_emergeny_stop_type(argv[i]);
+        if (param_block.estop[i] == EMERGENY_STOP_MAX) {
+            fprintf(stderr, "Error: invalid emergency stop specification: %s\n\n", argv[i]);
+            usage(program_invocation_short_name, EXIT_FAILURE);
+        }
+    }
+
+    argc -= MAX_ESTOP_CHANNELS;
+    argv += MAX_ESTOP_CHANNELS;
+
     f = fopen(argv[0], "wb");
     if (!f) {
-        fprintf(stderr, "Cannot open '%s' writing: %m", argv[0]);
+        fprintf(stderr, "Error: cannot open '%s' writing: %m", argv[0]);
         exit(EXIT_FAILURE);
     }
 }
