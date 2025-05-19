@@ -22,6 +22,9 @@ extern "C" {
 /* the MCU sends Charge State messages with this periodicity, in ms */
 #define CHARGE_STATE_INTERVAL 100
 
+/* maximum supported contactors */
+#define MAX_CONTACTORS 2
+
 /* maximum count of PT1000 channels */
 #define MAX_PT1000_CHANNELS 4
 
@@ -37,7 +40,8 @@ enum cp_state {
     CP_STATE_D,
     CP_STATE_E,
     CP_STATE_F,
-    CP_STATE_INVALID
+    CP_STATE_INVALID,
+    CP_STATE_MAX,
 };
 
 /* CP related bit flags */
@@ -54,6 +58,16 @@ enum pp_state {
     PP_STATE_TYPE1_CONNECTED,
     PP_STATE_TYPE1_CONNECTED_BUTTON_PRESSED,
     PP_STATE_INVALID,
+    PP_STATE_MAX,
+};
+
+/* possible contactor states */
+enum contactor_state {
+    CONTACTOR_STATE_OPEN = 0x0,
+    CONTACTOR_STATE_CLOSED = 0x1,
+    CONTACTOR_STATE_RESERVED = 0x2,
+    CONTACTOR_STATE_UNUSED = 0x3,
+    CONTACTOR_STATE_MAX,
 };
 
 /* PT1000 related bit flags */
@@ -62,10 +76,6 @@ enum pp_state {
 
 /* magic value to indicate that this channel is not used */
 #define PT1000_TEMPERATURE_UNUSED 0x1fff
-
-/* IMD/RCM related bits */
-#define IMD_RCM_STATE_TEST_FAILED 0x1
-#define IMD_RCM_STATE_CHARGING_ABORT 0x2
 
 /* buffer size for timestamp */
 #define TS_STR_RECV_COM_BUFSIZE 32
@@ -107,12 +117,17 @@ unsigned int cb_proto_get_actual_duty_cycle(struct safety_controller *ctx);
 unsigned int cb_proto_get_target_duty_cycle(struct safety_controller *ctx);
 void cb_proto_set_duty_cycle(struct safety_controller *ctx, unsigned int duty_cycle);
 
-bool cb_proto_get_actual_contactor_state(struct safety_controller *ctx, unsigned int contactor);
+enum contactor_state cb_proto_get_actual_contactor_state(struct safety_controller *ctx, unsigned int contactor);
 bool cb_proto_get_target_contactor_state(struct safety_controller *ctx, unsigned int contactor);
 void cb_proto_set_contactor_state(struct safety_controller *ctx, unsigned int contactor, bool active);
 
-bool cb_proto_has_contactor_errors(struct safety_controller *ctx);
-bool cb_proto_has_contactorN_error(struct safety_controller *ctx, unsigned int contactor);
+bool cb_proto_contactorN_is_enabled(struct safety_controller *ctx, unsigned int contactor);
+bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int contactor);
+
+bool cb_proto_contactors_have_errors(struct safety_controller *ctx);
+bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor);
+
+bool cb_proto_get_hv_ready(struct safety_controller *ctx);
 
 enum cp_state cb_proto_get_cp_state(struct safety_controller *ctx);
 unsigned int cb_proto_get_cp_errors(struct safety_controller *ctx);
@@ -123,8 +138,6 @@ enum pp_state cb_proto_get_pp_state(struct safety_controller *ctx);
 
 bool cb_proto_has_estop_tripped(struct safety_controller *ctx);
 bool cb_proto_has_estopX_tripped(struct safety_controller *ctx, unsigned int estop);
-
-unsigned int cb_proto_get_imd_rcm_errors(struct safety_controller *ctx);
 
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel);
 double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int channel);
@@ -156,6 +169,7 @@ void cb_proto_set_git_hash_str(struct safety_controller *ctx);
 /* helpers */
 const char *cb_proto_cp_state_to_str(enum cp_state state);
 const char *cb_proto_pp_state_to_str(enum cp_state state);
+const char *cb_proto_contactor_state_to_str(enum contactor_state state);
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type);
 const char *cb_proto_fw_application_type_to_str(enum fw_application_type type);
 

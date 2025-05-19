@@ -65,9 +65,9 @@ void cb_proto_set_duty_cycle(struct safety_controller *ctx, unsigned int duty_cy
     DATA_SET_BITS(ctx->charge_control, 48, 10, duty_cycle);
 }
 
-bool cb_proto_get_actual_contactor_state(struct safety_controller *ctx, unsigned int contactor)
+enum contactor_state cb_proto_get_actual_contactor_state(struct safety_controller *ctx, unsigned int contactor)
 {
-    return DATA_GET_BITS(ctx->charge_state, 24 + contactor, 1);
+    return DATA_GET_BITS(ctx->charge_state, 24 + (2 * contactor), 2);
 }
 
 bool cb_proto_get_target_contactor_state(struct safety_controller *ctx, unsigned int contactor)
@@ -80,14 +80,30 @@ void cb_proto_set_contactor_state(struct safety_controller *ctx, unsigned int co
     DATA_SET_BITS(ctx->charge_control, 40 + contactor, 1, active);
 }
 
-bool cb_proto_has_contactor_errors(struct safety_controller *ctx)
+bool cb_proto_contactorN_is_enabled(struct safety_controller *ctx, unsigned int contactor)
 {
-    return DATA_GET_BITS(ctx->charge_state, 26, 2);
+    return (cb_proto_get_actual_contactor_state(ctx, contactor) == CONTACTOR_STATE_OPEN) ||
+           (cb_proto_get_actual_contactor_state(ctx, contactor) == CONTACTOR_STATE_CLOSED);
 }
 
-bool cb_proto_has_contactorN_error(struct safety_controller *ctx, unsigned int contactor)
+bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int contactor)
 {
-    return DATA_GET_BITS(ctx->charge_state, 26 + contactor, 1);
+    return cb_proto_get_actual_contactor_state(ctx, contactor) == CONTACTOR_STATE_CLOSED;
+}
+
+bool cb_proto_contactors_have_errors(struct safety_controller *ctx)
+{
+    return cb_proto_contactorN_has_error(ctx, 0) || cb_proto_contactorN_has_error(ctx, 1);
+}
+
+bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor)
+{
+    return DATA_GET_BITS(ctx->charge_state, 24 + (2 * contactor) + 2, 1);
+}
+
+bool cb_proto_get_hv_ready(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 30, 1);
 }
 
 enum cp_state cb_proto_get_cp_state(struct safety_controller *ctx)
@@ -123,11 +139,6 @@ bool cb_proto_has_estop_tripped(struct safety_controller *ctx)
 bool cb_proto_has_estopX_tripped(struct safety_controller *ctx, unsigned int estop)
 {
     return DATA_GET_BITS(ctx->charge_state, 16, 3) & (1 << estop);
-}
-
-unsigned int cb_proto_get_imd_rcm_errors(struct safety_controller *ctx)
-{
-    return DATA_GET_BITS(ctx->charge_state, 19, 2);
 }
 
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel)
@@ -196,7 +207,6 @@ void cb_proto_set_git_hash_str(struct safety_controller *ctx)
     *s = '\0';
 }
 
-
 const char *cb_proto_cp_state_to_str(enum cp_state state)
 {
     switch (state) {
@@ -240,6 +250,22 @@ const char *cb_proto_pp_state_to_str(enum cp_state state)
         return "connected, button pressed";
     case PP_STATE_INVALID:
         return "invalid";
+    default:
+        return "undefined";
+    }
+}
+
+const char *cb_proto_contactor_state_to_str(enum contactor_state state)
+{
+    switch (state) {
+    case CONTACTOR_STATE_OPEN:
+        return "open";
+    case CONTACTOR_STATE_CLOSED:
+        return "CLOSED";
+    case CONTACTOR_STATE_RESERVED:
+        return "reserved";
+    case CONTACTOR_STATE_UNUSED:
+        return "unused";
     default:
         return "undefined";
     }
@@ -334,11 +360,7 @@ void cb_proto_dump(struct safety_controller *ctx)
              cb_proto_has_estopX_tripped(ctx, 1) ? "yes" : "no",
              cb_proto_has_estopX_tripped(ctx, 2) ? "yes" : "no");
 
-    printfnl("IMD/RCM State: 0x%02x (%s%s%s%s)", cb_proto_get_imd_rcm_errors(ctx),
-             cb_proto_get_imd_rcm_errors(ctx) ? "" : "-no flags set-",
-             (cb_proto_get_imd_rcm_errors(ctx) & IMD_RCM_STATE_CHARGING_ABORT) ? "charging abort" : "",
-             THIS_BIT_AND_ANY_OF_THE_LOWER(cb_proto_get_imd_rcm_errors(ctx), IMD_RCM_STATE_CHARGING_ABORT) ? "," : "",
-             (cb_proto_get_imd_rcm_errors(ctx) & IMD_RCM_STATE_TEST_FAILED) ? "test failed" : "");
+    printfnl("HV Ready: %u", cb_proto_get_hv_ready(ctx));
 
     printfnl("");
     printfnl("== PWM ==");
@@ -351,14 +373,12 @@ void cb_proto_dump(struct safety_controller *ctx)
 
     printfnl("");
     printfnl("== Contactor ==");
-    printfnl("Contactor 1: requested=%-5s   actual=%-6s   %s",
-             cb_proto_get_target_contactor_state(ctx, 0) ? "CLOSE" : "open",
-             cb_proto_get_actual_contactor_state(ctx, 0) ? "CLOSED" : "open",
-             cb_proto_has_contactorN_error(ctx, 0) ? "ERROR" : "no error");
-    printfnl("Contactor 2: requested=%-5s   actual=%-6s   %s",
-              cb_proto_get_target_contactor_state(ctx, 1) ? "CLOSE" : "open",
-              cb_proto_get_actual_contactor_state(ctx, 1) ? "CLOSED" : "open",
-              cb_proto_has_contactorN_error(ctx, 1) ? "ERROR" : "no error");
+    for (i = 0; i < MAX_CONTACTORS; ++i) {
+        printfnl("Contactor %d: requested=%-5s   actual=%-9s   %s", i + 1,
+                 cb_proto_get_target_contactor_state(ctx, i) ? "CLOSE" : "open",
+                 cb_proto_contactor_state_to_str(cb_proto_get_actual_contactor_state(ctx, i)),
+                 cb_proto_contactorN_has_error(ctx, i) ? "ERROR" : "no error");
+    }
 
     printfnl("");
     printfnl("== Temperatures ==");
