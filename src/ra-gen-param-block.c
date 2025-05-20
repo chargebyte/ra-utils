@@ -94,9 +94,9 @@ static void usage(char *p, int exitcode)
 
 struct param_block {
     uint32_t sob;
-    int16_t temp[MAX_PT1000_CHANNELS];
-    uint8_t contactor[MAX_CONTACTORS];
-    uint8_t estop[MAX_ESTOP_CHANNELS];
+    int16_t temp[CB_PROTO_MAX_PT1000S];
+    uint8_t contactor[CB_PROTO_MAX_CONTACTORS];
+    uint8_t estop[CB_PROTO_MAX_ESTOPS];
     uint32_t eob;
     uint8_t crc;
 } __attribute__((packed));
@@ -105,7 +105,7 @@ struct param_block {
 FILE *f;
 struct param_block param_block;
 
-#define ARGC_COUNT (MAX_PT1000_CHANNELS + MAX_CONTACTORS + MAX_ESTOP_CHANNELS + 1 /* filename */)
+#define ARGC_COUNT (CB_PROTO_MAX_PT1000S + CB_PROTO_MAX_CONTACTORS + CB_PROTO_MAX_ESTOPS + 1 /* filename */)
 
 enum contactor_type {
     CONTACTOR_NONE = 0,
@@ -189,7 +189,7 @@ void parse_cli(int argc, char *argv[])
     if (argc != ARGC_COUNT)
         usage(program_invocation_short_name, EXIT_FAILURE);
 
-    for (i = 0; i < MAX_PT1000_CHANNELS; ++i) {
+    for (i = 0; i < CB_PROTO_MAX_PT1000S; ++i) {
         if (strcasecmp(argv[i], "disable") == 0) {
             param_block.temp[i] = htole16(CHANNEL_DISABLE_VALUE);
         } else {
@@ -205,10 +205,10 @@ void parse_cli(int argc, char *argv[])
         }
     }
 
-    argc -= MAX_PT1000_CHANNELS;
-    argv += MAX_PT1000_CHANNELS;
+    argc -= CB_PROTO_MAX_PT1000S;
+    argv += CB_PROTO_MAX_PT1000S;
 
-    for (i = 0; i < MAX_CONTACTORS; ++i) {
+    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
         param_block.contactor[i] = str_to_contactor_type(argv[i]);
         if (param_block.contactor[i] == CONTACTOR_MAX) {
             fprintf(stderr, "Error: invalid contactor specification: %s\n\n", argv[i]);
@@ -216,10 +216,10 @@ void parse_cli(int argc, char *argv[])
         }
     }
 
-    argc -= MAX_CONTACTORS;
-    argv += MAX_CONTACTORS;
+    argc -= CB_PROTO_MAX_CONTACTORS;
+    argv += CB_PROTO_MAX_CONTACTORS;
 
-    for (i = 0; i < MAX_ESTOP_CHANNELS; ++i) {
+    for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
         param_block.estop[i] = str_to_emergeny_stop_type(argv[i]);
         if (param_block.estop[i] == EMERGENY_STOP_MAX) {
             fprintf(stderr, "Error: invalid emergency stop specification: %s\n\n", argv[i]);
@@ -227,8 +227,8 @@ void parse_cli(int argc, char *argv[])
         }
     }
 
-    argc -= MAX_ESTOP_CHANNELS;
-    argv += MAX_ESTOP_CHANNELS;
+    argc -= CB_PROTO_MAX_ESTOPS;
+    argv += CB_PROTO_MAX_ESTOPS;
 
     f = fopen(argv[0], "wb");
     if (!f) {

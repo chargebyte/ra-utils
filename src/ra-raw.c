@@ -290,10 +290,10 @@ int main(int argc, char *argv[])
                     cb_proto_set_pwm_active(&ctx, 0);
                     break;
                 case '1':
-                    cb_proto_set_contactor_state(&ctx, 0, !cb_proto_get_target_contactor_state(&ctx, 0));
+                    cb_proto_contactorN_set_state(&ctx, 0, !cb_proto_contactorN_get_target_state(&ctx, 0));
                     break;
                 case '2':
-                    cb_proto_set_contactor_state(&ctx, 1, !cb_proto_get_target_contactor_state(&ctx, 1));
+                    cb_proto_contactorN_set_state(&ctx, 1, !cb_proto_contactorN_get_target_state(&ctx, 1));
                     break;
                 case '0':
                     cb_proto_set_duty_cycle(&ctx, 0);

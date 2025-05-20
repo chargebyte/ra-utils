@@ -65,40 +65,48 @@ void cb_proto_set_duty_cycle(struct safety_controller *ctx, unsigned int duty_cy
     DATA_SET_BITS(ctx->charge_control, 48, 10, duty_cycle);
 }
 
-enum contactor_state cb_proto_get_actual_contactor_state(struct safety_controller *ctx, unsigned int contactor)
+enum contactor_state cb_proto_contactorN_get_actual_state(struct safety_controller *ctx, unsigned int contactor)
 {
-    return DATA_GET_BITS(ctx->charge_state, 24 + (2 * contactor), 2);
+    return DATA_GET_BITS(ctx->charge_state, 24 + (3 * contactor), 2);
 }
 
-bool cb_proto_get_target_contactor_state(struct safety_controller *ctx, unsigned int contactor)
+bool cb_proto_contactorN_get_target_state(struct safety_controller *ctx, unsigned int contactor)
 {
     return DATA_GET_BITS(ctx->charge_control, 40 + contactor, 1);
 }
 
-void cb_proto_set_contactor_state(struct safety_controller *ctx, unsigned int contactor, bool active)
+void cb_proto_contactorN_set_state(struct safety_controller *ctx, unsigned int contactor, bool active)
 {
     DATA_SET_BITS(ctx->charge_control, 40 + contactor, 1, active);
 }
 
 bool cb_proto_contactorN_is_enabled(struct safety_controller *ctx, unsigned int contactor)
 {
-    return (cb_proto_get_actual_contactor_state(ctx, contactor) == CONTACTOR_STATE_OPEN) ||
-           (cb_proto_get_actual_contactor_state(ctx, contactor) == CONTACTOR_STATE_CLOSED);
+    return (cb_proto_contactorN_get_actual_state(ctx, contactor) == CONTACTOR_STATE_OPEN) ||
+           (cb_proto_contactorN_get_actual_state(ctx, contactor) == CONTACTOR_STATE_CLOSED);
 }
 
 bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int contactor)
 {
-    return cb_proto_get_actual_contactor_state(ctx, contactor) == CONTACTOR_STATE_CLOSED;
-}
-
-bool cb_proto_contactors_have_errors(struct safety_controller *ctx)
-{
-    return cb_proto_contactorN_has_error(ctx, 0) || cb_proto_contactorN_has_error(ctx, 1);
+    return cb_proto_contactorN_get_actual_state(ctx, contactor) == CONTACTOR_STATE_CLOSED;
 }
 
 bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor)
 {
-    return DATA_GET_BITS(ctx->charge_state, 24 + (2 * contactor) + 2, 1);
+    return DATA_GET_BITS(ctx->charge_state, 24 + (3 * contactor) + 2, 1);
+}
+
+bool cb_proto_contactors_have_errors(struct safety_controller *ctx)
+{
+    unsigned int i;
+
+    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+        if (cb_proto_contactorN_is_enabled(ctx, i) &&
+            cb_proto_contactorN_has_error(ctx, i))
+            return true;
+    }
+
+    return false;
 }
 
 bool cb_proto_get_hv_ready(struct safety_controller *ctx)
@@ -131,32 +139,51 @@ enum pp_state cb_proto_get_pp_state(struct safety_controller *ctx)
     return DATA_GET_BITS(ctx->charge_state, 32, 3);
 }
 
-bool cb_proto_has_estop_tripped(struct safety_controller *ctx)
+enum estop_state cb_proto_estopN_get_state(struct safety_controller *ctx, unsigned int estop)
 {
-    return DATA_GET_BITS(ctx->charge_state, 16, 3);
+    return DATA_GET_BITS(ctx->charge_state, 16 + (2 * estop), 2);
 }
 
-bool cb_proto_has_estopX_tripped(struct safety_controller *ctx, unsigned int estop)
+bool cb_proto_estopN_is_enabled(struct safety_controller *ctx, unsigned int estop)
 {
-    return DATA_GET_BITS(ctx->charge_state, 16, 3) & (1 << estop);
+    return (cb_proto_estopN_get_state(ctx, estop) == ESTOP_STATE_NOT_TRIPPED) ||
+           (cb_proto_estopN_get_state(ctx, estop) == ESTOP_STATE_TRIPPED);
+}
+
+bool cb_proto_estopN_is_tripped(struct safety_controller *ctx, unsigned int estop)
+{
+    return cb_proto_estopN_get_state(ctx, estop) == ESTOP_STATE_TRIPPED;
+}
+
+bool cb_proto_has_estop_any_tripped(struct safety_controller *ctx)
+{
+    unsigned int i;
+
+    for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
+        if (cb_proto_estopN_is_enabled(ctx, i) &&
+            cb_proto_estopN_is_tripped(ctx, i))
+            return true;
+    }
+
+    return false;
 }
 
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel)
 {
-    return DATA_GET_BITS(ctx->pt1000, 16 * (MAX_PT1000_CHANNELS - 1 - channel) + 2, 14) != PT1000_TEMPERATURE_UNUSED;
+    return DATA_GET_BITS(ctx->pt1000, 16 * (CB_PROTO_MAX_PT1000S - 1 - channel) + 2, 14) != PT1000_TEMPERATURE_UNUSED;
 }
 
 double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int channel)
 {
     /* we access the whole 16 bit so that we shift correctly */
-    int16_t d = DATA_GET_BITS(ctx->pt1000, 16 * (MAX_PT1000_CHANNELS - 1 - channel), 16);
+    int16_t d = DATA_GET_BITS(ctx->pt1000, 16 * (CB_PROTO_MAX_PT1000S - 1 - channel), 16);
 
     return (double)(d >> 2) / 10.0;
 }
 
 unsigned int cb_proto_pt1000_get_errors(struct safety_controller *ctx, unsigned int channel)
 {
-    return DATA_GET_BITS(ctx->pt1000, 16 * (MAX_PT1000_CHANNELS - 1 - channel), 2);
+    return DATA_GET_BITS(ctx->pt1000, 16 * (CB_PROTO_MAX_PT1000S - 1 - channel), 2);
 }
 
 unsigned int cb_proto_fw_get_major(struct safety_controller *ctx)
@@ -271,6 +298,22 @@ const char *cb_proto_contactor_state_to_str(enum contactor_state state)
     }
 }
 
+const char *cb_proto_estop_state_to_str(enum estop_state state)
+{
+    switch (state) {
+    case ESTOP_STATE_NOT_TRIPPED:
+        return "not tripped";
+    case ESTOP_STATE_TRIPPED:
+        return "TRIPPED";
+    case ESTOP_STATE_RESERVED:
+        return "reserved";
+    case ESTOP_STATE_UNUSED:
+        return "unused";
+    default:
+        return "undefined";
+    }
+}
+
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type)
 {
     switch (type) {
@@ -355,10 +398,11 @@ void cb_proto_dump(struct safety_controller *ctx)
 
     printfnl("Proximity Pilot: %s", cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
 
-    printfnl("Emergency Stop Tripped: ESTOP1=%-3s  ESTOP2=%-3s  ESTOP2=%-3s",
-             cb_proto_has_estopX_tripped(ctx, 0) ? "yes" : "no",
-             cb_proto_has_estopX_tripped(ctx, 1) ? "yes" : "no",
-             cb_proto_has_estopX_tripped(ctx, 2) ? "yes" : "no");
+    printf("Emergency Stop Tripped:");
+    for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
+        printf(" ESTOP%d=%-11s ", i + 1, cb_proto_estop_state_to_str(cb_proto_estopN_get_state(ctx, i)));
+    }
+    printfnl("");
 
     printfnl("HV Ready: %u", cb_proto_get_hv_ready(ctx));
 
@@ -373,16 +417,16 @@ void cb_proto_dump(struct safety_controller *ctx)
 
     printfnl("");
     printfnl("== Contactor ==");
-    for (i = 0; i < MAX_CONTACTORS; ++i) {
+    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
         printfnl("Contactor %d: requested=%-5s   actual=%-9s   %s", i + 1,
-                 cb_proto_get_target_contactor_state(ctx, i) ? "CLOSE" : "open",
-                 cb_proto_contactor_state_to_str(cb_proto_get_actual_contactor_state(ctx, i)),
+                 cb_proto_contactorN_get_target_state(ctx, i) ? "CLOSE" : "open",
+                 cb_proto_contactor_state_to_str(cb_proto_contactorN_get_actual_state(ctx, i)),
                  cb_proto_contactorN_has_error(ctx, i) ? "ERROR" : "no error");
     }
 
     printfnl("");
     printfnl("== Temperatures ==");
-    for (i = 0; i < MAX_PT1000_CHANNELS; ++i) {
+    for (i = 0; i < CB_PROTO_MAX_PT1000S; ++i) {
         bool is_enabled = cb_proto_pt1000_is_active(ctx, i);
 
         printf("Channel %d: enabled=%-3s temperature=", i + 1, is_enabled ? "yes" : "no");

@@ -14,22 +14,22 @@ extern "C" {
 #include "cb_uart.h"
 
 /* the MCU is expected to answer requests via inquiry messages within this time, in ms */
-#define RESPONSE_TIMEOUT_MS 20
+#define CB_PROTO_RESPONSE_TIMEOUT_MS 20
 
 /* the MCU expects Charge Control messages with this periodicity, in ms */
-#define CHARGE_CONTROL_INTERVAL 100
+#define CB_PROTO_CHARGE_CONTROL_INTERVAL 100
 
 /* the MCU sends Charge State messages with this periodicity, in ms */
-#define CHARGE_STATE_INTERVAL 100
+#define CB_PROTO_CHARGE_STATE_INTERVAL 100
 
 /* maximum supported contactors */
-#define MAX_CONTACTORS 2
+#define CB_PROTO_MAX_CONTACTORS 2
 
 /* maximum count of PT1000 channels */
-#define MAX_PT1000_CHANNELS 4
+#define CB_PROTO_MAX_PT1000S 4
 
 /* maximum emergency stop channels */
-#define MAX_ESTOP_CHANNELS 3
+#define CB_PROTO_MAX_ESTOPS 3
 
 /* possible CP states */
 enum cp_state {
@@ -68,6 +68,15 @@ enum contactor_state {
     CONTACTOR_STATE_RESERVED = 0x2,
     CONTACTOR_STATE_UNUSED = 0x3,
     CONTACTOR_STATE_MAX,
+};
+
+/* possible estop states */
+enum estop_state {
+    ESTOP_STATE_NOT_TRIPPED = 0x0,
+    ESTOP_STATE_TRIPPED = 0x1,
+    ESTOP_STATE_RESERVED = 0x2,
+    ESTOP_STATE_UNUSED = 0x3,
+    ESTOP_STATE_MAX,
 };
 
 /* PT1000 related bit flags */
@@ -117,15 +126,15 @@ unsigned int cb_proto_get_actual_duty_cycle(struct safety_controller *ctx);
 unsigned int cb_proto_get_target_duty_cycle(struct safety_controller *ctx);
 void cb_proto_set_duty_cycle(struct safety_controller *ctx, unsigned int duty_cycle);
 
-enum contactor_state cb_proto_get_actual_contactor_state(struct safety_controller *ctx, unsigned int contactor);
-bool cb_proto_get_target_contactor_state(struct safety_controller *ctx, unsigned int contactor);
-void cb_proto_set_contactor_state(struct safety_controller *ctx, unsigned int contactor, bool active);
+enum contactor_state cb_proto_contactorN_get_actual_state(struct safety_controller *ctx, unsigned int contactor);
+bool cb_proto_contactorN_get_target_state(struct safety_controller *ctx, unsigned int contactor);
+void cb_proto_contactorN_set_state(struct safety_controller *ctx, unsigned int contactor, bool active);
 
 bool cb_proto_contactorN_is_enabled(struct safety_controller *ctx, unsigned int contactor);
 bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int contactor);
+bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor);
 
 bool cb_proto_contactors_have_errors(struct safety_controller *ctx);
-bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor);
 
 bool cb_proto_get_hv_ready(struct safety_controller *ctx);
 
@@ -136,8 +145,10 @@ bool cb_proto_is_diode_fault(struct safety_controller *ctx);
 
 enum pp_state cb_proto_get_pp_state(struct safety_controller *ctx);
 
-bool cb_proto_has_estop_tripped(struct safety_controller *ctx);
-bool cb_proto_has_estopX_tripped(struct safety_controller *ctx, unsigned int estop);
+enum estop_state cb_proto_estopN_get_state(struct safety_controller *ctx, unsigned int estop);
+bool cb_proto_estopN_is_enabled(struct safety_controller *ctx, unsigned int estop);
+bool cb_proto_estopN_is_tripped(struct safety_controller *ctx, unsigned int estop);
+bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx);
 
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel);
 double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int channel);
@@ -170,6 +181,7 @@ void cb_proto_set_git_hash_str(struct safety_controller *ctx);
 const char *cb_proto_cp_state_to_str(enum cp_state state);
 const char *cb_proto_pp_state_to_str(enum cp_state state);
 const char *cb_proto_contactor_state_to_str(enum contactor_state state);
+const char *cb_proto_estop_state_to_str(enum estop_state state);
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type);
 const char *cb_proto_fw_application_type_to_str(enum fw_application_type type);
 
