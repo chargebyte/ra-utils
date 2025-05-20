@@ -10,7 +10,7 @@
  * @brief Structure of the application validation block.
  *
  * This structure contains all information which are necessary to check
- *  if the code of an application is valid and can be executed.
+ * if the code of an application is valid and can be executed.
  */
 struct version_app_infoblock {
     uint32_t start_magic_pattern;  ///< Magic pattern to ensure, that this block is valid
@@ -20,7 +20,9 @@ struct version_app_infoblock {
     uint8_t sw_minor_version;      ///< Software minor version
     uint8_t sw_build_version;      ///< Software build version
     uint64_t git_hash;             ///< Git hash of the HEAD used to build this SW
-    uint8_t reserved[5];           ///< 5 bytes for future use
+    uint8_t sw_platform_type;      ///< Software platform type
+    uint8_t sw_application_type;   ///< Software application type
+    uint8_t reserved[3];           ///< 5 bytes for future use
     uint32_t end_magic_pattern;    ///< Magic pattern to ensure, that this block is valid
 } __attribute__((packed));
 
@@ -40,3 +42,17 @@ bool fw_valid_version_app_infoblock(struct version_app_infoblock *p);
 
 /* note: inversed logic - returns true in case the infoblock is invalid */
 bool fw_print_amended_version_app_infoblock(struct version_app_infoblock *p, const char *header);
+
+/* possible platform types (field 'sw_platform_type') */
+#define SW_PLATFORM_TYPE_UNSPECIFIED    0xFF /* erased flash */
+#define SW_PLATFORM_TYPE_UNKOWN         0x00
+#define SW_PLATFORM_TYPE_DEFAULT        0x81
+#define SW_PLATFORM_TYPE_CCY            0x82
+
+/* possible values of field 'sw_application_type' */
+#define SW_APPLICATION_TYPE_FIRMWARE    0x03
+#define SW_APPLICATION_TYPE_EOL         0x04
+#define SW_APPLICATION_TYPE_QUALI       0x05
+
+const char *fw_sw_platform_type_to_str(uint8_t type);
+const char *fw_sw_application_type_to_str(uint8_t type);

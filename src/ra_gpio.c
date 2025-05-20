@@ -9,8 +9,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <gpiod.h>
+#include <logging.h>
+#include <tools.h>
 #include "ra_gpio.h"
-#include "tools.h"
 
 struct gpio_ctx {
     const char *gpiochip;

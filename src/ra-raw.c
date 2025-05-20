@@ -1,7 +1,7 @@
 /*
  * Copyright © 2024 chargebyte GmbH
  *
- * This is a command line tool which implements the low-level UART protocol
+ * This is a command line tool which implements the UART protocol
  * of chargebyte's safety controller on e.g. Charge SOM.
  * It aims to support engineering validation or debug cases.
  *
@@ -16,8 +16,12 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include <ctype.h>
 #include <errno.h>
+#include <endian.h>
+#include <fcntl.h>
 #include <getopt.h>
+#include <poll.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -25,11 +29,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
 #include <unistd.h>
-#include "cb_protocol.h"
+#include <cb_protocol.h>
+#include <cb_uart.h>
+#include <logging.h>
+#include <tools.h>
+#include <uart.h>
 #include "stringify.h"
-#include "tools.h"
-#include "uart.h"
 
 /* default uart interface */
 #define DEFAULT_UART_INTERFACE "/dev/ttyLP2"
@@ -96,16 +103,41 @@ static bool verbose = false;
 /* here, too - to simplify, use these as globals */
 static char *uart_device = DEFAULT_UART_INTERFACE;
 
-void debug(const char *format, ...)
+static void debug_cb(const char *format, va_list args)
+{
+    if (verbose) {
+        printf("debug: ");
+        vprintf(format, args);
+        printf("\r\n");
+    }
+}
+
+static void error_cb(const char *format, va_list args)
+{
+    fprintf(stderr, "Error: ");
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\r\n");
+}
+
+static void xdebug(const char *format, ...)
 {
     if (verbose) {
         va_list args;
         va_start(args, format);
-        printf("debug: ");
-        vprintf(format, args);
-        printf("\n");
+        debug_cb(format, args);
         va_end(args);
     }
+}
+
+void make_stdin_unbuffered(struct termios *orig)
+{
+    struct termios termios_new;
+
+    tcgetattr(STDIN_FILENO, orig);
+    memcpy(&termios_new, orig, sizeof(termios_new));
+    cfmakeraw(&termios_new);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &termios_new);
 }
 
 void parse_cli(int argc, char *argv[])
@@ -154,16 +186,26 @@ void parse_cli(int argc, char *argv[])
         usage(program_invocation_short_name, EXIT_FAILURE);
 }
 
-
 int main(int argc, char *argv[])
 {
-    struct safety_controller data = { .duty_cycle = 5, .pp_sae_iec = true };
+    struct termios termios_orig;
+    struct pollfd poll_fds[2]; /* stdin at [0], UART fd at [1] */
+    int fds = 2;
     struct uart_ctx uart = { .fd = -1 };
+    struct safety_controller ctx = {};
+    enum cb_uart_com com;
+    uint64_t data;
+    bool fw_version_requested = false;
+    bool git_hash_requested = false;
     int rc = EXIT_FAILURE;
     int rv;
 
     /* handle command line options */
     parse_cli(argc, argv);
+
+    /* register debug and error message callbacks */
+    libcbuart_set_error_msg_cb(error_cb);
+    libcbuart_set_debug_msg_cb(debug_cb);
 
     /* the baudrate of the MCU with running firmware should be 115200 */
     rv = uart_open(&uart, uart_device, 115200);
@@ -172,24 +214,164 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    while (1) {
-        /* (re-)enable PP pull-up: since we read the hardware state back
-         * we must prevent that it is turned off by accident */
-        data.pp_sae_iec = true;
+    /* ensure virgin start state and add stdin */
+    memset(poll_fds, 0, sizeof(poll_fds));
+    poll_fds[0].fd = STDIN_FILENO;
+    poll_fds[0].events = POLLIN;
+    poll_fds[1].fd = uart.fd;
+    poll_fds[1].events = POLLIN;
 
-        /* query all data to our stucture */
-        rv = cb_single_run(&uart, &data);
-        if (rv) {
-            error("Error while retrieving data: %m");
-            goto close_out;
+    /* maybe this need yet another option flag */
+    uart_trace(&uart, verbose);
+
+    /* sync the receiving side */
+    rv = cb_uart_recv_and_sync(&uart, &com, &data);
+    if (rv) {
+        error("could not synchronize to the safety controller: %m");
+        return -1;
+    }
+
+    /* make stdin unbuffered: otherwise poll will only react on <Enter> */
+    make_stdin_unbuffered(&termios_orig);
+
+    while (1) {
+        int rv;
+
+        if (!fw_version_requested) {
+            rv = cb_send_uart_inquiry(&uart, COM_FW_VERSION);
+            if (rv) {
+                error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(COM_FW_VERSION));
+                goto close_out;
+            }
+            fw_version_requested = true;
+        } else if (!git_hash_requested) {
+            rv = cb_send_uart_inquiry(&uart, COM_GIT_HASH);
+            if (rv) {
+                error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(COM_GIT_HASH));
+                goto close_out;
+            }
+            git_hash_requested = true;
+        } else if (com == COM_CHARGE_STATE) {
+            /* send out charge control frame when last received frame was a charge state one */
+            rv = cb_uart_send(&uart, COM_CHARGE_CONTROL, ctx.charge_control);
+            if (rv) {
+                error("error while sending charge control frame: %m");
+                goto close_out;
+            }
         }
 
-        /* clear screen (in verbose mode, this does not make sense) */
-        if (!verbose)
-            printf("\033[H\033[J");
+        rv = poll(poll_fds, fds, -1);
+        if (rv == -1) {
+            if (errno == EINTR)
+                goto close_out;
 
-        /* dump it */
-        cb_dump_data(&data);
+            error("poll() failed: %m");
+            continue;
+        }
+        if (rv == 0)
+            continue;
+
+        /* check stdin */
+        if ((poll_fds[0].revents & POLLIN) != 0) {
+            ssize_t len;
+            char cmd;
+
+            len = read(poll_fds[0].fd, &cmd, sizeof(cmd));
+            if (len < 0) {
+                error("Could not read command from STDIN: %m");
+                goto close_out;
+            }
+            if (len == sizeof(cmd)) {
+                switch (cmd) {
+                case 'e':
+                    cb_proto_set_pwm_active(&ctx, 1);
+                    break;
+                case 'E':
+                    cb_proto_set_pwm_active(&ctx, 0);
+                    break;
+                case '1':
+                    cb_proto_contactorN_set_state(&ctx, 0, !cb_proto_contactorN_get_target_state(&ctx, 0));
+                    break;
+                case '2':
+                    cb_proto_contactorN_set_state(&ctx, 1, !cb_proto_contactorN_get_target_state(&ctx, 1));
+                    break;
+                case '0':
+                    cb_proto_set_duty_cycle(&ctx, 0);
+                    break;
+                case '5':
+                    cb_proto_set_duty_cycle(&ctx, 50);
+                    break;
+                case '9':
+                    cb_proto_set_duty_cycle(&ctx, 1000);
+                    break;
+                case '-':
+                    cb_proto_set_duty_cycle(&ctx, cb_proto_get_target_duty_cycle(&ctx) - 10);
+                    break;
+                case '+':
+                    cb_proto_set_duty_cycle(&ctx, cb_proto_get_target_duty_cycle(&ctx) + 10);
+                    break;
+                case 'q':
+                case 0x03: /* Ctrl-C */
+                    goto close_out;
+                case '\r':
+                case '\n':
+                    printf("\r\n");
+                    break;
+                default:
+                    if (isprint(cmd))
+                        error("Unknown command '%c', use 'h' or '?' to show available commands.", cmd);
+                    else
+                        error("Unknown command '0x%02x', use 'h' or '?' to show available commands.", cmd);
+                }
+            }
+        }
+
+        /* check UART input */
+        if ((poll_fds[1].revents & POLLIN) != 0) {
+            rv = cb_uart_recv(&uart, &com, &data);
+            if (rv) {
+                error("error while receiving frame from the safety controller: %m");
+                goto close_out;
+            }
+
+            cb_proto_set_ts_str(&ctx, com);
+
+            debug("received frame: %s", cb_uart_com_to_str(com));
+
+            switch (com) {
+            case COM_CHARGE_STATE:
+                ctx.charge_state = data;
+                break;
+            case COM_PT1000_STATE:
+                ctx.pt1000 = data;
+                break;
+            case COM_FW_VERSION:
+                ctx.fw_version = data;
+                cb_proto_set_fw_version_str(&ctx);
+                break;
+            case COM_GIT_HASH:
+                ctx.git_hash = data;
+                cb_proto_set_git_hash_str(&ctx);
+                break;
+            default:
+                /* not yet implemented */
+            }
+
+            /* clear screen (in verbose mode, this does not make sense) */
+            if (!verbose)
+                printf("\033[H\033[J");
+
+            /* dump it */
+            cb_proto_dump(&ctx);
+
+            printf("\r\n");
+            printf("== Available commands ==\r\n"
+                   "  e -- enable PWM                   E -- disable PWM\r\n"
+                   "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
+                   "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%\r\n"
+                   "  1 -- toggle contactor 1           2 -- toggle contactor 2\r\n"
+                   "  q -- quit the program\r\n");
+        }
     }
 
     rc = EXIT_SUCCESS;
@@ -200,6 +382,9 @@ close_out:
         if (rv)
             error("closing UART failed: %m");
     }
+
+    /* restore terminal settings */
+    tcsetattr(STDIN_FILENO, TCSANOW, &termios_orig);
 
     return rc;
 }
