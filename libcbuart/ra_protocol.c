@@ -1,5 +1,10 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Note: the following structures and their fields, the magic values etc.
+ * are documented in the Renesas RA family's system specification document
+ * for the standard boot firmware.
  */
 #include <endian.h>
 #include <errno.h>

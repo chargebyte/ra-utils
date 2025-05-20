@@ -5,7 +5,7 @@
  * Main purpose is to update the so called "safety controller" which is
  * used on various chargebyte boards, including the Charge SOM.
  * This implementation follows: Standard_Boot_Firmware.pdf that can be found
- * on chargebyte's internal NAS, or e.g. publically available here:
+ * on chargebyte's internal NAS, or e.g. publicly available here:
  * https://www.renesas.com/us/en/document/apn/renesas-ra-family-system-specifications-standard-boot-firmware-0
  *
  * Usage: ra-update [<options>] <command> [<parameter>...]

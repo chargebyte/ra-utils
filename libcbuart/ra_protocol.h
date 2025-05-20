@@ -1,5 +1,6 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  */
 #pragma once
 
@@ -19,6 +20,10 @@ int ra_set_baudrate(struct uart_ctx *uart, int baudrate);
  */
 
 int ra_inquiry(struct uart_ctx *uart);
+
+/* Note: the following structures and their fields are documented in the
+ * Renesas RA family's system specification document for the standard boot firmware
+ */
 
 struct signature_rsp {
     uint8_t sod;
