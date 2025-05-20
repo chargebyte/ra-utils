@@ -513,6 +513,10 @@ int main(int argc, char *argv[])
         /* before we do anything, let's check the filesize */
         if (cmd == CMD_FLASH) {
             /* it must not be larger than the area */
+            if (fw_filesize == 0) {
+                xerror("This file cannot be flashed, it is empty (length is zero).");
+                goto reset_to_normal_out;
+            }
             if (fw_filesize > flash_area_info->size) {
                 xerror("This file cannot be flashed, it is too large (maximum possible size: %zu bytes).",
                        flash_area_info->size);
