@@ -269,6 +269,8 @@ uint8_t crc8(uint8_t *p, size_t len)
 
 int main(int argc, char *argv[])
 {
+    int rv = EXIT_SUCCESS;
+
     /* handle command line options */
     parse_cli(argc, argv);
 
@@ -276,8 +278,18 @@ int main(int argc, char *argv[])
     param_block.eob = htole32(MARKER);
     param_block.crc = crc8((uint8_t *)&param_block, sizeof(param_block) - 1);
 
-    fwrite(&param_block, sizeof(param_block), 1, f);
-    fclose(f);
+    if (fwrite(&param_block, sizeof(param_block), 1, f) != 1) {
+        fprintf(stderr, "Error while writing: %m");
+        rv = EXIT_FAILURE;
 
-    return 0;
+        /* close but do not look at result */
+        fclose(f);
+    } else {
+        if (fclose(f) == EOF) {
+            fprintf(stderr, "Error while closing: %m");
+            rv = EXIT_FAILURE;
+        }
+    }
+
+    return rv;
 }
