@@ -1,5 +1,6 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  *
  * This is a command line tool which implements the UART protocol
  * of chargebyte's safety controller on e.g. Charge SOM.

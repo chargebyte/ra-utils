@@ -1,5 +1,6 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  *
  * This is a command line tool which implements the Renesas bootloader protocol.
  * Main purpose is to update the so called "safety controller" which is

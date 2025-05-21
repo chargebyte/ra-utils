@@ -1,5 +1,6 @@
 /*
  * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  */
 #include <sys/mman.h>
 #include <sys/stat.h>

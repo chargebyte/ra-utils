@@ -1,5 +1,6 @@
 /*
- * Copyright © 2025 chargebyte GmbH
+ * Copyright © 2024 chargebyte GmbH
+ * SPDX-License-Identifier: Apache-2.0
  *
  * This is a command line tool which generates a parameter block used by the
  * chargebyte's safety controller on e.g. Charge SOM.
