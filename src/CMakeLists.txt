@@ -6,13 +6,13 @@ add_executable(ra-update
 
 target_include_directories(ra-update
     PRIVATE
-        ${LIBCBUART_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_DIR}
         ${LIBGPIOD_INCLUDE_DIRS}
 )
 
 target_link_libraries(ra-update
     PRIVATE
-        libcbuart
+        ra-utils
         ${LIBGPIOD_LIBRARIES}
 )
 
@@ -24,12 +24,12 @@ add_executable(ra-raw
 
 target_include_directories(ra-raw
     PRIVATE
-        ${LIBCBUART_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_DIR}
 )
 
 target_link_libraries(ra-raw
     PRIVATE
-        libcbuart
+        ra-utils
 )
 
 install(TARGETS ra-raw DESTINATION sbin)
@@ -40,7 +40,7 @@ add_executable(ra-gen-param-block
 
 target_include_directories(ra-gen-param-block
     PRIVATE
-        ${LIBCBUART_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_DIR}
 )
 
 install(TARGETS ra-gen-param-block DESTINATION bin)

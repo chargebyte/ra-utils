@@ -13,10 +13,10 @@ extern "C" {
 void error(const char *format, ...);
 void debug(const char *format, ...);
 
-typedef void (*libcbuart_msg_cb)(const char *format, va_list args);
+typedef void (*ra_utils_msg_cb)(const char *format, va_list args);
 
-void libcbuart_set_error_msg_cb(libcbuart_msg_cb cb);
-void libcbuart_set_debug_msg_cb(libcbuart_msg_cb cb);
+void ra_utils_set_error_msg_cb(ra_utils_msg_cb cb);
+void ra_utils_set_debug_msg_cb(ra_utils_msg_cb cb);
 
 #ifdef __cplusplus
 }

@@ -205,8 +205,8 @@ int main(int argc, char *argv[])
     parse_cli(argc, argv);
 
     /* register debug and error message callbacks */
-    libcbuart_set_error_msg_cb(error_cb);
-    libcbuart_set_debug_msg_cb(debug_cb);
+    ra_utils_set_error_msg_cb(error_cb);
+    ra_utils_set_debug_msg_cb(debug_cb);
 
     /* the baudrate of the MCU with running firmware should be 115200 */
     rv = uart_open(&uart, uart_device, 115200);

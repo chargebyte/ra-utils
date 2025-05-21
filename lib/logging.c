@@ -6,9 +6,9 @@
 #include <stddef.h>
 #include "logging.h"
 
-static libcbuart_msg_cb debug_cb = NULL;
+static ra_utils_msg_cb debug_cb = NULL;
 
-void libcbuart_set_debug_msg_cb(libcbuart_msg_cb cb)
+void ra_utils_set_debug_msg_cb(ra_utils_msg_cb cb)
 {
     debug_cb = cb;
 }
@@ -23,9 +23,9 @@ void debug(const char *format, ...)
     }
 }
 
-static libcbuart_msg_cb error_cb = NULL;
+static ra_utils_msg_cb error_cb = NULL;
 
-void libcbuart_set_error_msg_cb(libcbuart_msg_cb cb)
+void ra_utils_set_error_msg_cb(ra_utils_msg_cb cb)
 {
     error_cb = cb;
 }

@@ -409,8 +409,8 @@ int main(int argc, char *argv[])
     parse_cli(argc, argv);
 
     /* register debug and error message callbacks */
-    libcbuart_set_error_msg_cb(error_cb);
-    libcbuart_set_debug_msg_cb(debug_cb);
+    ra_utils_set_error_msg_cb(error_cb);
+    ra_utils_set_debug_msg_cb(debug_cb);
 
     /* we need the GPIO stuff always except when only printing the fw_info from a file */
     if (!(cmd == CMD_FW_INFO && fw_filename)) {
