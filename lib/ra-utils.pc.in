@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name=ra-utils
+Description=Library for safety controller access
+Version=@PROJECT_VERSION@
+Libs=-L${libdir} -lra-utils
+Cflags=-I${includedir}

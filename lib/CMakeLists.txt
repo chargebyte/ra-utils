@@ -13,15 +13,6 @@ target_sources(ra-utils
         "uart.c"
 )
 
-target_link_libraries(ra-utils m)
-
-set_target_properties(ra-utils
-    PROPERTIES
-       VERSION ${PROJECT_VERSION}
-       SOVERSION 1
-)
-
-install(TARGETS ra-utils DESTINATION lib)
 install(
     FILES
         "cb_uart.h"
@@ -31,4 +22,46 @@ install(
         "uart.h"
     DESTINATION
         "include/ra-utils"
+)
+
+target_link_libraries(ra-utils m)
+
+set_target_properties(ra-utils
+    PROPERTIES
+       VERSION ${PROJECT_VERSION}
+       SOVERSION 1
+)
+
+set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
+
+install(
+    TARGETS ra-utils
+    EXPORT ra-utilsTargets
+    LIBRARY DESTINATION lib
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+    EXPORT ra-utilsTargets
+    FILE ra-utilsTargets.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ra-utils
+)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/ra-utilsConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/ra-utilsConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ra-utils
+    PATH_VARS INCLUDE_INSTALL_DIR
+)
+
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/ra-utilsConfig.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ra-utils
+)
+
+# pkg-config file generation
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ra-utils.pc.in ra-utils.pc @ONLY)
+install(
+    FILES ${CMAKE_BINARY_DIR}/lib/ra-utils.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
 )

@@ -6,6 +6,7 @@ project(ra-utils
     LANGUAGES C
 )
 
+include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
 # latest firmware and example parameter blocks
