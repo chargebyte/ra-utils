@@ -6,6 +6,11 @@ project(ra-utils
     LANGUAGES C
 )
 
+include(GNUInstallDirs)
+
+# latest firmware and example parameter blocks
+add_subdirectory(firmware)
+
 # search for package PkgConfig
 find_package(PkgConfig REQUIRED)
 
@@ -14,10 +19,3 @@ pkg_search_module(LIBGPIOD REQUIRED libgpiod)
 
 add_subdirectory(libcbuart)
 add_subdirectory(src)
-
-include(GNUInstallDirs)
-
-install(
-    FILES chargeSOM_fw_v_00_02_00.bin chargeSOM_parameter-block_only-contactor.bin
-    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}
-)
