@@ -18,6 +18,6 @@ add_subdirectory(src)
 include(GNUInstallDirs)
 
 install(
-    FILES safety-sw_Charge-SOM.bin parameter-block_Charge-SOM_only-contactor.bin
+    FILES chargeSOM_fw_v_00_02_00.bin chargeSOM_parameter-block_only-contactor.bin
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}
 )
