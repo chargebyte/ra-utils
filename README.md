@@ -13,3 +13,8 @@ Tools included here:
   debug purposes.
 - **ra-gen-param-block**: This tools allows to generate a parameter block
   which is used as parameterization for the safety controller.
+
+## Dependencies
+
+Some tools depend on [libgpiod](git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git),
+the currently used/tested version is v2.0.1 of the library.
