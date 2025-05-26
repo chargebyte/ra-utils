@@ -10,6 +10,7 @@
  *
  * Options:
  *         -d, --uart              UART interface (default: /dev/ttyLP2)
+ *         -S, --sync              initial receive sync (default: send packet first)
  *         -v, --verbose           verbose operation
  *         -V, --version           print version and exit
  *         -h, --help              print this usage and exit
@@ -49,6 +50,7 @@
 /* command line options */
 static const struct option long_options[] = {
     { "uart",               required_argument,      0,      'd' },
+    { "sync",               no_argument,            0,      'S' },
 
     { "verbose",            no_argument,            0,      'v' },
     { "version",            no_argument,            0,      'V' },
@@ -56,11 +58,12 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "d:vVh";
+static const char *short_options = "d:SvVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
     "UART interface (default: " DEFAULT_UART_INTERFACE ")",
+    "initial receive sync (default: send packet first)",
 
     "verbose operation",
     "print version and exit",
@@ -100,6 +103,7 @@ static void usage(char *p, int exitcode)
 
 /* to simplify, this is global */
 static bool verbose = false;
+static bool intial_sync = false;
 
 /* here, too - to simplify, use these as globals */
 static char *uart_device = DEFAULT_UART_INTERFACE;
@@ -156,6 +160,9 @@ void parse_cli(int argc, char *argv[])
         switch (c) {
         case 'd':
             uart_device = optarg;
+            break;
+        case 'S':
+            intial_sync = true;
             break;
 
         case 'v':
@@ -225,11 +232,13 @@ int main(int argc, char *argv[])
     /* maybe this need yet another option flag */
     uart_trace(&uart, verbose);
 
-    /* sync the receiving side */
-    rv = cb_uart_recv_and_sync(&uart, &com, &data);
-    if (rv) {
-        error("could not synchronize to the safety controller: %m");
-        return -1;
+    if (intial_sync) {
+        /* sync the receiving side */
+        rv = cb_uart_recv_and_sync(&uart, &com, &data);
+        if (rv) {
+            error("could not synchronize to the safety controller: %m");
+            return -1;
+        }
     }
 
     /* make stdin unbuffered: otherwise poll will only react on <Enter> */
@@ -331,7 +340,20 @@ int main(int argc, char *argv[])
         if ((poll_fds[1].revents & POLLIN) != 0) {
             rv = cb_uart_recv(&uart, &com, &data);
             if (rv) {
+                uint8_t buf[64];
+                ssize_t c;
+
                 error("error while receiving frame from the safety controller: %m");
+
+                c = read(uart.fd, &buf, sizeof(buf));
+                if (c < 0) {
+                    error("error while receiving unprocessed data: %m");
+                    goto close_out;
+                }
+
+                error("unprocessed data in input buffer follows (%zu bytes):", c);
+
+                uart_dump_frame(false, buf, c);
                 goto close_out;
             }
 
