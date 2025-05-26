@@ -11,6 +11,7 @@
  * Options:
  *         -d, --uart              UART interface (default: /dev/ttyLP2)
  *         -S, --sync              initial receive sync (default: send packet first)
+ *         -D, --no-dump           don't dump data (useful only in verbose mode to print only received frames)
  *         -v, --verbose           verbose operation
  *         -V, --version           print version and exit
  *         -h, --help              print this usage and exit
@@ -51,6 +52,7 @@
 static const struct option long_options[] = {
     { "uart",               required_argument,      0,      'd' },
     { "sync",               no_argument,            0,      'S' },
+    { "no-dump",            no_argument,            0,      'D' },
 
     { "verbose",            no_argument,            0,      'v' },
     { "version",            no_argument,            0,      'V' },
@@ -58,12 +60,13 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "d:SvVh";
+static const char *short_options = "d:DSvVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
     "UART interface (default: " DEFAULT_UART_INTERFACE ")",
     "initial receive sync (default: send packet first)",
+    "don't dump data (useful only in verbose mode to print only received frames)",
 
     "verbose operation",
     "print version and exit",
@@ -104,6 +107,7 @@ static void usage(char *p, int exitcode)
 /* to simplify, this is global */
 static bool verbose = false;
 static bool intial_sync = false;
+static bool no_dump = false;
 
 /* here, too - to simplify, use these as globals */
 static char *uart_device = DEFAULT_UART_INTERFACE;
@@ -163,6 +167,9 @@ void parse_cli(int argc, char *argv[])
             break;
         case 'S':
             intial_sync = true;
+            break;
+        case 'D':
+            no_dump = true;
             break;
 
         case 'v':
@@ -394,16 +401,18 @@ int main(int argc, char *argv[])
             if (!verbose)
                 printf("\033[H\033[J");
 
-            /* dump it */
-            cb_proto_dump(&ctx);
+            if (!no_dump) {
+                /* dump it */
+                cb_proto_dump(&ctx);
 
-            printf("\r\n");
-            printf("== Available commands ==\r\n"
-                   "  e -- enable PWM                   E -- disable PWM\r\n"
-                   "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
-                   "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%\r\n"
-                   "  1 -- toggle contactor 1           2 -- toggle contactor 2\r\n"
-                   "  q -- quit the program\r\n");
+                printf("\r\n");
+                printf("== Available commands ==\r\n"
+                       "  e -- enable PWM                   E -- disable PWM\r\n"
+                       "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
+                       "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%\r\n"
+                       "  1 -- toggle contactor 1           2 -- toggle contactor 2\r\n"
+                       "  q -- quit the program\r\n");
+            }
         }
     }
 
