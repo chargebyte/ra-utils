@@ -316,10 +316,16 @@ int main(int argc, char *argv[])
                 case '9':
                     cb_proto_set_duty_cycle(&ctx, 1000);
                     break;
-                case '-':
-                    cb_proto_set_duty_cycle(&ctx, cb_proto_get_target_duty_cycle(&ctx) - 10);
+                case '-': {
+                    unsigned int duty_cycle = cb_proto_get_target_duty_cycle(&ctx) - 10;
+                    /* check for underflow */
+                    if (duty_cycle > 1000)
+                        duty_cycle = 0;
+                    cb_proto_set_duty_cycle(&ctx, duty_cycle);
                     break;
+                }
                 case '+':
+                    /* overflow is already checked in library */
                     cb_proto_set_duty_cycle(&ctx, cb_proto_get_target_duty_cycle(&ctx) + 10);
                     break;
                 case 'q':

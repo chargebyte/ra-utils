@@ -62,6 +62,8 @@ unsigned int cb_proto_get_target_duty_cycle(struct safety_controller *ctx)
 
 void cb_proto_set_duty_cycle(struct safety_controller *ctx, unsigned int duty_cycle)
 {
+    if (duty_cycle > 1000)
+        duty_cycle = 1000;
     DATA_SET_BITS(ctx->charge_control, 48, 10, duty_cycle);
 }
 
