@@ -204,7 +204,9 @@ int main(int argc, char *argv[])
     enum cb_uart_com com;
     uint64_t data;
     bool fw_version_requested = false;
+    bool fw_version_received = false;
     bool git_hash_requested = false;
+    bool git_hash_received = false;
     int rc = EXIT_FAILURE;
     int rv;
 
@@ -254,7 +256,7 @@ int main(int argc, char *argv[])
                 goto close_out;
             }
             fw_version_requested = true;
-        } else if (!git_hash_requested) {
+        } else if (!git_hash_requested && fw_version_received) {
             rv = cb_send_uart_inquiry(&uart, COM_GIT_HASH);
             if (rv) {
                 error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(COM_GIT_HASH));
@@ -371,10 +373,12 @@ int main(int argc, char *argv[])
             case COM_FW_VERSION:
                 ctx.fw_version = data;
                 cb_proto_set_fw_version_str(&ctx);
+                fw_version_received = true;
                 break;
             case COM_GIT_HASH:
                 ctx.git_hash = data;
                 cb_proto_set_git_hash_str(&ctx);
+                git_hash_received = true;
                 break;
             default:
                 /* not yet implemented */
