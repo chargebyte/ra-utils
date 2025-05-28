@@ -46,6 +46,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <ra_protocol.h>
+#include <cb_protocol.h>
 #include <logging.h>
 #include <tools.h>
 #include <uart.h>
@@ -574,6 +575,10 @@ reset_to_normal_out:
         rv = ra_reset_to_normal(gpio);
         if (rv)
             xerror("resetting into normal mode failed: %m");
+
+        /* when successfully reseted, sleep until controller is ready again */
+        if (!rv)
+            msleep(CB_PROTO_STARTUP_DELAY);
     }
 
 close_out:

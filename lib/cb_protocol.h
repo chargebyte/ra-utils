@@ -13,8 +13,11 @@ extern "C" {
 #include "uart.h"
 #include "cb_uart.h"
 
+/* the MCU is responsive to UART messages after releasing reset line after this time, in ms */
+#define CB_PROTO_STARTUP_DELAY 300
+
 /* the MCU is expected to answer requests via inquiry messages within this time, in ms */
-#define CB_PROTO_RESPONSE_TIMEOUT_MS 20
+#define CB_PROTO_RESPONSE_TIMEOUT_MS 30
 
 /* the MCU expects Charge Control messages with this periodicity, in ms */
 #define CB_PROTO_CHARGE_CONTROL_INTERVAL 100

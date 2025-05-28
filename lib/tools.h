@@ -39,6 +39,7 @@ void timespec_add_ms(struct timespec *ts, long long msec);
 int timespec_compare(const struct timespec *lhs, const struct timespec *rhs);
 long long timespec_to_ms(struct timespec ts);
 long long timespec_to_us(struct timespec ts);
+int msleep(int ms);
 
 #ifdef __cplusplus
 }

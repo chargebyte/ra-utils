@@ -2,6 +2,7 @@
  * Copyright © 2024 chargebyte GmbH
  * SPDX-License-Identifier: Apache-2.0
  */
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
@@ -75,4 +76,20 @@ long long timespec_to_ms(struct timespec ts)
 long long timespec_to_us(struct timespec ts)
 {
     return ((long long)ts.tv_sec * 1000000) + (ts.tv_nsec / 1000);
+}
+
+int msleep(int ms)
+{
+    struct timespec req, rem;
+    int rv;
+
+    rem.tv_sec = ms / 1000;
+    rem.tv_nsec = (ms % 1000) * (1000 * 1000); /* x ms */
+
+    do {
+        req = rem;
+        rv = nanosleep(&req, &rem);
+    } while (rv == -1 && errno == EINTR);
+
+    return rv;
 }
