@@ -59,6 +59,13 @@ int cb_uart_send(struct uart_ctx *uart, enum cb_uart_com com, uint64_t data)
     frame.crc = crc8_j1850(&frame.com, sizeof(frame.com) + sizeof(frame.data));
     frame.eof = CB_EOF;
 
+    if (com == COM_INQUIRY) {
+        uint8_t *c = &frame.com + 1;
+        debug("sending frame: %s (%s)", cb_uart_com_to_str(com), cb_uart_com_to_str(*c));
+    } else {
+        debug("sending frame: %s", cb_uart_com_to_str(com));
+    }
+
     if (uart->trace)
         uart_dump_frame(true, (uint8_t *)&frame, sizeof(frame));
 
@@ -107,6 +114,8 @@ int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data)
     }
 
     debug("received frame looks valid (SOF, EOF, CRC)");
+
+    debug("received frame: %s", cb_uart_com_to_str(frame.com));
 
     if (com)
         *com = frame.com;

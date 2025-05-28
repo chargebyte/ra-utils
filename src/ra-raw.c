@@ -374,8 +374,6 @@ int main(int argc, char *argv[])
 
             cb_proto_set_ts_str(&ctx, com);
 
-            debug("received frame: %s", cb_uart_com_to_str(com));
-
             switch (com) {
             case COM_CHARGE_STATE:
                 ctx.charge_state = data;

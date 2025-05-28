@@ -248,7 +248,7 @@ int uart_dump_frame(bool is_sending, uint8_t *buffer, size_t len)
     for (i = 0; i < len; ++i)
         sprintf(&msg[4 * i], fmt, buffer[i]);
 
-    debug("%s: %s", is_sending ? "Sending" : "Received", msg);
+    debug("%-10s%s", is_sending ? "Sending: " : "Received: ", msg);
 
     free(msg);
     return 0;
