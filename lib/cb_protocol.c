@@ -157,7 +157,7 @@ bool cb_proto_estopN_is_tripped(struct safety_controller *ctx, unsigned int esto
     return cb_proto_estopN_get_state(ctx, estop) == ESTOP_STATE_TRIPPED;
 }
 
-bool cb_proto_has_estop_any_tripped(struct safety_controller *ctx)
+bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx)
 {
     unsigned int i;
 
