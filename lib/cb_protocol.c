@@ -260,7 +260,7 @@ const char *cb_proto_cp_state_to_str(enum cp_state state)
     }
 }
 
-const char *cb_proto_pp_state_to_str(enum cp_state state)
+const char *cb_proto_pp_state_to_str(enum pp_state state)
 {
     switch (state) {
     case PP_STATE_NO_CABLE:

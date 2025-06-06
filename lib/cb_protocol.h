@@ -182,7 +182,7 @@ void cb_proto_set_git_hash_str(struct safety_controller *ctx);
 
 /* helpers */
 const char *cb_proto_cp_state_to_str(enum cp_state state);
-const char *cb_proto_pp_state_to_str(enum cp_state state);
+const char *cb_proto_pp_state_to_str(enum pp_state state);
 const char *cb_proto_contactor_state_to_str(enum contactor_state state);
 const char *cb_proto_estop_state_to_str(enum estop_state state);
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type);
