@@ -53,6 +53,7 @@ static const struct option long_options[] = {
     { "uart",               required_argument,      0,      'd' },
     { "sync",               no_argument,            0,      'S' },
     { "no-dump",            no_argument,            0,      'D' },
+    { "no-charge-control",  no_argument,            0,      'C' },
 
     { "verbose",            no_argument,            0,      'v' },
     { "version",            no_argument,            0,      'V' },
@@ -60,13 +61,14 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "d:DSvVh";
+static const char *short_options = "d:DCSvVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
     "UART interface (default: " DEFAULT_UART_INTERFACE ")",
     "initial receive sync (default: send packet first)",
     "don't dump data (useful only in verbose mode to print only received frames)",
+    "don't send automatically Charge Control frames",
 
     "verbose operation",
     "print version and exit",
@@ -108,6 +110,7 @@ static void usage(char *p, int exitcode)
 static bool verbose = false;
 static bool intial_sync = false;
 static bool no_dump = false;
+static bool send_charge_control = true;
 
 /* here, too - to simplify, use these as globals */
 static char *uart_device = DEFAULT_UART_INTERFACE;
@@ -170,6 +173,9 @@ void parse_cli(int argc, char *argv[])
             break;
         case 'D':
             no_dump = true;
+            break;
+        case 'C':
+            send_charge_control = false;
             break;
 
         case 'v':
@@ -271,11 +277,15 @@ int main(int argc, char *argv[])
             }
             git_hash_requested = true;
         } else if (com == COM_CHARGE_STATE) {
-            /* send out charge control frame when last received frame was a charge state one */
-            rv = cb_uart_send(&uart, COM_CHARGE_CONTROL, ctx.charge_control);
-            if (rv) {
-                error("error while sending charge control frame: %m");
-                goto close_out;
+            if (send_charge_control) {
+                /* remember the timestamp */
+                cb_proto_set_ts_str(&ctx, COM_CHARGE_CONTROL);
+                /* send out charge control frame when last received frame was a charge state one */
+                rv = cb_uart_send(&uart, COM_CHARGE_CONTROL, ctx.charge_control);
+                if (rv) {
+                    error("error while sending charge control frame: %m");
+                    goto close_out;
+                }
             }
         }
 
@@ -308,6 +318,18 @@ int main(int argc, char *argv[])
                 case 'E':
                     cb_proto_set_pwm_active(&ctx, 0);
                     break;
+                case 'r':
+                    cb_proto_set_duty_cycle(&ctx, 50);
+                    cb_proto_set_pwm_active(&ctx, 1);
+                    break;
+                case 't':
+                    cb_proto_set_duty_cycle(&ctx, 100);
+                    cb_proto_set_pwm_active(&ctx, 1);
+                    break;
+                case 'z':
+                    cb_proto_set_duty_cycle(&ctx, 1000);
+                    cb_proto_set_pwm_active(&ctx, 1);
+                    break;
                 case '1':
                     cb_proto_contactorN_set_state(&ctx, 0, !cb_proto_contactorN_get_target_state(&ctx, 0));
                     break;
@@ -319,6 +341,9 @@ int main(int argc, char *argv[])
                     break;
                 case '5':
                     cb_proto_set_duty_cycle(&ctx, 50);
+                    break;
+                case '6':
+                    cb_proto_set_duty_cycle(&ctx, 100);
                     break;
                 case '9':
                     cb_proto_set_duty_cycle(&ctx, 1000);
@@ -334,6 +359,17 @@ int main(int argc, char *argv[])
                 case '+':
                     /* overflow is already checked in library */
                     cb_proto_set_duty_cycle(&ctx, cb_proto_get_target_duty_cycle(&ctx) + 10);
+                    break;
+                case 's':
+                    send_charge_control = !send_charge_control;
+                    break;
+                case 'c':
+                    cb_proto_set_ts_str(&ctx, COM_CHARGE_CONTROL);
+                    rv = cb_uart_send(&uart, COM_CHARGE_CONTROL, ctx.charge_control);
+                    if (rv) {
+                        error("error while sending charge control frame: %m");
+                        goto close_out;
+                    }
                     break;
                 case 'q':
                 case 0x03: /* Ctrl-C */
@@ -406,10 +442,13 @@ int main(int argc, char *argv[])
                 printf("\r\n");
                 printf("== Available commands ==\r\n"
                        "  e -- enable PWM                   E -- disable PWM\r\n"
+                       "  r -- enable PWM with 5%%           t -- enable PWM with 10%%          z -- enable PWM with 100%%\r\n"
                        "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
-                       "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%\r\n"
+                       "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%     6 -- set PWM duty cycle to 10%%\r\n"
                        "  1 -- toggle contactor 1           2 -- toggle contactor 2\r\n"
-                       "  q -- quit the program\r\n");
+                       "  c -- (manually) send a Charge Control frame\r\n"
+                       "  s -- toggle auto sending of Charge Control frames (currently: %s)\r\n"
+                       "  q -- quit the program\r\n", send_charge_control ? "sending" : "not sending");
             }
         }
     }
