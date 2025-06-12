@@ -188,6 +188,15 @@ unsigned int cb_proto_pt1000_get_errors(struct safety_controller *ctx, unsigned 
     return DATA_GET_BITS(ctx->pt1000, 16 * (CB_PROTO_MAX_PT1000S - 1 - channel), 2);
 }
 
+bool cb_proto_pt1000_have_errors(struct safety_controller *ctx)
+{
+    uint64_t mask =    (uint64_t)BITMASK(2) <<  0
+                     | (uint64_t)BITMASK(2) << 16
+                     | (uint64_t)BITMASK(2) << 32
+                     | (uint64_t)BITMASK(2) << 48;
+    return ctx->pt1000 & mask;
+}
+
 unsigned int cb_proto_fw_get_major(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->fw_version, 56, 8);

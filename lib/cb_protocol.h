@@ -156,6 +156,7 @@ bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx);
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel);
 double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int channel);
 unsigned int cb_proto_pt1000_get_errors(struct safety_controller *ctx, unsigned int channel);
+bool cb_proto_pt1000_have_errors(struct safety_controller *ctx);
 
 /* possible firmware platform types */
 enum fw_platform_type {
