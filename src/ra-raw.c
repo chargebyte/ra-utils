@@ -8,13 +8,14 @@
  *
  * Usage: ra-raw [<options>]
  *
- * Options:
- *         -d, --uart              UART interface (default: /dev/ttyLP2)
- *         -S, --sync              initial receive sync (default: send packet first)
- *         -D, --no-dump           don't dump data (useful only in verbose mode to print only received frames)
- *         -v, --verbose           verbose operation
- *         -V, --version           print version and exit
- *         -h, --help              print this usage and exit
+ *  Options:
+ *          -d, --uart              UART interface (default: /dev/ttyLP2)
+ *          -S, --sync              initial receive sync (default: send packet first)
+ *          -D, --no-dump           don't dump data (useful only in verbose mode to print only received frames)
+ *          -C, --no-charge-control don't send automatically Charge Control frames
+ *          -v, --verbose           verbose operation
+ *          -V, --version           print version and exit
+ *          -h, --help              print this usage and exit
  */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -68,7 +69,7 @@ static const char *long_options_descs[] = {
     "UART interface (default: " DEFAULT_UART_INTERFACE ")",
     "initial receive sync (default: send packet first)",
     "don't dump data (useful only in verbose mode to print only received frames)",
-    "don't send automatically Charge Control frames",
+    "don't send Charge Control frames automatically",
 
     "verbose operation",
     "print version and exit",
@@ -276,8 +277,16 @@ int main(int argc, char *argv[])
                 goto close_out;
             }
             git_hash_requested = true;
+
+            // this is a little bit tricky/small hack: in case we want to send out
+            // charge control frames automatically, we just jump over the else condition
+            // otherwise we had to duplicate code here
+            if (send_charge_control)
+                goto send_charge_control_frame;
+
         } else if (com == COM_CHARGE_STATE) {
             if (send_charge_control) {
+send_charge_control_frame:
                 /* remember the timestamp */
                 cb_proto_set_ts_str(&ctx, COM_CHARGE_CONTROL);
                 /* send out charge control frame when last received frame was a charge state one */
@@ -430,26 +439,26 @@ int main(int argc, char *argv[])
             default:
                 /* not yet implemented */
             }
+        }
 
-            /* clear screen (in verbose mode, this does not make sense) */
-            if (!verbose)
-                printf("\033[H\033[J");
+        /* clear screen (in verbose mode, this does not make sense) */
+        if (!verbose)
+            printf("\033[H\033[J");
 
-            if (!no_dump) {
-                /* dump it */
-                cb_proto_dump(&ctx);
+        if (!no_dump) {
+            /* dump it */
+            cb_proto_dump(&ctx);
 
-                printf("\r\n");
-                printf("== Available commands ==\r\n"
-                       "  e -- enable PWM                   E -- disable PWM\r\n"
-                       "  r -- enable PWM with 5%%           t -- enable PWM with 10%%          z -- enable PWM with 100%%\r\n"
-                       "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
-                       "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%     6 -- set PWM duty cycle to 10%%\r\n"
-                       "  1 -- toggle contactor 1           2 -- toggle contactor 2\r\n"
-                       "  c -- (manually) send a Charge Control frame\r\n"
-                       "  s -- toggle auto sending of Charge Control frames (currently: %s)\r\n"
-                       "  q -- quit the program\r\n", send_charge_control ? "sending" : "not sending");
-            }
+            printf("\r\n");
+            printf("== Available commands ==\r\n"
+                   "  e -- enable PWM                   E -- disable PWM\r\n"
+                   "  r -- enable PWM with 5%%           t -- enable PWM with 10%%          z -- enable PWM with 100%%\r\n"
+                   "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
+                   "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%     6 -- set PWM duty cycle to 10%%\r\n"
+                   "  1 -- toggle contactor 1           2 -- toggle contactor 2\r\n"
+                   "  c -- (manually) send a Charge Control frame\r\n"
+                   "  s -- toggle auto sending of Charge Control frames (auto-sending: %s)\r\n"
+                   "  q -- quit the program\r\n", send_charge_control ? "on" : "off");
         }
     }
 
