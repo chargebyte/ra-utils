@@ -6,16 +6,18 @@
 # If this differs, then the firmware is updated.
 #
 
-LIBDIR="/usr/share/csom-safety-fw"
+LIBDIR="/usr/share/ra-utils"
 
-FW_FILE="$(ls -1 $LIBDIR/*_fw_*.bin)"
-PARAM_FILE="$(ls -1 $LIBDIR/*_parameter-block_only-contactor.bin)"
+FW_FILE="$(ls -1 $LIBDIR/*_fw_*.bin 2>/dev/null)"
+if [ -z "$FW_FILE" ]; then
+    echo "No firmware file found." >&2
+    exit 1
+fi
 
-TARGET_VERSION="$(ra-update fw_info "$FW_FILE")"
+PARAM_FILE="$(ls -1 $LIBDIR/*_parameter-block_only-contactor.bin 2>/dev/null)"
+
+TARGET_VERSION="$(ra-update fw_info "$FW_FILE" 2>/dev/null)"
 CURRENT_VERSION="$(ra-update fw_info)"
-
-# do nothing if we cannot detect current or target version
-[ -z "$CURRENT_VERSION$TARGET_VERSION" ] && exit 1
 
 CMP_TARGET_VERSION="$(echo "$TARGET_VERSION" | tail -n +3 | head -n 6)"
 CMP_CURRENT_VERSION="$(echo "$CURRENT_VERSION" | tail -n +3 | head -n 6)"
