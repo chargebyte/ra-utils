@@ -1,0 +1,11 @@
+[Unit]
+Description=Check/upgrade Safety Controller firmware
+Before=everest.service
+RequiresMountsFor=/var/log
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/ra-update.sh
+
+[Install]
+WantedBy=multi-user.target
