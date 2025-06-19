@@ -40,6 +40,7 @@
 #include <logging.h>
 #include <tools.h>
 #include <uart.h>
+#include <version.h>
 #include "stringify.h"
 
 /* default uart interface */

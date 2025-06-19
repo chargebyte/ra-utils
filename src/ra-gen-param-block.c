@@ -33,6 +33,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <cb_protocol.h>
+#include <version.h>
 
 #ifndef PACKAGE_STRING
 #define PACKAGE_STRING "ra-gen-param-block (unknown version)"

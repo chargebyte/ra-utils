@@ -1,4 +1,11 @@
+configure_file(version.h.in version.h)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/version.h
+    DESTINATION "include/ra-utils"
+)
+
 set(LIBRAUTILS_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" PARENT_SCOPE)
+set(LIBRAUTILS_INCLUDE_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}" PARENT_SCOPE)
 
 add_library(ra-utils SHARED)
 
@@ -62,6 +69,6 @@ install(
 # pkg-config file generation
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ra-utils.pc.in ra-utils.pc @ONLY)
 install(
-    FILES ${CMAKE_BINARY_DIR}/lib/ra-utils.pc
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/ra-utils.pc
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
 )

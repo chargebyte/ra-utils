@@ -8,6 +8,7 @@ target_include_directories(ra-update
     PRIVATE
         ${LIBRAUTILS_INCLUDE_DIR}
         ${LIBGPIOD_INCLUDE_DIRS}
+        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
 )
 
 target_link_libraries(ra-update
@@ -25,6 +26,7 @@ add_executable(ra-raw
 target_include_directories(ra-raw
     PRIVATE
         ${LIBRAUTILS_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
 )
 
 target_link_libraries(ra-raw
@@ -41,6 +43,7 @@ add_executable(ra-gen-param-block
 target_include_directories(ra-gen-param-block
     PRIVATE
         ${LIBRAUTILS_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
 )
 
 install(TARGETS ra-gen-param-block DESTINATION bin)
