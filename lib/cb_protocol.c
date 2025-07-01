@@ -197,6 +197,36 @@ bool cb_proto_pt1000_have_errors(struct safety_controller *ctx)
     return ctx->pt1000 & mask;
 }
 
+enum cs2_id_state cb_proto_get_id_state(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 56, 4);
+}
+
+enum cs2_ce_state cb_proto_get_ce_state(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 60, 4);
+}
+
+enum cs2_estop_reason cb_proto_get_estop_reason(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 48, 8);
+}
+
+enum cc2_ccs_ready cb_proto_get_target_ccs_ready(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_control, 60, 4);
+}
+
+void cb_proto_set_ccs_ready(struct safety_controller *ctx, bool ready)
+{
+    DATA_SET_BITS(ctx->charge_control, 60, 4, ready ? CC2_CCS_READY : CC2_CCS_NOT_READY);
+}
+
+void cb_proto_set_estop(struct safety_controller *ctx, bool estop)
+{
+    DATA_SET_BITS(ctx->charge_control, 60, 4, estop ? CC2_CCS_EMERGENCY_STOP : CC2_CCS_NOT_READY);
+}
+
 unsigned int cb_proto_fw_get_major(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->fw_version, 56, 8);
@@ -325,6 +355,106 @@ const char *cb_proto_estop_state_to_str(enum estop_state state)
     }
 }
 
+void cb_proto_set_mcs_mode(struct safety_controller *ctx, bool mcs)
+{
+    ctx->mcs = mcs;
+}
+
+bool cb_proto_is_mcs_mode(struct safety_controller *ctx)
+{
+    return ctx->mcs;
+}
+
+const char *cb_proto_id_state_to_str(enum cs2_id_state state)
+{
+    switch (state) {
+    case CS2_ID_STATE_UNKNOWN:
+        return "unknown";
+    case CS2_ID_STATE_NOT_CONNECTED:
+        return "not connected";
+    case CS2_ID_STATE_CONNECTED:
+        return "connected";
+    case CS2_ID_STATE_INVALID:
+        return "invalid";
+    default:
+        return "undefined";
+    }
+}
+
+const char *cb_proto_ce_state_to_str(enum cs2_ce_state state)
+{
+    switch (state) {
+    case CP_STATE_UNKNOWN:
+        return "unknown";
+    case CS2_CE_STATE_A:
+        return "A";
+    case CS2_CE_STATE_B0:
+        return "B0";
+    case CS2_CE_STATE_B:
+        return "B";
+    case CS2_CE_STATE_C:
+        return "C";
+    case CS2_CE_STATE_E:
+        return "E";
+    case CS2_CE_STATE_EC:
+        return "EC";
+    case CP_STATE_INVALID:
+        return "invalid";
+    default:
+        return "undefined";
+    }
+}
+
+const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason)
+{
+    switch (reason) {
+    case CS2_ESTOP_REASON_NO_STOP:
+        return "no estop reason";
+    case CS2_ESTOP_REASON_EMERGENCY_INPUT:
+        return "emergency input";
+    case CS2_ESTOP_REASON_COM_TIMEOUT:
+        return "communication timeout";
+    case CS2_ESTOP_REASON_TEMP1_MALFUNCTION:
+        return "temperature 1 malfunction";
+    case CS2_ESTOP_REASON_TEMP2_MALFUNCTION:
+        return "temperature 2 malfunction";
+    case CS2_ESTOP_REASON_TEMP3_MALFUNCTION:
+        return "temperature 3 malfunction";
+    case CS2_ESTOP_REASON_TEMP4_MALFUNCTION:
+        return "temperature 4 malfunction";
+    case CS2_ESTOP_REASON_TEMP1_OVERTEMP:
+        return "temperature 1 over-temperature";
+    case CS2_ESTOP_REASON_TEMP2_OVERTEMP:
+        return "temperature 2 over-temperature";
+    case CS2_ESTOP_REASON_TEMP3_OVERTEMP:
+        return "temperature 3 over-temperature";
+    case CS2_ESTOP_REASON_TEMP4_OVERTEMP:
+        return "temperature 4 over-temperature";
+    case CS2_ESTOP_REASON_ID_MALFUNCTION:
+        return "ID malfunction";
+    case CS2_ESTOP_REASON_CE_MALFUNCTION:
+        return "CE malfunction";
+    case CS2_ESTOP_REASON_HVREADY_MALFUNCTION:
+        return "HV ready malfunction";
+    default:
+        return "undefined";
+    }
+}
+
+const char *cb_proto_ccs_ready_to_str(enum cc2_ccs_ready state)
+{
+    switch (state) {
+    case CC2_CCS_NOT_READY:
+        return "not ready";
+    case CC2_CCS_READY:
+        return "ready";
+    case CC2_CCS_EMERGENCY_STOP:
+        return "emergency stop";
+    default:
+        return "undefined";
+    }
+}
+
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type)
 {
     switch (type) {
@@ -400,39 +530,49 @@ void cb_proto_dump(struct safety_controller *ctx)
 {
     unsigned int i;
 
-    printfnl("== Various ==");
-    printfnl("Control Pilot:   %s (%s%s%s%s)", cb_proto_cp_state_to_str(cb_proto_get_cp_state(ctx)),
-             cb_proto_get_cp_errors(ctx) ? "" : "-no flags set-",
-             (cb_proto_get_cp_errors(ctx) & CP_DIODE_FAULT) ? "diode fault" : "",
-             THIS_BIT_AND_ANY_OF_THE_LOWER(cb_proto_get_cp_errors(ctx), CP_DIODE_FAULT) ? "," : "",
-             (cb_proto_get_cp_errors(ctx) & CP_SHORT_CIRCUIT) ? "short circuit" : "");
+    if (!ctx->mcs) {
+        printfnl("== Various ==");
+        printfnl("Control Pilot:   %s (%s%s%s%s)", cb_proto_cp_state_to_str(cb_proto_get_cp_state(ctx)),
+                 cb_proto_get_cp_errors(ctx) ? "" : "-no flags set-",
+                 (cb_proto_get_cp_errors(ctx) & CP_DIODE_FAULT) ? "diode fault" : "",
+                 THIS_BIT_AND_ANY_OF_THE_LOWER(cb_proto_get_cp_errors(ctx), CP_DIODE_FAULT) ? "," : "",
+                 (cb_proto_get_cp_errors(ctx) & CP_SHORT_CIRCUIT) ? "short circuit" : "");
 
-    printfnl("Proximity Pilot: %s", cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
+        printfnl("Proximity Pilot: %s", cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
 
-    printf("Emergency Stop Tripped:");
-    for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
-        printf(" ESTOP%d=%-11s ", i + 1, cb_proto_estop_state_to_str(cb_proto_estopN_get_state(ctx, i)));
-    }
-    printfnl("");
+        printf("Emergency Stop Tripped:");
+        for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
+            printf(" ESTOP%d=%-11s ", i + 1, cb_proto_estop_state_to_str(cb_proto_estopN_get_state(ctx, i)));
+        }
+        printfnl("");
 
-    printfnl("HV Ready: %u", cb_proto_get_hv_ready(ctx));
+        printfnl("HV Ready: %u", cb_proto_get_hv_ready(ctx));
 
-    printfnl("");
-    printfnl("== PWM ==");
-    printfnl("Enable:               %-3s      Is Enabled:         %-3s",
-             cb_proto_get_target_pwm_active(ctx)? "yes" : "no",
-             cb_proto_get_actual_pwm_active(ctx) ? "yes" : "no");
-    printfnl("Requested Duty Cycle: %5.1f%%   Current Duty Cycle: %5.1f%%",
-             cb_proto_get_target_duty_cycle(ctx) / 10.0,
-             cb_proto_get_actual_duty_cycle(ctx) / 10.0);
+        printfnl("");
+        printfnl("== PWM ==");
+        printfnl("Enable:               %-3s      Is Enabled:         %-3s",
+                 cb_proto_get_target_pwm_active(ctx) ? "yes" : "no",
+                 cb_proto_get_actual_pwm_active(ctx) ? "yes" : "no");
+        printfnl("Requested Duty Cycle: %5.1f%%   Current Duty Cycle: %5.1f%%",
+                 cb_proto_get_target_duty_cycle(ctx) / 10.0,
+                 cb_proto_get_actual_duty_cycle(ctx) / 10.0);
 
-    printfnl("");
-    printfnl("== Contactor ==");
-    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-        printfnl("Contactor %d: requested=%-5s   actual=%-9s   %s", i + 1,
-                 cb_proto_contactorN_get_target_state(ctx, i) ? "CLOSE" : "open",
-                 cb_proto_contactor_state_to_str(cb_proto_contactorN_get_actual_state(ctx, i)),
-                 cb_proto_contactorN_has_error(ctx, i) ? "ERROR" : "no error");
+        printfnl("");
+        printfnl("== Contactor ==");
+        for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+            printfnl("Contactor %d: requested=%-5s   actual=%-9s   %s", i + 1,
+                     cb_proto_contactorN_get_target_state(ctx, i) ? "CLOSE" : "open",
+                     cb_proto_contactor_state_to_str(cb_proto_contactorN_get_actual_state(ctx, i)),
+                     cb_proto_contactorN_has_error(ctx, i) ? "ERROR" : "no error");
+        }
+    } else {
+        printfnl("");
+        printfnl("== MCS ==");
+        printfnl("ID State: %s", cb_proto_id_state_to_str(cb_proto_get_id_state(ctx)));
+        printfnl("CE State: %s", cb_proto_ce_state_to_str(cb_proto_get_ce_state(ctx)));
+        printfnl("EStop Reason: %s", cb_proto_estop_reason_to_str(cb_proto_get_estop_reason(ctx)));
+        printfnl("");
+        printfnl("CCS Ready: %-3s", cb_proto_ccs_ready_to_str(cb_proto_get_target_ccs_ready(ctx)));
     }
 
     printfnl("");

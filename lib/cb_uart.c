@@ -41,6 +41,10 @@ const char *cb_uart_com_to_str(enum cb_uart_com com)
         return "COM_GIT_HASH";
     case COM_INQUIRY:
         return "COM_INQUIRY";
+    case COM_CHARGE_CONTROL_2:
+        return "COM_CHARGE_CONTROL_2";
+    case COM_CHARGE_STATE_2:
+        return "COM_CHARGE_STATE_2";
     default:
         return "UNKNOWN";
     }

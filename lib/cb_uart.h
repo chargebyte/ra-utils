@@ -25,8 +25,10 @@ enum cb_uart_com {
     COM_PT1000_STATE = 0x08,
     COM_FW_VERSION = 0x0A,
     COM_GIT_HASH = 0x0B,
+    COM_CHARGE_STATE_2 = 0x10,
+    COM_CHARGE_CONTROL_2 = 0x11,
     /* special value: keep in sync with above values but ignore INQUIRY */
-    COM_MAX = 0x0C,
+    COM_MAX = 0x12,
 };
 
 const char *cb_uart_com_to_str(enum cb_uart_com com);

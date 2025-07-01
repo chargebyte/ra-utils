@@ -82,6 +82,52 @@ enum estop_state {
     ESTOP_STATE_MAX,
 };
 
+/* possible CCS ready values in Charge Control 2 frame */
+enum cc2_ccs_ready {
+    CC2_CCS_NOT_READY = 0x0,
+    CC2_CCS_READY,
+    CC2_CCS_EMERGENCY_STOP,
+    CC2_CCS_MAX,
+};
+
+/* possible CE states in Charge State 2 frame */
+enum cs2_ce_state {
+    CS2_CE_STATE_UNKNOWN = 0x0,
+    CS2_CE_STATE_A,
+    CS2_CE_STATE_B0,
+    CS2_CE_STATE_B,
+    CS2_CE_STATE_C,
+    CS2_CE_STATE_E,
+    CS2_CE_STATE_EC,
+    CS2_CE_STATE_INVALID = 0xf,
+};
+
+/* possible ID states in Charge State 2 frame */
+enum cs2_id_state {
+    CS2_ID_STATE_UNKNOWN = 0x0,
+    CS2_ID_STATE_NOT_CONNECTED,
+    CS2_ID_STATE_CONNECTED,
+    CS2_ID_STATE_INVALID = 0xf,
+};
+
+/* possible ESTOP reasons in Charge State 2 frame */
+enum cs2_estop_reason {
+    CS2_ESTOP_REASON_NO_STOP = 0x0,
+    CS2_ESTOP_REASON_EMERGENCY_INPUT,
+    CS2_ESTOP_REASON_COM_TIMEOUT,
+    CS2_ESTOP_REASON_TEMP1_MALFUNCTION,
+    CS2_ESTOP_REASON_TEMP2_MALFUNCTION,
+    CS2_ESTOP_REASON_TEMP3_MALFUNCTION,
+    CS2_ESTOP_REASON_TEMP4_MALFUNCTION,
+    CS2_ESTOP_REASON_TEMP1_OVERTEMP,
+    CS2_ESTOP_REASON_TEMP2_OVERTEMP,
+    CS2_ESTOP_REASON_TEMP3_OVERTEMP,
+    CS2_ESTOP_REASON_TEMP4_OVERTEMP,
+    CS2_ESTOP_REASON_ID_MALFUNCTION,
+    CS2_ESTOP_REASON_CE_MALFUNCTION,
+    CS2_ESTOP_REASON_HVREADY_MALFUNCTION,
+};
+
 /* PT1000 related bit flags */
 #define PT1000_CHARGING_STOPPED 0x1
 #define PT1000_SELFTEST_FAILED 0x2
@@ -101,6 +147,9 @@ struct safety_controller {
     uint64_t charge_state;
     uint64_t pt1000;
     uint64_t fw_version;
+
+    /* MCS mode */
+    bool mcs;
 
     /* Git hash is special: usually handled as byte stream, so here stored
      * in wrong (host) byte order -> this is handled in `cb_proto_set_git_hash_str`
@@ -158,6 +207,18 @@ double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int chan
 unsigned int cb_proto_pt1000_get_errors(struct safety_controller *ctx, unsigned int channel);
 bool cb_proto_pt1000_have_errors(struct safety_controller *ctx);
 
+/* MCS related */
+void cb_proto_set_mcs_mode(struct safety_controller *ctx, bool mcs);
+bool cb_proto_is_mcs_mode(struct safety_controller *ctx);
+
+enum cs2_id_state cb_proto_get_id_state(struct safety_controller *ctx);
+enum cs2_ce_state cb_proto_get_ce_state(struct safety_controller *ctx);
+enum cs2_estop_reason cb_proto_get_estop_reason(struct safety_controller *ctx);
+
+enum cc2_ccs_ready cb_proto_get_target_ccs_ready(struct safety_controller *ctx);
+void cb_proto_set_ccs_ready(struct safety_controller *ctx, bool ready);
+void cb_proto_set_estop(struct safety_controller *ctx, bool estop);
+
 /* possible firmware platform types */
 enum fw_platform_type {
     FW_PLATFORM_TYPE_UNSPECIFIED = 0xff,
@@ -186,6 +247,13 @@ const char *cb_proto_cp_state_to_str(enum cp_state state);
 const char *cb_proto_pp_state_to_str(enum pp_state state);
 const char *cb_proto_contactor_state_to_str(enum contactor_state state);
 const char *cb_proto_estop_state_to_str(enum estop_state state);
+
+const char *cb_proto_id_state_to_str(enum cs2_id_state state);
+const char *cb_proto_ce_state_to_str(enum cs2_ce_state state);
+const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason);
+
+const char *cb_proto_ccs_ready_to_str(enum cc2_ccs_ready state);
+
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type);
 const char *cb_proto_fw_application_type_to_str(enum fw_application_type type);
 

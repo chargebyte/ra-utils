@@ -285,13 +285,13 @@ int main(int argc, char *argv[])
             if (send_charge_control)
                 goto send_charge_control_frame;
 
-        } else if (com == COM_CHARGE_STATE) {
+        } else if (com == COM_CHARGE_STATE || com == COM_CHARGE_STATE_2) {
             if (send_charge_control) {
 send_charge_control_frame:
                 /* remember the timestamp */
-                cb_proto_set_ts_str(&ctx, COM_CHARGE_CONTROL);
-                /* send out charge control frame when last received frame was a charge state one */
-                rv = cb_uart_send(&uart, COM_CHARGE_CONTROL, ctx.charge_control);
+                cb_proto_set_ts_str(&ctx, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL);
+                /* send out charge control frame 1 when last received frame was a charge state 1 one */
+                rv = cb_uart_send(&uart, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL, ctx.charge_control);
                 if (rv) {
                     error("error while sending charge control frame: %m");
                     goto close_out;
@@ -321,78 +321,115 @@ send_charge_control_frame:
                 goto close_out;
             }
             if (len == sizeof(cmd)) {
-                switch (cmd) {
-                case 'e':
-                    cb_proto_set_pwm_active(&ctx, 1);
-                    break;
-                case 'E':
-                    cb_proto_set_pwm_active(&ctx, 0);
-                    break;
-                case 'r':
-                    cb_proto_set_duty_cycle(&ctx, 50);
-                    cb_proto_set_pwm_active(&ctx, 1);
-                    break;
-                case 't':
-                    cb_proto_set_duty_cycle(&ctx, 100);
-                    cb_proto_set_pwm_active(&ctx, 1);
-                    break;
-                case 'z':
-                    cb_proto_set_duty_cycle(&ctx, 1000);
-                    cb_proto_set_pwm_active(&ctx, 1);
-                    break;
-                case '1':
-                    cb_proto_contactorN_set_state(&ctx, 0, !cb_proto_contactorN_get_target_state(&ctx, 0));
-                    break;
-                case '2':
-                    cb_proto_contactorN_set_state(&ctx, 1, !cb_proto_contactorN_get_target_state(&ctx, 1));
-                    break;
-                case '0':
-                    cb_proto_set_duty_cycle(&ctx, 0);
-                    break;
-                case '5':
-                    cb_proto_set_duty_cycle(&ctx, 50);
-                    break;
-                case '6':
-                    cb_proto_set_duty_cycle(&ctx, 100);
-                    break;
-                case '9':
-                    cb_proto_set_duty_cycle(&ctx, 1000);
-                    break;
-                case '-': {
-                    unsigned int duty_cycle = cb_proto_get_target_duty_cycle(&ctx) - 10;
-                    /* check for underflow */
-                    if (duty_cycle > 1000)
-                        duty_cycle = 0;
-                    cb_proto_set_duty_cycle(&ctx, duty_cycle);
-                    break;
-                }
-                case '+':
-                    /* overflow is already checked in library */
-                    cb_proto_set_duty_cycle(&ctx, cb_proto_get_target_duty_cycle(&ctx) + 10);
-                    break;
-                case 's':
-                    send_charge_control = !send_charge_control;
-                    break;
-                case 'c':
-                    cb_proto_set_ts_str(&ctx, COM_CHARGE_CONTROL);
-                    rv = cb_uart_send(&uart, COM_CHARGE_CONTROL, ctx.charge_control);
-                    if (rv) {
-                        error("error while sending charge control frame: %m");
-                        goto close_out;
+                if (!cb_proto_is_mcs_mode(&ctx)) {
+                    switch (cmd) {
+                    case 'e':
+                        cb_proto_set_pwm_active(&ctx, 1);
+                        break;
+                    case 'E':
+                        cb_proto_set_pwm_active(&ctx, 0);
+                        break;
+                    case 'r':
+                        cb_proto_set_duty_cycle(&ctx, 50);
+                        cb_proto_set_pwm_active(&ctx, 1);
+                        break;
+                    case 't':
+                        cb_proto_set_duty_cycle(&ctx, 100);
+                        cb_proto_set_pwm_active(&ctx, 1);
+                        break;
+                    case 'z':
+                        cb_proto_set_duty_cycle(&ctx, 1000);
+                        cb_proto_set_pwm_active(&ctx, 1);
+                        break;
+                    case '1':
+                        cb_proto_contactorN_set_state(&ctx, 0, !cb_proto_contactorN_get_target_state(&ctx, 0));
+                        break;
+                    case '2':
+                        cb_proto_contactorN_set_state(&ctx, 1, !cb_proto_contactorN_get_target_state(&ctx, 1));
+                        break;
+                    case '0':
+                        cb_proto_set_duty_cycle(&ctx, 0);
+                        break;
+                    case '5':
+                        cb_proto_set_duty_cycle(&ctx, 50);
+                        break;
+                    case '6':
+                        cb_proto_set_duty_cycle(&ctx, 100);
+                        break;
+                    case '9':
+                        cb_proto_set_duty_cycle(&ctx, 1000);
+                        break;
+                    case '-': {
+                        unsigned int duty_cycle = cb_proto_get_target_duty_cycle(&ctx) - 10;
+                        /* check for underflow */
+                        if (duty_cycle > 1000)
+                            duty_cycle = 0;
+                        cb_proto_set_duty_cycle(&ctx, duty_cycle);
+                        break;
                     }
-                    break;
-                case 'q':
-                case 0x03: /* Ctrl-C */
-                    goto close_out;
-                case '\r':
-                case '\n':
-                    printf("\r\n");
-                    break;
-                default:
-                    if (isprint(cmd))
-                        error("Unknown command '%c', use 'h' or '?' to show available commands.", cmd);
-                    else
-                        error("Unknown command '0x%02x', use 'h' or '?' to show available commands.", cmd);
+                    case '+':
+                        /* overflow is already checked in library */
+                        cb_proto_set_duty_cycle(&ctx, cb_proto_get_target_duty_cycle(&ctx) + 10);
+                        break;
+                    case 's':
+                        send_charge_control = !send_charge_control;
+                        break;
+                    case 'c':
+                        cb_proto_set_ts_str(&ctx, COM_CHARGE_CONTROL);
+                        rv = cb_uart_send(&uart, COM_CHARGE_CONTROL, ctx.charge_control);
+                        if (rv) {
+                            error("error while sending charge control frame: %m");
+                            goto close_out;
+                        }
+                        break;
+                    case 'q':
+                    case 0x03: /* Ctrl-C */
+                        goto close_out;
+                    case '\r':
+                    case '\n':
+                        printf("\r\n");
+                        break;
+                    default:
+                        if (isprint(cmd))
+                            error("Unknown command '%c', use 'h' or '?' to show available commands.", cmd);
+                        else
+                            error("Unknown command '0x%02x', use 'h' or '?' to show available commands.", cmd);
+                    }
+                } else {
+                    switch (cmd) {
+                    case 'r':
+                        cb_proto_set_ccs_ready(&ctx, true);
+                        break;
+                    case 'R':
+                        cb_proto_set_ccs_ready(&ctx, false);
+                        break;
+                    case 'e':
+                        cb_proto_set_estop(&ctx, true);
+                        break;
+                     case 's':
+                        send_charge_control = !send_charge_control;
+                        break;
+                    case 'c':
+                        cb_proto_set_ts_str(&ctx, COM_CHARGE_CONTROL_2);
+                        rv = cb_uart_send(&uart, COM_CHARGE_CONTROL_2, ctx.charge_control);
+                        if (rv) {
+                            error("error while sending charge control frame: %m");
+                            goto close_out;
+                        }
+                        break;
+                    case 'q':
+                    case 0x03: /* Ctrl-C */
+                        goto close_out;
+                    case '\r':
+                    case '\n':
+                        printf("\r\n");
+                        break;
+                    default:
+                        if (isprint(cmd))
+                            error("Unknown command '%c', use 'h' or '?' to show available commands.", cmd);
+                        else
+                            error("Unknown command '0x%02x', use 'h' or '?' to show available commands.", cmd);
+                    }
                 }
             }
         }
@@ -422,6 +459,7 @@ send_charge_control_frame:
 
             switch (com) {
             case COM_CHARGE_STATE:
+            case COM_CHARGE_STATE_2:
                 ctx.charge_state = data;
                 break;
             case COM_PT1000_STATE:
@@ -431,6 +469,8 @@ send_charge_control_frame:
                 ctx.fw_version = data;
                 cb_proto_set_fw_version_str(&ctx);
                 fw_version_received = true;
+                if (cb_proto_fw_get_platform_type(&ctx) == FW_PLATFORM_TYPE_CCY)
+                    cb_proto_set_mcs_mode(&ctx, true);
                 break;
             case COM_GIT_HASH:
                 ctx.git_hash = data;
@@ -451,15 +491,24 @@ send_charge_control_frame:
             cb_proto_dump(&ctx);
 
             printf("\r\n");
-            printf("== Available commands ==\r\n"
-                   "  e -- enable PWM                   E -- disable PWM\r\n"
-                   "  r -- enable PWM with 5%%           t -- enable PWM with 10%%          z -- enable PWM with 100%%\r\n"
-                   "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
-                   "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%     6 -- set PWM duty cycle to 10%%\r\n"
-                   "  1 -- toggle contactor 1           2 -- toggle contactor 2\r\n"
-                   "  c -- (manually) send a Charge Control frame\r\n"
-                   "  s -- toggle auto sending of Charge Control frames (auto-sending: %s)\r\n"
-                   "  q -- quit the program\r\n", send_charge_control ? "on" : "off");
+            if (!cb_proto_is_mcs_mode(&ctx)) {
+                printf("== Available commands ==\r\n"
+                       "  e -- enable PWM                   E -- disable PWM\r\n"
+                       "  r -- enable PWM with 5%%           t -- enable PWM with 10%%          z -- enable PWM with 100%%\r\n"
+                       "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
+                       "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%     6 -- set PWM duty cycle to 10%%\r\n"
+                       "  1 -- toggle contactor 1           2 -- toggle contactor 2\r\n"
+                       "  c -- (manually) send a Charge Control frame\r\n"
+                       "  s -- toggle auto sending of Charge Control frames (auto-sending: %s)\r\n"
+                       "  q -- quit the program\r\n", send_charge_control ? "on" : "off");
+            } else {
+                printf("== Available commands ==\r\n"
+                       "  r -- set CCS Ready to Ready       R -- set CCS Ready to Not Ready\r\n"
+                       "  e -- set CCS Ready to Emergency Stop\r\n"
+                       "  c -- (manually) send a Charge Control frame\r\n"
+                       "  s -- toggle auto sending of Charge Control frames (auto-sending: %s)\r\n"
+                       "  q -- quit the program\r\n", send_charge_control ? "on" : "off");
+            }
         }
     }
 
