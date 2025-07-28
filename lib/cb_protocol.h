@@ -10,7 +10,6 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "uart.h"
 #include "cb_uart.h"
 
 /* the MCU is responsive to UART messages after releasing reset line after this time, in ms */
@@ -100,6 +99,7 @@ enum cs2_ce_state {
     CS2_CE_STATE_E,
     CS2_CE_STATE_EC,
     CS2_CE_STATE_INVALID = 0xf,
+    CS2_CE_STATE_MAX,
 };
 
 /* possible ID states in Charge State 2 frame */
@@ -108,6 +108,7 @@ enum cs2_id_state {
     CS2_ID_STATE_NOT_CONNECTED,
     CS2_ID_STATE_CONNECTED,
     CS2_ID_STATE_INVALID = 0xf,
+    CS2_ID_STATE_MAX,
 };
 
 /* possible ESTOP reasons in Charge State 2 frame */
@@ -126,6 +127,7 @@ enum cs2_estop_reason {
     CS2_ESTOP_REASON_ID_MALFUNCTION,
     CS2_ESTOP_REASON_CE_MALFUNCTION,
     CS2_ESTOP_REASON_HVREADY_MALFUNCTION,
+    CS2_ESTOP_REASON_MAX,
 };
 
 /* PT1000 related bit flags */
@@ -262,8 +264,11 @@ int cb_proto_set_ts_str(struct safety_controller *ctx, uint8_t com);
 void cb_proto_dump(struct safety_controller *ctx);
 
 /* low-level helpers */
-int cb_send_uart_inquiry(struct uart_ctx *uart, uint8_t com);
 
+/* forward declaration so that it is not necessary to include uart.h completely */
+struct uart_ctx;
+
+int cb_send_uart_inquiry(struct uart_ctx *uart, uint8_t com);
 
 #ifdef __cplusplus
 }

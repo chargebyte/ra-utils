@@ -9,7 +9,6 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include "uart.h"
 
 /* we expect at least one UART frame within this period, in ms */
 #define CB_UART_RECV_INTERVAL 1000 /* FIXME */
@@ -30,6 +29,9 @@ enum cb_uart_com {
     /* special value: keep in sync with above values but ignore INQUIRY */
     COM_MAX = 0x12,
 };
+
+/* forward declaration so that it is not necessary to include uart.h completely */
+struct uart_ctx;
 
 const char *cb_uart_com_to_str(enum cb_uart_com com);
 
