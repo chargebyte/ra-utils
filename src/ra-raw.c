@@ -42,10 +42,9 @@
 #include <uart.h>
 #include <version.h>
 #include "stringify.h"
+#include "uart-defaults.h"
 
-/* default uart interface */
-#define DEFAULT_UART_INTERFACE "/dev/ttyLP2"
-
+/* fallback if not set by build system */
 #ifndef PACKAGE_STRING
 #define PACKAGE_STRING "ra-utils (unknown version)"
 #endif
@@ -214,6 +213,7 @@ int main(int argc, char *argv[])
     struct termios termios_orig;
     struct pollfd poll_fds[2]; /* stdin at [0], UART fd at [1] */
     int fds = 2;
+    char *env_uart_device = NULL;
     struct uart_ctx uart = { .fd = -1 };
     struct safety_controller ctx = {};
     enum cb_uart_com com;
@@ -224,6 +224,14 @@ int main(int argc, char *argv[])
     bool git_hash_received = false;
     int rc = EXIT_FAILURE;
     int rv;
+
+    /* check whether environment variable SAFETY_MCU_UART is set and use it
+     * as default; so the resulting order is:
+     * compiled-in default -> can be overridden by environment -> can be overridden by cmdline
+     */
+    env_uart_device = getenv(GETENV_UART_KEY);
+    if (env_uart_device)
+        uart_device = env_uart_device;
 
     /* handle command line options */
     parse_cli(argc, argv);
