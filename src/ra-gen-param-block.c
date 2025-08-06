@@ -92,7 +92,7 @@ static void usage(char *p, int exitcode)
 }
 
 #define MARKER 0xC001F00D
-#define CHANNEL_DISABLE_VALUE -32768
+#define CHANNEL_DISABLE_VALUE 0x1fff
 
 struct param_block {
     uint32_t sob;
