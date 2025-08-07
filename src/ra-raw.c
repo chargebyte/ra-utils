@@ -466,8 +466,13 @@ send_charge_control_frame:
             cb_proto_set_ts_str(&ctx, com);
 
             switch (com) {
-            case COM_CHARGE_STATE:
             case COM_CHARGE_STATE_2:
+                // in case we connect to an already running firmware we could receive
+                // a Charge State 2 frame before we derived the platform from Firmware Version frame
+                // so set this already here too
+                cb_proto_set_mcs_mode(&ctx, true);
+                __attribute__ ((fallthrough));
+            case COM_CHARGE_STATE:
                 ctx.charge_state = data;
                 break;
             case COM_PT1000_STATE:
