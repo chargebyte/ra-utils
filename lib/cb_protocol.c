@@ -212,6 +212,11 @@ enum cs2_estop_reason cb_proto_get_estop_reason(struct safety_controller *ctx)
     return DATA_GET_BITS(ctx->charge_state, 48, 8);
 }
 
+enum cs2_safe_state_active cb_proto_cs2_get_safe_state_active(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 48, 2);
+}
+
 enum cc2_ccs_ready cb_proto_get_target_ccs_ready(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_control, 60, 4);
@@ -410,8 +415,8 @@ const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason)
     switch (reason) {
     case CS2_ESTOP_REASON_NO_STOP:
         return "no estop reason";
-    case CS2_ESTOP_REASON_EMERGENCY_INPUT:
-        return "emergency input";
+    case CS2_ESTOP_REASON_INTERNAL_ERROR:
+        return "internal error";
     case CS2_ESTOP_REASON_COM_TIMEOUT:
         return "communication timeout";
     case CS2_ESTOP_REASON_TEMP1_MALFUNCTION:
@@ -436,6 +441,22 @@ const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason)
         return "CE malfunction";
     case CS2_ESTOP_REASON_HVREADY_MALFUNCTION:
         return "HV ready malfunction";
+    case CS2_ESTOP_REASON_EMERGENCY_INPUT:
+        return "emergency input";
+    default:
+        return "unknown";
+    }
+}
+
+const char *cb_proto_safe_state_active_to_str(enum cs2_safe_state_active state)
+{
+    switch (state) {
+    case CS2_SAFE_STATE_ACTIVE_NORMAL:
+        return "normal";
+    case CS2_SAFE_STATE_ACTIVE_SAFE_STATE:
+        return "safe state";
+    case CS2_SAFE_STATE_ACTIVE_SNA:
+        return "SNA";
     default:
         return "undefined";
     }
@@ -465,7 +486,7 @@ const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type)
     case FW_PLATFORM_TYPE_CHARGESOM:
         return "Charge SOM";
     case FW_PLATFORM_TYPE_CCY:
-        return "CC Y";
+        return "Charge Control Y";
     default:
         return "unknown value";
     }
@@ -570,7 +591,9 @@ void cb_proto_dump(struct safety_controller *ctx)
         printfnl("== MCS ==");
         printfnl("ID State: %s", cb_proto_id_state_to_str(cb_proto_get_id_state(ctx)));
         printfnl("CE State: %s", cb_proto_ce_state_to_str(cb_proto_get_ce_state(ctx)));
+        printfnl("Safe State Active: %s", cb_proto_safe_state_active_to_str(cb_proto_cs2_get_safe_state_active(ctx)));
         printfnl("EStop Reason: %s", cb_proto_estop_reason_to_str(cb_proto_get_estop_reason(ctx)));
+
         printfnl("");
         printfnl("CCS Ready: %-3s", cb_proto_ccs_ready_to_str(cb_proto_get_target_ccs_ready(ctx)));
     }

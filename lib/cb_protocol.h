@@ -114,7 +114,7 @@ enum cs2_id_state {
 /* possible ESTOP reasons in Charge State 2 frame */
 enum cs2_estop_reason {
     CS2_ESTOP_REASON_NO_STOP = 0x0,
-    CS2_ESTOP_REASON_EMERGENCY_INPUT,
+    CS2_ESTOP_REASON_INTERNAL_ERROR,
     CS2_ESTOP_REASON_COM_TIMEOUT,
     CS2_ESTOP_REASON_TEMP1_MALFUNCTION,
     CS2_ESTOP_REASON_TEMP2_MALFUNCTION,
@@ -127,7 +127,16 @@ enum cs2_estop_reason {
     CS2_ESTOP_REASON_ID_MALFUNCTION,
     CS2_ESTOP_REASON_CE_MALFUNCTION,
     CS2_ESTOP_REASON_HVREADY_MALFUNCTION,
+    CS2_ESTOP_REASON_EMERGENCY_INPUT,
     CS2_ESTOP_REASON_MAX,
+};
+
+/* possible SafeStateActive states in Charge State 2 frames */
+enum cs2_safe_state_active {
+    CS2_SAFE_STATE_ACTIVE_NORMAL = 0x0,
+    CS2_SAFE_STATE_ACTIVE_SAFE_STATE,
+    CS2_SAFE_STATE_ACTIVE_SNA = 0x3,
+    CS2_SAFE_STATE_ACTIVE_MAX,
 };
 
 /* PT1000 related bit flags */
@@ -216,6 +225,7 @@ bool cb_proto_is_mcs_mode(struct safety_controller *ctx);
 enum cs2_id_state cb_proto_get_id_state(struct safety_controller *ctx);
 enum cs2_ce_state cb_proto_get_ce_state(struct safety_controller *ctx);
 enum cs2_estop_reason cb_proto_get_estop_reason(struct safety_controller *ctx);
+enum cs2_safe_state_active cb_proto_get_safe_state_active(struct safety_controller *ctx);
 
 enum cc2_ccs_ready cb_proto_get_target_ccs_ready(struct safety_controller *ctx);
 void cb_proto_set_ccs_ready(struct safety_controller *ctx, bool ready);
@@ -253,6 +263,7 @@ const char *cb_proto_estop_state_to_str(enum estop_state state);
 const char *cb_proto_id_state_to_str(enum cs2_id_state state);
 const char *cb_proto_ce_state_to_str(enum cs2_ce_state state);
 const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason);
+const char *cb_proto_safe_state_active_to_str(enum cs2_safe_state_active state);
 
 const char *cb_proto_ccs_ready_to_str(enum cc2_ccs_ready state);
 
