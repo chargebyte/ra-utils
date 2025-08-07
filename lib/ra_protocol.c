@@ -794,26 +794,29 @@ int ra_read_data(struct uart_ctx *uart, uint8_t *buffer, size_t bufsize, bool ac
     return 0;
 }
 
-/* FIXME: assumes that only one single data packet is received -> TBD: looping */
 int ra_read(struct uart_ctx *uart, uint8_t *buffer, uint32_t start_addr, size_t len)
 {
     uint32_t end_addr = start_addr + len - 1;
+    size_t already_read = 0;
     int rv;
-
-    /* safety check - remove when implementation is complete */
-    if (len > MAX_DATA_PACKET_PAYLOAD) {
-        error("requested size for reading to big - not implemented yet");
-        errno = EFBIG;
-        return -1;
-    }
 
     rv = ra_rwe_cmd(uart, RWE_READ, start_addr, end_addr);
     if (rv)
         return rv;
 
-    rv = ra_read_data(uart, buffer, len, false);
-    if (rv)
-        return rv;
+    while (already_read < len) {
+        size_t len_for_this_round = min(len - already_read, MAX_DATA_PACKET_PAYLOAD);
+        uint32_t cur_addr = start_addr + already_read;
+        bool is_last_round = already_read + len_for_this_round == len;
+
+        debug("reading  0x%08" PRIx32 "-0x%08" PRIx32, cur_addr, (uint32_t)(cur_addr + len_for_this_round - 1));
+
+        rv = ra_read_data(uart, &buffer[already_read], len_for_this_round, !is_last_round);
+        if (rv)
+            return rv;
+
+        already_read += len_for_this_round;
+    }
 
     return 0;
 }

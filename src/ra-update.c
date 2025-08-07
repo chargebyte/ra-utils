@@ -1,4 +1,3 @@
-
 /*
  * Copyright © 2024 chargebyte GmbH
  * SPDX-License-Identifier: Apache-2.0
@@ -20,6 +19,7 @@
  *         chipinfo             -- print chip info
  *         erase                -- erase MCU's flash
  *         flash <filename>     -- write given filename to MCU's flash
+ *         dump [<filename>]    -- dump the MCU's flash content to stdout or filename (if given)
  *
  * Options:
  *         -c, --gpiochip          GPIO chip device (default: /dev/gpiochip2)
@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <ra_protocol.h>
 #include <cb_protocol.h>
@@ -71,6 +72,7 @@ enum cmd {
     CMD_CHIPINFO,
     CMD_ERASE,
     CMD_FLASH,
+    CMD_DUMP,
     CMD_MAX
 };
 
@@ -82,6 +84,7 @@ static const char *cmd_strings[CMD_MAX] = {
     "chipinfo",
     "erase",
     "flash",
+    "dump",
 };
 
 static const char *cmd_args[CMD_MAX] = {
@@ -92,6 +95,7 @@ static const char *cmd_args[CMD_MAX] = {
     NULL,
     NULL,
     "<filename>",
+    "[<filename>]",
 };
 
 static const char *cmd_descs[CMD_MAX] = {
@@ -102,6 +106,7 @@ static const char *cmd_descs[CMD_MAX] = {
     "print chip info",
     "erase MCU's flash",
     "write given filename to MCU's flash",
+    "dump the MCU's flash content to stdout or filename (if given)",
 };
 
 /* command line options */
@@ -335,6 +340,15 @@ void parse_cli(int argc, char *argv[])
         if (argc == 0)
             return;
     }
+    /* for dump it is optional, too */
+    if (cmd == CMD_DUMP) {
+        if (argc == 1) {
+            fw_filename = argv[0];
+            return;
+        }
+        if (argc == 0)
+            return;
+    }
     /* anything else does not take any arguments */
     if (argc)
         usage(program_invocation_short_name, EXIT_FAILURE);
@@ -434,9 +448,9 @@ int main(int argc, char *argv[])
         ra_set_reset_duration(gpio, reset_duration);
     }
 
-    /* if fw_filename is set, then make the file content via mmap available */
-    if (fw_filename) {
-        rv = fw_mmap(fw_filename, &fw_content, &fw_filesize);
+    /* when flashing and if fw_filename is set, then make the file content via mmap available */
+    if (cmd == CMD_FLASH && fw_filename) {
+        rv = fw_mmap_infile(fw_filename, &fw_content, &fw_filesize);
         if (rv) {
             xerror("Could not open '%s': %m", fw_filename);
             goto close_out;
@@ -554,6 +568,77 @@ int main(int argc, char *argv[])
             if (rv) {
                 xerror("Flashing the file failed: %m");
                 goto reset_to_normal_out;
+            }
+        }
+
+        reset_to_normal_on_exit = true;
+        break;
+
+    case CMD_DUMP:
+        rv = setup_uart_communication(gpio, &uart);
+        if (rv) {
+            /* no error logging here required, already done */
+            goto reset_to_normal_out;
+        }
+
+        rv = ra_get_chipinfo(&uart, &chipinfo, verbose);
+        if (rv) {
+            /* no error logging here required, already done */
+            goto reset_to_normal_out;
+        }
+
+        /* if a filename is given, try to create the file first with the size of whole area */
+        if (fw_filename) {
+            rv = fw_mmap_outfile(fw_filename, &fw_content, flash_area_info->size);
+            if (rv) {
+                xerror("Could not create '%s': %m", fw_filename);
+                goto close_out;
+            }
+        } else {
+            /* otherwise we need to allocate memory to buffer the data for later */
+            fw_content = malloc(flash_area_info->size);
+            if (!fw_content) {
+                xerror("Could not allocate memory: %m");
+                goto close_out;
+            }
+        }
+
+        /* to keep it simple, we read the whole area */
+        rv = ra_rwe_cmd(&uart, RWE_READ, flash_area_info->start_address, flash_area_info->end_address);
+        if (rv) {
+            xerror("Reading the MCU's flash memory failed: %m");
+            goto reset_to_normal_out;
+        }
+
+        rv = ra_read(&uart, fw_content, flash_area_info->start_address, flash_area_info->size);
+        if (rv) {
+            xerror("Reading the flash content failed: %m");
+            goto reset_to_normal_out;
+        }
+
+        if (fw_filename) {
+            rv = msync(fw_content, flash_area_info->size, MS_SYNC);
+            if (rv) {
+                xerror("Syncing memory failed: %m");
+                goto reset_to_normal_out;
+            }
+
+            rv = munmap(fw_content, flash_area_info->size);
+            if (rv) {
+                xerror("Unmapping memory failed: %m");
+                goto reset_to_normal_out;
+            }
+        } else {
+            /* dump data to stdout */
+            size_t dumped = 0;
+
+            while (dumped < flash_area_info->size) {
+                ssize_t c = write(STDOUT_FILENO, fw_content, flash_area_info->size);
+                if (c == -1) {
+                    xerror("Dump to stdout failed: %m");
+                    goto reset_to_normal_out;
+                }
+                dumped += c;
             }
         }
 
