@@ -459,8 +459,8 @@ int main(int argc, char *argv[])
         ra_set_reset_duration(gpio, reset_duration);
     }
 
-    /* when flashing and if fw_filename is set, then make the file content via mmap available */
-    if (cmd == CMD_FLASH && fw_filename) {
+    /* when not dumping flash content if fw_filename is set, then make the file content via mmap available */
+    if (cmd != CMD_DUMP && fw_filename) {
         rv = fw_mmap_infile(fw_filename, &fw_content, &fw_filesize);
         if (rv) {
             xerror("Could not open '%s': %m", fw_filename);
