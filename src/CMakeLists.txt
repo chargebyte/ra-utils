@@ -54,3 +54,22 @@ target_link_libraries(ra-gen-param-block
 )
 
 install(TARGETS ra-gen-param-block DESTINATION bin)
+
+add_executable(ra-pb-dump
+    ra-pb-dump.c
+    param_block.c
+    param_block_crc8.c
+)
+
+target_include_directories(ra-pb-dump
+    PRIVATE
+        ${LIBRAUTILS_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
+)
+
+target_link_libraries(ra-pb-dump
+    PRIVATE
+        m
+)
+
+install(TARGETS ra-pb-dump DESTINATION bin)

@@ -18,8 +18,8 @@ int str_to_temperature(const char *s, int16_t *temperature)
     float val;
     int32_t ival;
 
-    /* special case: disable */
-    if (strcasecmp(s, "disable") == 0) {
+    /* special case: disable[d] */
+    if (strcasecmp(s, "disable") == 0 || strcasecmp(s, "disabled") == 0) {
         *temperature = CHANNEL_DISABLE_VALUE;
         return 0;
     }
@@ -46,13 +46,13 @@ int str_to_temperature(const char *s, int16_t *temperature)
 int temperature_to_str(char *buffer, size_t size, int16_t temperature)
 {
     if (le16toh(temperature) == CHANNEL_DISABLE_VALUE)
-        return snprintf(buffer, size, "%s", "disable");
+        return snprintf(buffer, size, "%s", "disabled");
 
-    return snprintf(buffer, size, "%.1f", (float)le16toh(temperature) / 10.0f);
+    return snprintf(buffer, size, "%.1f °C", (int16_t)le16toh(temperature) / 10.0f);
 }
 
 static const char *contactor_type_to_string[CONTACTOR_MAX] = {
-    "none",
+    "disabled",
     "without-feedback",
     "with-feedback",
 };
@@ -77,7 +77,7 @@ const char *contactor_type_to_str(const enum contactor_type type)
 }
 
 static const char *emergeny_stop_to_string[EMERGENY_STOP_MAX] = {
-    "disable",
+    "disabled",
     "active-low",
 };
 
@@ -107,7 +107,7 @@ void pb_dump(struct param_block *param_block)
     printf("pt1000s:\n");
     for (i = 0; i < ARRAY_SIZE(param_block->temperature); i++) {
         char buffer[32];
-        temperature_to_str(buffer, sizeof(buffer), le16toh(param_block->temperature[i]));
+        temperature_to_str(buffer, sizeof(buffer), param_block->temperature[i]);
         printf("  - %s\n", buffer);
     }
     printf("\n");
@@ -122,4 +122,3 @@ void pb_dump(struct param_block *param_block)
         printf("  - %s\n", emergeny_stop_type_to_str(param_block->estop[i]));
     printf("\n");
 }
-
