@@ -603,13 +603,6 @@ int main(int argc, char *argv[])
             }
         }
 
-        /* to keep it simple, we read the whole area */
-        rv = ra_rwe_cmd(&uart, RWE_READ, flash_area_info->start_address, flash_area_info->end_address);
-        if (rv) {
-            xerror("Reading the MCU's flash memory failed: %m");
-            goto reset_to_normal_out;
-        }
-
         rv = ra_read(&uart, fw_content, flash_area_info->start_address, flash_area_info->size);
         if (rv) {
             xerror("Reading the flash content failed: %m");
