@@ -16,8 +16,8 @@ fi
 
 PARAM_FILE="$(ls -1 $LIBDIR/*_parameter-block_only-contactor.bin 2>/dev/null)"
 
-TARGET_VERSION="$(ra-update fw_info "$FW_FILE" 2>/dev/null)"
-CURRENT_VERSION="$(ra-update fw_info)"
+TARGET_VERSION="$(ra-update fw-info "$FW_FILE" 2>/dev/null)"
+CURRENT_VERSION="$(ra-update fw-info)"
 
 CMP_TARGET_VERSION="$(echo "$TARGET_VERSION" | tail -n +3 | head -n 6)"
 CMP_CURRENT_VERSION="$(echo "$CURRENT_VERSION" | tail -n +3 | head -n 6)"

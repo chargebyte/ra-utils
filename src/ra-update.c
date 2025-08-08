@@ -15,7 +15,7 @@
  *         reset                -- reset MCU and exit
  *         hold-in-reset        -- reset MCU, hold reset until Ctrl+C is pressed, then release reset and exit
  *         bootloader           -- reset MCU and force bootloader mode
- *         fw_info [<filename>] -- print firmware info (if the  optional filename is given, read the info from this file)
+ *         fw-info [<filename>] -- print firmware info (if the  optional filename is given, read the info from this file)
  *         chipinfo             -- print chip info
  *         erase                -- erase MCU's flash
  *         flash <filename>     -- write given filename to MCU's flash
@@ -81,7 +81,7 @@ static const char *cmd_strings[CMD_MAX] = {
     "reset",
     "hold-in-reset",
     "bootloader",
-    "fw_info",
+    "fw-info",
     "chipinfo",
     "erase",
     "flash",
@@ -322,6 +322,9 @@ void parse_cli(int argc, char *argv[])
             break;
         }
     }
+    /* compat fix for fw_info -> fw-info transition */
+    if (strcasecmp(argv[0], "fw_info") == 0)
+         i = cmd = CMD_FW_INFO;
     /* bail out if unknown command was given */
     if (i == CMD_MAX)
         usage(program_invocation_short_name, EXIT_FAILURE);
