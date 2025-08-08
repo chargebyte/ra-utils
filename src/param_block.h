@@ -10,6 +10,7 @@
 
 #define MARKER 0xC001F00D
 #define CHANNEL_DISABLE_VALUE 0x1fff
+#define OLD_CHANNEL_DISABLE_VALUE 0x8000
 
 struct param_block {
     uint32_t sob;

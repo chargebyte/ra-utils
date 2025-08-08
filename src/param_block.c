@@ -47,6 +47,9 @@ int temperature_to_str(char *buffer, size_t size, int16_t temperature)
 {
     if (le16toh(temperature) == CHANNEL_DISABLE_VALUE)
         return snprintf(buffer, size, "%s", "disabled");
+    /* older firmware versions used another magic value */
+    if (le16toh(temperature) == OLD_CHANNEL_DISABLE_VALUE)
+        return snprintf(buffer, size, "%s", "disabled");
 
     return snprintf(buffer, size, "%.1f °C", (int16_t)le16toh(temperature) / 10.0f);
 }
