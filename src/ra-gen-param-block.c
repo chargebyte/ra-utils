@@ -179,7 +179,7 @@ void parse_cli(int argc, char *argv[])
 
     f = fopen(argv[0], "wb");
     if (!f) {
-        fprintf(stderr, "Error: cannot open '%s' writing: %m", argv[0]);
+        fprintf(stderr, "Error: cannot open '%s' for writing: %m\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 }
@@ -196,14 +196,14 @@ int main(int argc, char *argv[])
     param_block.crc = crc8((uint8_t *)&param_block, sizeof(param_block) - 1);
 
     if (fwrite(&param_block, sizeof(param_block), 1, f) != 1) {
-        fprintf(stderr, "Error while writing: %m");
+        fprintf(stderr, "Error while writing: %m\n");
         rv = EXIT_FAILURE;
 
         /* close but do not look at result */
         fclose(f);
     } else {
         if (fclose(f) == EOF) {
-            fprintf(stderr, "Error while closing: %m");
+            fprintf(stderr, "Error while closing: %m\n");
             rv = EXIT_FAILURE;
         }
     }
