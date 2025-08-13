@@ -1,6 +1,14 @@
 /*
  * Copyright © 2025 chargebyte GmbH
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This is a command line tool to dump a binary parameter block file as YAML.
+ *
+ * Usage: ra-pb-dump [<options>] [<filename>]
+ *
+ * Options:
+ *         -V, --version           print version and exit
+ *         -h, --help              print this usage and exit
  */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -46,7 +54,7 @@ static void usage(char *p, int exitcode)
 
     fprintf(stderr,
             "%s (%s) -- Command line tool to dump a parameter block file\n\n"
-            "Usage: %s [<options>] <filename>\n\n"
+            "Usage: %s [<options>] [<filename>]\n\n"
             , p, PACKAGE_STRING, p);
 
     fprintf(stderr,
@@ -129,7 +137,8 @@ int main(int argc, char *argv[])
     parse_cli(argc, argv);
 
     if (fread(&param_block, sizeof(param_block), 1, f) != 1) {
-        fprintf(stderr, "Error while reading: %m\n");
+        if (errno)
+            fprintf(stderr, "Error while reading: %m\n");
         goto err_out;
     }
 
