@@ -235,11 +235,14 @@ void uart_trace(struct uart_ctx *ctx, bool on)
 /*
  * Print for each character in buffer [XX] or <XX> with log level trace.
  */
-int uart_dump_frame(bool is_sending, uint8_t *buffer, size_t len)
+int uart_dump_frame(bool with_timestamp, bool is_sending, uint8_t *buffer, size_t len)
 {
     const char *fmt = is_sending ? "[%02hhx]" : "<%02hhx>";
+    struct timespec ts;
     char *msg = NULL;
     size_t i;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
 
     msg = malloc(4 * len + 1);
     if (!msg)
@@ -248,7 +251,10 @@ int uart_dump_frame(bool is_sending, uint8_t *buffer, size_t len)
     for (i = 0; i < len; ++i)
         sprintf(&msg[4 * i], fmt, buffer[i]);
 
-    debug("%-10s%s", is_sending ? "Sending: " : "Received: ", msg);
+    if (with_timestamp)
+        debug("[%4ld.%09ld] %-10s%s", ts.tv_sec, ts.tv_nsec, is_sending ? "Sending: " : "Received: ", msg);
+    else
+        debug("%-10s%s", is_sending ? "Sending: " : "Received: ", msg);
 
     free(msg);
     return 0;

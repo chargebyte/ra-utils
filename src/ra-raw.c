@@ -459,7 +459,7 @@ send_charge_control_frame:
 
                 error("unprocessed data in input buffer follows (%zu bytes):", c);
 
-                uart_dump_frame(false, buf, c);
+                uart_dump_frame(false, false, buf, c);
                 goto close_out;
             }
 

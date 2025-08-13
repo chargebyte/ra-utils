@@ -71,7 +71,7 @@ int cb_uart_send(struct uart_ctx *uart, enum cb_uart_com com, uint64_t data)
     }
 
     if (uart->trace)
-        uart_dump_frame(true, (uint8_t *)&frame, sizeof(frame));
+        uart_dump_frame(true, true, (uint8_t *)&frame, sizeof(frame));
 
     c = uart_write_drain(uart, (const uint8_t *)&frame, sizeof(frame));
     if (c < 0)
@@ -95,7 +95,7 @@ int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data)
         return c;
 
     if (uart->trace)
-        uart_dump_frame(false, (uint8_t *)&frame, sizeof(frame));
+        uart_dump_frame(true, false, (uint8_t *)&frame, sizeof(frame));
 
     /* check field patterns */
     if (frame.sof != CB_SOF) {
