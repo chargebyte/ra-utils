@@ -21,17 +21,20 @@ install(TARGETS ra-update DESTINATION sbin)
 
 add_executable(ra-raw
     ra-raw.c
+    ra_gpio.c
 )
 
 target_include_directories(ra-raw
     PRIVATE
         ${LIBRAUTILS_INCLUDE_DIR}
         ${LIBRAUTILS_INCLUDE_BINARY_DIR}
+        ${LIBGPIOD_INCLUDE_DIRS}
 )
 
 target_link_libraries(ra-raw
     PRIVATE
         ra-utils
+        ${LIBGPIOD_LIBRARIES}
 )
 
 install(TARGETS ra-raw DESTINATION sbin)
