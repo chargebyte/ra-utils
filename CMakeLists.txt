@@ -38,5 +38,8 @@ find_package(PkgConfig REQUIRED)
 # search for libgpiod
 pkg_search_module(LIBGPIOD REQUIRED libgpiod)
 
+# search for libyaml
+pkg_search_module(LIBYAML REQUIRED yaml-0.1)
+
 add_subdirectory(lib)
 add_subdirectory(src)

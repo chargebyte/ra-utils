@@ -73,3 +73,24 @@ target_link_libraries(ra-pb-dump
 )
 
 install(TARGETS ra-pb-dump DESTINATION bin)
+
+add_executable(ra-pb-create
+    ra-pb-create.c
+    param_block.c
+    param_block_crc8.c
+)
+
+target_include_directories(ra-pb-create
+    PRIVATE
+        ${LIBRAUTILS_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
+        ${LIBYAML_INCLUDE_DIRS}
+)
+
+target_link_libraries(ra-pb-create
+    PRIVATE
+        m
+        ${LIBYAML_LIBRARIES}
+)
+
+install(TARGETS ra-pb-create DESTINATION bin)
