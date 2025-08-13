@@ -18,16 +18,18 @@ int str_to_temperature(const char *s, int16_t *temperature)
     float val;
     int32_t ival;
 
-    /* special case: disable[d] */
-    if (strcasecmp(s, "disable") == 0 || strcasecmp(s, "disabled") == 0) {
+    /* special case: disable[d], none or off */
+    if (strcasecmp(s, "disable") == 0 || strcasecmp(s, "disabled") == 0 ||
+        strcasecmp(s, "none") == 0 || strcasecmp(s, "off") == 0) {
         *temperature = CHANNEL_DISABLE_VALUE;
         return 0;
     }
 
     val = strtof(s, &endptr);
 
-    /* conversion failed */
-    if (errno != 0 || endptr == s || *endptr != '\0')
+    /* conversion failed: no valid float, or suffix not '°C' (with possible single whitespace before) */
+    if (errno != 0 || endptr == s ||
+        !(strcasecmp(endptr, "°C") == 0 || strcasecmp(endptr, " °C") == 0))
        return -1;
 
     /* we store it as int with 0.1 °C resolution, so multiply with 10
@@ -68,6 +70,10 @@ enum contactor_type str_to_contactor_type(const char *s)
         if (strcasecmp(s, contactor_type_to_string[i]) == 0)
             return i;
 
+    /* relaxed input handling: also accept 'none' */
+    if (strcasecmp(s, "none") == 0)
+        return CONTACTOR_NONE;
+
     return CONTACTOR_MAX;
 }
 
@@ -91,6 +97,10 @@ enum emergeny_stop_type str_to_emergeny_stop_type(const char *s)
     for (i = EMERGENY_STOP_NONE; i < EMERGENY_STOP_MAX; ++i)
         if (strcasecmp(s, emergeny_stop_to_string[i]) == 0)
             return i;
+
+    /* relaxed input handling: also accept 'none' or 'off' */
+    if (strcasecmp(s, "none") == 0 || strcasecmp(s, "off") == 0)
+        return EMERGENY_STOP_NONE;
 
     return EMERGENY_STOP_MAX;
 }
