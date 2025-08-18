@@ -88,7 +88,7 @@ static void usage(char *p, int exitcode)
 /* to keep things easy, we use global variables here */
 char *filename_in = "-";
 char *filename_out = "-";
-FILE *f, *outfile;
+FILE *infile, *outfile;
 struct param_block param_block;
 yaml_parser_t yaml_parser;
 yaml_token_t yaml_token;
@@ -139,10 +139,10 @@ void parse_cli(int argc, char *argv[])
         usage(program_invocation_short_name, EXIT_FAILURE);
 
     if (strcmp(filename_in, "-") == 0) {
-        f = stdin;
+        infile = stdin;
     } else {
-        f = fopen(filename_in, "r");
-        if (!f) {
+        infile = fopen(filename_in, "r");
+        if (!infile) {
             fprintf(stderr, "Error: cannot open '%s' for reading: %m\n", filename_in);
             exit(EXIT_FAILURE);
         }
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
     } yaml_parser_state = YPS_NONE;
     enum {
         PBS_NONE,
-        PBS_PT1000,
+        PBS_PT1000S,
         PBS_CONTACTORS,
         PBS_ESTOPS,
     } param_block_state;
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
         goto err_out;
     }
 
-    yaml_parser_set_input_file(&yaml_parser, f);
+    yaml_parser_set_input_file(&yaml_parser, infile);
 
     while (!parsing_done) {
         if (!yaml_parser_scan(&yaml_parser, &yaml_token))
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
             case YAML_SCALAR_TOKEN:
                 if (yaml_parser_state == YPS_IN_KEY) {
                     if (strcasecmp(yaml_token.data.scalar.value, "pt1000s") == 0)
-                        param_block_state = PBS_PT1000;
+                        param_block_state = PBS_PT1000S;
                     else if (strcasecmp(yaml_token.data.scalar.value, "contactors") == 0)
                         param_block_state = PBS_CONTACTORS;
                     else if (strcasecmp(yaml_token.data.scalar.value, "estops") == 0)
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
                         param_block_state = PBS_NONE;
                 } else if (yaml_parser_state == YPS_IN_VALUE_SEQUENCE) {
                     switch (param_block_state) {
-                    case PBS_PT1000:
+                    case PBS_PT1000S:
                         if (current_temperature_idx >= CB_PROTO_MAX_PT1000S) {
                             /* we only warn when more values than allowed are given */
                             fprintf(stderr, "Warning: ignoring surplus temperature value (#%u): %s\n",
@@ -280,6 +280,14 @@ int main(int argc, char *argv[])
 
     yaml_parser_delete(&yaml_parser);
 
+    /* check that we saw at least the expected count of parameters, warn otherwise */
+    if (current_temperature_idx < CB_PROTO_MAX_PT1000S)
+        fprintf(stderr, "Warning: only %d temperature value(s) set instead of expected %d.\n", current_temperature_idx, CB_PROTO_MAX_PT1000S);
+    if (current_contactor_idx < CB_PROTO_MAX_CONTACTORS)
+        fprintf(stderr, "Warning: only %d contactor configuration(s) set instead of expected %d.\n", current_contactor_idx, CB_PROTO_MAX_CONTACTORS);
+    if (current_estop_idx < CB_PROTO_MAX_ESTOPS)
+        fprintf(stderr, "Warning: only %d estop configuration(s) set instead of expected %d.\n", current_estop_idx, CB_PROTO_MAX_ESTOPS);
+
     param_block.sob = htole32(MARKER);
     param_block.eob = htole32(MARKER);
     param_block.crc = crc8((uint8_t *)&param_block, sizeof(param_block) - 1);
@@ -298,8 +306,8 @@ int main(int argc, char *argv[])
 
 err_out:
     /* close (if not yet done) but do not look at result */
-    if (f)
-        fclose(f);
+    if (infile)
+        fclose(infile);
     if (outfile)
         fclose(outfile);
 
