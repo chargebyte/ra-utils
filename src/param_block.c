@@ -101,8 +101,8 @@ enum emergeny_stop_type str_to_emergeny_stop_type(const char *s)
         if (strcasecmp(s, emergeny_stop_to_string[i]) == 0)
             return i;
 
-    /* relaxed input handling: also accept 'none' or 'off' */
-    if (strcasecmp(s, "none") == 0 || strcasecmp(s, "off") == 0)
+    /* relaxed input handling: also accept 'disable', 'none' or 'off' */
+    if (strcasecmp(s, "disable") == 0 || strcasecmp(s, "none") == 0 || strcasecmp(s, "off") == 0)
         return EMERGENY_STOP_NONE;
 
     return EMERGENY_STOP_MAX;

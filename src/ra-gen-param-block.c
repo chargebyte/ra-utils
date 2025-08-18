@@ -136,7 +136,8 @@ void parse_cli(int argc, char *argv[])
         usage(program_invocation_short_name, EXIT_FAILURE);
 
     for (i = 0; i < CB_PROTO_MAX_PT1000S; ++i) {
-        if (strcasecmp(argv[i], "disable") == 0) {
+        if (strcasecmp(argv[i], "disable") == 0 ||
+            strcasecmp(argv[i], "disabled") == 0) {
             param_block.temperature[i] = htole16(CHANNEL_DISABLE_VALUE);
         } else {
             char *endptr;
