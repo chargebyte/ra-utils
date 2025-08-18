@@ -22,7 +22,7 @@ int str_to_temperature(const char *s, int16_t *temperature)
     /* special case: disable[d], none or off */
     if (strcasecmp(s, "disable") == 0 || strcasecmp(s, "disabled") == 0 ||
         strcasecmp(s, "none") == 0 || strcasecmp(s, "off") == 0) {
-        *temperature = CHANNEL_DISABLE_VALUE;
+        *temperature = htole16(CHANNEL_DISABLE_VALUE);
         return 0;
     }
 
