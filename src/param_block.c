@@ -29,7 +29,9 @@ int str_to_temperature(const char *s, int16_t *temperature)
 
     /* conversion failed: no valid float, or suffix not '°C' (with possible single whitespace before) */
     if (errno != 0 || endptr == s ||
-        !(strcasecmp(endptr, "°C") == 0 || strcasecmp(endptr, " °C") == 0))
+        // Important note: we want to use strcmp here because we want a dump binary comparison
+        // (our source code is UTF-8 and we expect the YAML also as UTF-8)
+        !(strcmp(endptr, "°C") == 0 || strcmp(endptr, " °C") == 0))
        return -1;
 
     /* we store it as int with 0.1 °C resolution, so multiply with 10
