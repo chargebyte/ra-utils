@@ -44,8 +44,36 @@ CURRENT_VERSION_ONLY="$(echo "$CMP_CURRENT_VERSION" | grep "Version" | awk '{pri
 # when upgrading from 0.1.0 we need to install a parameter block for the first time;
 # later we assume that a valid parameter block is already installed and we don't touch it
 if [ "$CURRENT_VERSION_ONLY" = "0.1.0" ]; then
-    echo -n "Updating Parameter Block..."
+    echo -n "Installing Parameter Block..."
     ra-update -a data flash "$PARAM_FILE"
+    echo "done."
+fi
+
+# when upgrading from 0.2.2 we need to update the parameter block since the magic value
+# for disabled PT1000 channels changed
+if [ "$CURRENT_VERSION_ONLY" = "0.2.2" ]; then
+    echo "Updating Parameter Block..."
+
+    pbfile_current_bin=$(mktemp)
+    pbfile_current_yaml=$(mktemp)
+    pbfile_target_bin=$(mktemp)
+
+    # dump current parameter block to YAML file
+    ra-update -a data dump "$pbfile_current_bin"
+    ra-pb-dump "$pbfile_current_bin" > "$pbfile_current_yaml"
+
+    # dump it indented to stdout (for debug purpose only)
+    echo "Current parameters:"
+    cat "$pbfile_current_yaml" | sed 's/^/    /'
+
+    # re-create parameter block - while creating YAML, the old magic values was already handled
+    # so we can just re-create the new binary file using the dumped YAML file
+    ra-pb-create -i "$pbfile_current_yaml" -o "$pbfile_target_bin"
+
+    # finally flash it
+    ra-update -a data flash "$pbfile_target_bin"
+
+    rm -f "$pbfile_current_bin" "$pbfile_current_yaml" "$pbfile_target_bin"
     echo "done."
 fi
 
