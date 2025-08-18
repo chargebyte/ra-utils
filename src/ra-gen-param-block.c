@@ -34,7 +34,6 @@
 #include <unistd.h>
 #include <version.h>
 #include "param_block.h"
-#include "param_block_crc8.h"
 
 #ifndef PACKAGE_STRING
 #define PACKAGE_STRING "ra-gen-param-block (unknown version)"
@@ -188,12 +187,14 @@ int main(int argc, char *argv[])
 {
     int rv = EXIT_SUCCESS;
 
+    /* init parameter block with all disabled */
+    pb_init(&param_block);
+
     /* handle command line options */
     parse_cli(argc, argv);
 
-    param_block.sob = htole32(MARKER);
-    param_block.eob = htole32(MARKER);
-    param_block.crc = crc8((uint8_t *)&param_block, sizeof(param_block) - 1);
+    /* update CRC */
+    pb_refresh_crc(&param_block);
 
     if (fwrite(&param_block, sizeof(param_block), 1, f) != 1) {
         fprintf(stderr, "Error while writing: %m\n");

@@ -42,4 +42,6 @@ int temperature_to_str(char *buffer, size_t size, int16_t temperature);
 const char *contactor_type_to_str(const enum contactor_type type);
 const char *emergeny_stop_type_to_str(const enum emergeny_stop_type type);
 
+void pb_refresh_crc(struct param_block *param_block);
+void pb_init(struct param_block *param_block);
 void pb_dump(struct param_block *param_block);

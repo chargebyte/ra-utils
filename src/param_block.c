@@ -10,6 +10,7 @@
 #include <math.h>
 #include <errno.h>
 #include <tools.h>
+#include "param_block_crc8.h"
 #include "param_block.h"
 
 int str_to_temperature(const char *s, int16_t *temperature)
@@ -113,6 +114,28 @@ const char *emergeny_stop_type_to_str(const enum emergeny_stop_type type)
         return "invalid";
 
     return emergeny_stop_to_string[type];
+}
+
+void pb_refresh_crc(struct param_block *param_block)
+{
+    param_block->crc = crc8((uint8_t *)param_block, sizeof(*param_block) - 1);
+}
+
+void pb_init(struct param_block *param_block)
+{
+    int i;
+
+    param_block->sob = htole32(MARKER);
+    param_block->eob = htole32(MARKER);
+
+    for (i = 0; i < ARRAY_SIZE(param_block->temperature); i++)
+        param_block->temperature[i] = htole16(CHANNEL_DISABLE_VALUE);
+    for (i = 0; i < ARRAY_SIZE(param_block->contactor); i++)
+        param_block->contactor[i] = CONTACTOR_NONE;
+    for (i = 0; i < ARRAY_SIZE(param_block->estop); i++)
+        param_block->contactor[i] = EMERGENY_STOP_NONE;
+
+    pb_refresh_crc(param_block);
 }
 
 void pb_dump(struct param_block *param_block)

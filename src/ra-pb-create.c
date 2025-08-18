@@ -27,7 +27,6 @@
 #include <yaml.h>
 #include <version.h>
 #include "param_block.h"
-#include "param_block_crc8.h"
 
 #ifndef PACKAGE_STRING
 #define PACKAGE_STRING "ra-pb-create (unknown version)"
@@ -188,6 +187,8 @@ int main(int argc, char *argv[])
 
     yaml_parser_set_input_file(&yaml_parser, infile);
 
+    pb_init(&param_block);
+
     while (!parsing_done) {
         if (!yaml_parser_scan(&yaml_parser, &yaml_token))
             break;
@@ -288,9 +289,7 @@ int main(int argc, char *argv[])
     if (current_estop_idx < CB_PROTO_MAX_ESTOPS)
         fprintf(stderr, "Warning: only %d estop configuration(s) set instead of expected %d.\n", current_estop_idx, CB_PROTO_MAX_ESTOPS);
 
-    param_block.sob = htole32(MARKER);
-    param_block.eob = htole32(MARKER);
-    param_block.crc = crc8((uint8_t *)&param_block, sizeof(param_block) - 1);
+    pb_refresh_crc(&param_block);
 
     if (fwrite(&param_block, sizeof(param_block), 1, outfile) != 1) {
         fprintf(stderr, "Error while writing to '%s': %m\n", filename_out);
