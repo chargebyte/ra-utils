@@ -81,6 +81,38 @@ enum estop_state {
     ESTOP_STATE_MAX,
 };
 
+/* possible SafeStateActive states in Charge State 1/2 frames */
+enum cs_safe_state_active {
+    CS_SAFE_STATE_ACTIVE_NORMAL = 0x0,
+    CS_SAFE_STATE_ACTIVE_SAFE_STATE,
+    CS_SAFE_STATE_ACTIVE_SNA = 0x3,
+    CS_SAFE_STATE_ACTIVE_MAX,
+};
+
+/* possible safe state reasons in Charge State 1 frame */
+enum cs1_safestate_reason {
+    CS1_SAFESTATE_REASON_NO_STOP = 0x0,
+    CS1_SAFESTATE_REASON_INTERNAL_ERROR,
+    CS1_SAFESTATE_REASON_COM_TIMEOUT,
+    CS1_SAFESTATE_REASON_TEMP1_MALFUNCTION,
+    CS1_SAFESTATE_REASON_TEMP2_MALFUNCTION,
+    CS1_SAFESTATE_REASON_TEMP3_MALFUNCTION,
+    CS1_SAFESTATE_REASON_TEMP4_MALFUNCTION,
+    CS1_SAFESTATE_REASON_TEMP1_OVERTEMP,
+    CS1_SAFESTATE_REASON_TEMP2_OVERTEMP,
+    CS1_SAFESTATE_REASON_TEMP3_OVERTEMP,
+    CS1_SAFESTATE_REASON_TEMP4_OVERTEMP,
+    CS1_SAFESTATE_REASON_PP_MALFUNCTION,
+    CS1_SAFESTATE_REASON_CP_MALFUNCTION,
+    CS1_SAFESTATE_REASON_CP_SHORT_CIRCUIT,
+    CS1_SAFESTATE_REASON_CP_DIODE_FAULT,
+    CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION,
+    CS1_SAFESTATE_REASON_EMERGENCY_INPUT_1,
+    CS1_SAFESTATE_REASON_EMERGENCY_INPUT_2,
+    CS1_SAFESTATE_REASON_EMERGENCY_INPUT_3,
+    CS1_SAFESTATE_REASON_MAX,
+};
+
 /* possible CCS ready values in Charge Control 2 frame */
 enum cc2_ccs_ready {
     CC2_CCS_NOT_READY = 0x0,
@@ -129,14 +161,6 @@ enum cs2_estop_reason {
     CS2_ESTOP_REASON_HVREADY_MALFUNCTION,
     CS2_ESTOP_REASON_EMERGENCY_INPUT,
     CS2_ESTOP_REASON_MAX,
-};
-
-/* possible SafeStateActive states in Charge State 2 frames */
-enum cs2_safe_state_active {
-    CS2_SAFE_STATE_ACTIVE_NORMAL = 0x0,
-    CS2_SAFE_STATE_ACTIVE_SAFE_STATE,
-    CS2_SAFE_STATE_ACTIVE_SNA = 0x3,
-    CS2_SAFE_STATE_ACTIVE_MAX,
 };
 
 /* PT1000 related bit flags */
@@ -208,6 +232,8 @@ bool cb_proto_is_diode_fault(struct safety_controller *ctx);
 
 enum pp_state cb_proto_get_pp_state(struct safety_controller *ctx);
 
+enum cs1_safestate_reason cb_proto_get_safestate_reason(struct safety_controller *ctx);
+
 enum estop_state cb_proto_estopN_get_state(struct safety_controller *ctx, unsigned int estop);
 bool cb_proto_estopN_is_enabled(struct safety_controller *ctx, unsigned int estop);
 bool cb_proto_estopN_is_tripped(struct safety_controller *ctx, unsigned int estop);
@@ -218,6 +244,8 @@ double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int chan
 unsigned int cb_proto_pt1000_get_errors(struct safety_controller *ctx, unsigned int channel);
 bool cb_proto_pt1000_have_errors(struct safety_controller *ctx);
 
+enum cs_safe_state_active cb_proto_get_safe_state_active(struct safety_controller *ctx);
+
 /* MCS related */
 void cb_proto_set_mcs_mode(struct safety_controller *ctx, bool mcs);
 bool cb_proto_is_mcs_mode(struct safety_controller *ctx);
@@ -225,7 +253,6 @@ bool cb_proto_is_mcs_mode(struct safety_controller *ctx);
 enum cs2_id_state cb_proto_get_id_state(struct safety_controller *ctx);
 enum cs2_ce_state cb_proto_get_ce_state(struct safety_controller *ctx);
 enum cs2_estop_reason cb_proto_get_estop_reason(struct safety_controller *ctx);
-enum cs2_safe_state_active cb_proto_get_safe_state_active(struct safety_controller *ctx);
 
 enum cc2_ccs_ready cb_proto_get_target_ccs_ready(struct safety_controller *ctx);
 void cb_proto_set_ccs_ready(struct safety_controller *ctx, bool ready);
@@ -260,10 +287,13 @@ const char *cb_proto_pp_state_to_str(enum pp_state state);
 const char *cb_proto_contactor_state_to_str(enum contactor_state state);
 const char *cb_proto_estop_state_to_str(enum estop_state state);
 
+const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason);
+
+const char *cb_proto_safe_state_active_to_str(enum cs_safe_state_active state);
+
 const char *cb_proto_id_state_to_str(enum cs2_id_state state);
 const char *cb_proto_ce_state_to_str(enum cs2_ce_state state);
 const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason);
-const char *cb_proto_safe_state_active_to_str(enum cs2_safe_state_active state);
 
 const char *cb_proto_ccs_ready_to_str(enum cc2_ccs_ready state);
 

@@ -141,6 +141,11 @@ enum pp_state cb_proto_get_pp_state(struct safety_controller *ctx)
     return DATA_GET_BITS(ctx->charge_state, 32, 3);
 }
 
+enum cs1_safestate_reason cb_proto_get_safestate_reason(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 8, 8);
+}
+
 enum estop_state cb_proto_estopN_get_state(struct safety_controller *ctx, unsigned int estop)
 {
     return DATA_GET_BITS(ctx->charge_state, 16 + (2 * estop), 2);
@@ -212,9 +217,22 @@ enum cs2_estop_reason cb_proto_get_estop_reason(struct safety_controller *ctx)
     return DATA_GET_BITS(ctx->charge_state, 48, 8);
 }
 
-enum cs2_safe_state_active cb_proto_cs2_get_safe_state_active(struct safety_controller *ctx)
+enum cs_safe_state_active cb_proto_cs1_get_safe_state_active(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 58, 2);
+}
+
+enum cs_safe_state_active cb_proto_cs2_get_safe_state_active(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_state, 48, 2);
+}
+
+enum cs_safe_state_active cb_proto_get_safe_state_active(struct safety_controller *ctx)
+{
+    if (ctx->mcs)
+        return cb_proto_cs2_get_safe_state_active(ctx);
+    else
+        return cb_proto_cs1_get_safe_state_active(ctx);
 }
 
 enum cc2_ccs_ready cb_proto_get_target_ccs_ready(struct safety_controller *ctx)
@@ -448,14 +466,60 @@ const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason)
     }
 }
 
-const char *cb_proto_safe_state_active_to_str(enum cs2_safe_state_active state)
+const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason)
+{
+    switch (reason) {
+    case CS1_SAFESTATE_REASON_NO_STOP:
+        return "no safe state";
+    case CS1_SAFESTATE_REASON_INTERNAL_ERROR:
+        return "internal error";
+    case CS1_SAFESTATE_REASON_COM_TIMEOUT:
+        return "communication timeout";
+    case CS1_SAFESTATE_REASON_TEMP1_MALFUNCTION:
+        return "temperature 1 malfunction";
+    case CS1_SAFESTATE_REASON_TEMP2_MALFUNCTION:
+        return "temperature 2 malfunction";
+    case CS1_SAFESTATE_REASON_TEMP3_MALFUNCTION:
+        return "temperature 3 malfunction";
+    case CS1_SAFESTATE_REASON_TEMP4_MALFUNCTION:
+        return "temperature 4 malfunction";
+    case CS1_SAFESTATE_REASON_TEMP1_OVERTEMP:
+        return "temperature 1 over-temperature";
+    case CS1_SAFESTATE_REASON_TEMP2_OVERTEMP:
+        return "temperature 2 over-temperature";
+    case CS1_SAFESTATE_REASON_TEMP3_OVERTEMP:
+        return "temperature 3 over-temperature";
+    case CS1_SAFESTATE_REASON_TEMP4_OVERTEMP:
+        return "temperature 4 over-temperature";
+    case CS1_SAFESTATE_REASON_PP_MALFUNCTION:
+        return "Proximity Pilot error";
+    case CS1_SAFESTATE_REASON_CP_MALFUNCTION:
+        return "Control Pilot error";
+    case CS1_SAFESTATE_REASON_CP_SHORT_CIRCUIT:
+        return "Control Pilot short-circuit";
+    case CS1_SAFESTATE_REASON_CP_DIODE_FAULT:
+        return "Control Pilot diode not detected";
+    case CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION:
+        return "high-voltage switch malfunction";
+    case CS1_SAFESTATE_REASON_EMERGENCY_INPUT_1:
+        return "emergency input 1";
+    case CS1_SAFESTATE_REASON_EMERGENCY_INPUT_2:
+        return "emergency input 2";
+    case CS1_SAFESTATE_REASON_EMERGENCY_INPUT_3:
+        return "emergency input 3";
+    default:
+        return "unknown";
+    }
+}
+
+const char *cb_proto_safe_state_active_to_str(enum cs_safe_state_active state)
 {
     switch (state) {
-    case CS2_SAFE_STATE_ACTIVE_NORMAL:
+    case CS_SAFE_STATE_ACTIVE_NORMAL:
         return "normal";
-    case CS2_SAFE_STATE_ACTIVE_SAFE_STATE:
+    case CS_SAFE_STATE_ACTIVE_SAFE_STATE:
         return "safe state";
-    case CS2_SAFE_STATE_ACTIVE_SNA:
+    case CS_SAFE_STATE_ACTIVE_SNA:
         return "SNA";
     default:
         return "undefined";
@@ -568,6 +632,8 @@ void cb_proto_dump(struct safety_controller *ctx)
         printfnl("");
 
         printfnl("HV Ready: %u", cb_proto_get_hv_ready(ctx));
+        printfnl("Safe State Active: %s", cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)));
+        printfnl("Safe State Reason: %s", cb_proto_safestate_reason_to_str(cb_proto_get_safestate_reason(ctx)));
 
         printfnl("");
         printfnl("== PWM ==");
@@ -591,7 +657,7 @@ void cb_proto_dump(struct safety_controller *ctx)
         printfnl("== MCS ==");
         printfnl("ID State: %s", cb_proto_id_state_to_str(cb_proto_get_id_state(ctx)));
         printfnl("CE State: %s", cb_proto_ce_state_to_str(cb_proto_get_ce_state(ctx)));
-        printfnl("Safe State Active: %s", cb_proto_safe_state_active_to_str(cb_proto_cs2_get_safe_state_active(ctx)));
+        printfnl("Safe State Active: %s", cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)));
         printfnl("EStop Reason: %s", cb_proto_estop_reason_to_str(cb_proto_get_estop_reason(ctx)));
 
         printfnl("");
@@ -627,6 +693,6 @@ void cb_proto_dump(struct safety_controller *ctx)
     printfnl("== Timestamps ==");
     for (i = 0; i < COM_MAX; ++i) {
         if (strlen(ctx->ts_str_recv_com[i]))
-            printfnl("%-20s: %s", cb_uart_com_to_str(i), ctx->ts_str_recv_com[i]);
+            printfnl("%-29s: %s", cb_uart_com_to_str(i), ctx->ts_str_recv_com[i]);
     }
 }
