@@ -281,6 +281,13 @@ int main(int argc, char *argv[])
 
     yaml_parser_delete(&yaml_parser);
 
+    /* special case: no properties found at all, e.g. libyaml could not parse, e.g. due to wrong YAML file encoding */
+    if (current_temperature_idx == 0 &&
+        current_contactor_idx == 0 &&
+        current_estop_idx == 00) {
+        fprintf(stderr, "Error: no or wrong input data - YAML file is probably not UTF-8 encoded.\n");
+        goto err_out;
+    }
     /* check that we saw at least the expected count of parameters, warn otherwise */
     if (current_temperature_idx < CB_PROTO_MAX_PT1000S)
         fprintf(stderr, "Warning: only %d temperature value(s) set instead of expected %d.\n", current_temperature_idx, CB_PROTO_MAX_PT1000S);
