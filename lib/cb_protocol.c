@@ -217,17 +217,17 @@ enum cs2_estop_reason cb_proto_get_estop_reason(struct safety_controller *ctx)
     return DATA_GET_BITS(ctx->charge_state, 48, 8);
 }
 
-enum cs_safe_state_active cb_proto_cs1_get_safe_state_active(struct safety_controller *ctx)
+enum cs_safestate_active cb_proto_cs1_get_safe_state_active(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_state, 58, 2);
 }
 
-enum cs_safe_state_active cb_proto_cs2_get_safe_state_active(struct safety_controller *ctx)
+enum cs_safestate_active cb_proto_cs2_get_safe_state_active(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_state, 48, 2);
 }
 
-enum cs_safe_state_active cb_proto_get_safe_state_active(struct safety_controller *ctx)
+enum cs_safestate_active cb_proto_get_safe_state_active(struct safety_controller *ctx)
 {
     if (ctx->mcs)
         return cb_proto_cs2_get_safe_state_active(ctx);
@@ -512,14 +512,14 @@ const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason)
     }
 }
 
-const char *cb_proto_safe_state_active_to_str(enum cs_safe_state_active state)
+const char *cb_proto_safe_state_active_to_str(enum cs_safestate_active state)
 {
     switch (state) {
-    case CS_SAFE_STATE_ACTIVE_NORMAL:
+    case CS_SAFESTATE_ACTIVE_NORMAL:
         return "normal";
-    case CS_SAFE_STATE_ACTIVE_SAFE_STATE:
+    case CS_SAFESTATE_ACTIVE_SAFESTATE:
         return "safe state";
-    case CS_SAFE_STATE_ACTIVE_SNA:
+    case CS_SAFESTATE_ACTIVE_SNA:
         return "SNA";
     default:
         return "undefined";

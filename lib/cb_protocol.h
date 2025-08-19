@@ -82,11 +82,11 @@ enum estop_state {
 };
 
 /* possible SafeStateActive states in Charge State 1/2 frames */
-enum cs_safe_state_active {
-    CS_SAFE_STATE_ACTIVE_NORMAL = 0x0,
-    CS_SAFE_STATE_ACTIVE_SAFE_STATE,
-    CS_SAFE_STATE_ACTIVE_SNA = 0x3,
-    CS_SAFE_STATE_ACTIVE_MAX,
+enum cs_safestate_active {
+    CS_SAFESTATE_ACTIVE_NORMAL = 0x0,
+    CS_SAFESTATE_ACTIVE_SAFESTATE,
+    CS_SAFESTATE_ACTIVE_SNA = 0x3,
+    CS_SAFESTATE_ACTIVE_MAX,
 };
 
 /* possible safe state reasons in Charge State 1 frame */
@@ -244,7 +244,7 @@ double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int chan
 unsigned int cb_proto_pt1000_get_errors(struct safety_controller *ctx, unsigned int channel);
 bool cb_proto_pt1000_have_errors(struct safety_controller *ctx);
 
-enum cs_safe_state_active cb_proto_get_safe_state_active(struct safety_controller *ctx);
+enum cs_safestate_active cb_proto_get_safe_state_active(struct safety_controller *ctx);
 
 /* MCS related */
 void cb_proto_set_mcs_mode(struct safety_controller *ctx, bool mcs);
@@ -289,7 +289,7 @@ const char *cb_proto_estop_state_to_str(enum estop_state state);
 
 const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason);
 
-const char *cb_proto_safe_state_active_to_str(enum cs_safe_state_active state);
+const char *cb_proto_safe_state_active_to_str(enum cs_safestate_active state);
 
 const char *cb_proto_id_state_to_str(enum cs2_id_state state);
 const char *cb_proto_ce_state_to_str(enum cs2_ce_state state);
