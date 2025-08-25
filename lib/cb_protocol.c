@@ -224,7 +224,7 @@ enum cs_safestate_active cb_proto_cs1_get_safe_state_active(struct safety_contro
 
 enum cs_safestate_active cb_proto_cs2_get_safe_state_active(struct safety_controller *ctx)
 {
-    return DATA_GET_BITS(ctx->charge_state, 48, 2);
+    return DATA_GET_BITS(ctx->charge_state, 46, 2);
 }
 
 enum cs_safestate_active cb_proto_get_safe_state_active(struct safety_controller *ctx)
