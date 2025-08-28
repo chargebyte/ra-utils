@@ -14,7 +14,7 @@ if [ -z "$FW_FILE" ]; then
     exit 1
 fi
 
-PARAM_FILE="$(ls -1 $LIBDIR/*_parameter-block_only-contactor.bin 2>/dev/null)"
+PARAM_FILE="$(ls -1 $LIBDIR/*_parameter-block_only-contactor.yaml 2>/dev/null)"
 
 TARGET_VERSION="$(ra-update fw-info "$FW_FILE" 2>/dev/null)"
 CURRENT_VERSION="$(ra-update fw-info)"
@@ -44,8 +44,14 @@ CURRENT_VERSION_ONLY="$(echo "$CMP_CURRENT_VERSION" | grep "Version" | awk '{pri
 # when upgrading from 0.1.0 we need to install a parameter block for the first time;
 # later we assume that a valid parameter block is already installed and we don't touch it
 if [ "$CURRENT_VERSION_ONLY" = "0.1.0" ]; then
+    pbfile_target_bin=$(mktemp)
+
+    ra-pb-create -i "$PARAM_FILE" -o "$pbfile_target_bin"
+
     echo -n "Installing Parameter Block..."
-    ra-update -a data flash "$PARAM_FILE"
+    ra-update -a data flash "$pbfile_target_bin"
+
+    rm -f "$pbfile_target_bin"
     echo "done."
 fi
 
