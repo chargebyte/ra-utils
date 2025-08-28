@@ -48,7 +48,7 @@ const char *fw_sw_application_type_to_str(uint8_t type)
     }
 }
 
-int fw_mmap(const char *filename, uint8_t **content, unsigned long *filesize)
+int fw_mmap_infile(const char *filename, uint8_t **content, unsigned long *filesize)
 {
     struct stat fileinfo;
     int saved_errno = 0, fd = -1, rv;
@@ -72,6 +72,41 @@ int fw_mmap(const char *filename, uint8_t **content, unsigned long *filesize)
 
     /* successfully memory mapped */
     *filesize = fileinfo.st_size;
+    rv = 0;
+
+    /* fd can be closed without affecting the memory map */
+
+err_out:
+    if (fd != -1)
+        close(fd);
+
+    errno = saved_errno;
+
+    return rv;
+}
+
+int fw_mmap_outfile(const char *filename, uint8_t **content, unsigned long filesize)
+{
+    int saved_errno = 0, fd = -1, rv;
+
+    fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1)
+        return -1;
+
+    rv = ftruncate(fd, filesize);
+    if (rv) {
+        saved_errno = errno;
+        goto err_out;
+    }
+
+    *content = mmap(NULL, filesize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (*content == MAP_FAILED) {
+        saved_errno = errno;
+        rv = -1;
+        goto err_out;
+    }
+
+    /* successfully memory mapped */
     rv = 0;
 
     /* fd can be closed without affecting the memory map */

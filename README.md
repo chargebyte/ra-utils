@@ -8,13 +8,22 @@ Tools included here:
 
 - **ra-update**: This tool allows to flash the safety firmware into the
   safety controller MCU, using Renesas' UART bootloader protocol.
+  It is also possible to write and/or read the so called parameter block
+  from the safety controller's data flash area.
 - **ra-raw**: This tools uses chargebyte's UART protocol to control the
   MCU and/or check the current state. It is only intended for testing and
   debug purposes.
+- **ra-pb-create**: This tools creates a binary parameter block file
+  from a YAML file/stdin.
+- **ra-pb-dump**: This tools dumps a binary parameter block file as YAML.
 - **ra-gen-param-block**: This tools allows to generate a parameter block
   which is used as parameterization for the safety controller.
+  Please don't use this tool anymore and prefer the YAML tools above.
 
 ## Dependencies
 
 Some tools depend on [libgpiod](git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git),
 the currently used/tested version is v2.0.1 of the library.
+
+To parse YAML files, the library [libyaml](https://pyyaml.org/wiki/LibYAML)
+is used, at time of writing v0.2.5.

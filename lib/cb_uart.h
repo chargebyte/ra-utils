@@ -18,16 +18,27 @@ extern "C" {
 
 /* values for COM fields */
 enum cb_uart_com {
-    COM_INQUIRY = 0xff,
-    COM_CHARGE_CONTROL = 0x06,
-    COM_CHARGE_STATE = 0x07,
-    COM_PT1000_STATE = 0x08,
-    COM_FW_VERSION = 0x0A,
-    COM_GIT_HASH = 0x0B,
-    COM_CHARGE_STATE_2 = 0x10,
-    COM_CHARGE_CONTROL_2 = 0x11,
+    COM_INQUIRY                   = 0xff,
+    COM_DIGITAL_OUTPUT            = 0x00,
+    COM_DIGITAL_INPUT             = 0x01,
+    COM_ANALOG_INPUT_01           = 0x02,
+    COM_ANALOG_INPUT_02           = 0x03,
+    COM_ANALOG_INPUT_03           = 0x04,
+    COM_ANALOG_INPUT_04           = 0x05,
+    COM_CHARGE_CONTROL            = 0x06,
+    COM_CHARGE_STATE              = 0x07,
+    COM_PT1000_STATE              = 0x08,
+    COM_DIAGNOSTIC_MEASUREMENTS   = 0x09,
+    COM_FW_VERSION                = 0x0A,
+    COM_GIT_HASH                  = 0x0B,
+    COM_ERROR_MESSAGE             = 0x0E,
+    COM_CHARGE_STATE_2            = 0x10,
+    COM_CHARGE_CONTROL_2          = 0x11,
+    COM_DIAGNOSTIC_MEASUREMENTS_2 = 0x12,
+    COM_ANALOG_INPUT_05           = 0x13,
+
     /* special value: keep in sync with above values but ignore INQUIRY */
-    COM_MAX = 0x12,
+    COM_MAX = 0x14,
 };
 
 /* forward declaration so that it is not necessary to include uart.h completely */

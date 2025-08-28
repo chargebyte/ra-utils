@@ -40,7 +40,7 @@ int uart_reconfigure_baudrate(struct uart_ctx *ctx, int baudrate);
 
 void uart_trace(struct uart_ctx *ctx, bool on);
 
-int uart_dump_frame(bool is_sending, uint8_t *buffer, size_t len);
+int uart_dump_frame(bool with_timestamp, bool is_sending, uint8_t *buffer, size_t len);
 
 int uart_flush_input(struct uart_ctx *ctx);
 

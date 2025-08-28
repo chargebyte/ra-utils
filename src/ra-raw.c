@@ -12,7 +12,12 @@
  *          -d, --uart              UART interface (default: /dev/ttyLP2)
  *          -S, --sync              initial receive sync (default: send packet first)
  *          -D, --no-dump           don't dump data (useful only in verbose mode to print only received frames)
- *          -C, --no-charge-control don't send automatically Charge Control frames
+ *          -C, --no-charge-control don't send Charge Control frames automatically
+ *          -c, --gpiochip          GPIO chip device (default: /dev/gpiochip2)
+ *          -r, --reset-gpio        GPIO name for controlling RESET pin of MCU (default: nSAFETY_RESET_INT)
+ *          -m, --md-gpio           GPIO name for controlling MD pin of MCU (default: SAFETY_BOOTMODE_SET)
+ *          -p, --reset-period      reset duration (in ms, default: 500)
+ *          -R, --no-reset          don't reset the safety controller before starting UART communication
  *          -v, --verbose           verbose operation
  *          -V, --version           print version and exit
  *          -h, --help              print this usage and exit
@@ -41,6 +46,7 @@
 #include <tools.h>
 #include <uart.h>
 #include <version.h>
+#include "ra_gpio.h"
 #include "stringify.h"
 #include "uart-defaults.h"
 
@@ -55,6 +61,11 @@ static const struct option long_options[] = {
     { "sync",               no_argument,            0,      'S' },
     { "no-dump",            no_argument,            0,      'D' },
     { "no-charge-control",  no_argument,            0,      'C' },
+    { "gpiochip",           required_argument,      0,      'c' },
+    { "reset-gpio"   ,      required_argument,      0,      'r' },
+    { "md-gpio",            required_argument,      0,      'm' },
+    { "reset-period",       required_argument,      0,      'p' },
+    { "no-reset",           no_argument,            0,      'R' },
 
     { "verbose",            no_argument,            0,      'v' },
     { "version",            no_argument,            0,      'V' },
@@ -62,7 +73,7 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "d:DCSvVh";
+static const char *short_options = "d:SDCc:r:m:p:RvVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
@@ -70,6 +81,11 @@ static const char *long_options_descs[] = {
     "initial receive sync (default: send packet first)",
     "don't dump data (useful only in verbose mode to print only received frames)",
     "don't send Charge Control frames automatically",
+    "GPIO chip device (default: " DEFAULT_RA_GPIOCHIP ")",
+    "GPIO name for controlling RESET pin of MCU (default: " DEFAULT_RA_GPIO_RESET_PIN ")",
+    "GPIO name for controlling MD pin of MCU (default: " DEFAULT_RA_GPIO_MD_PIN ")",
+    "reset duration (in ms, default: " __stringify(DEFAULT_RA_RESET_DELAY) ")",
+    "don't reset the safety controller before starting UART communication",
 
     "verbose operation",
     "print version and exit",
@@ -107,13 +123,16 @@ static void usage(char *p, int exitcode)
     exit(exitcode);
 }
 
-/* to simplify, this is global */
+/* to simplify, these are globals */
 static bool verbose = false;
 static bool intial_sync = false;
 static bool no_dump = false;
 static bool send_charge_control = true;
-
-/* here, too - to simplify, use these as globals */
+static bool no_reset = false;
+static char *gpiochip = DEFAULT_RA_GPIOCHIP;
+static char *reset_gpioname = DEFAULT_RA_GPIO_RESET_PIN;
+static char *md_gpioname = DEFAULT_RA_GPIO_MD_PIN;
+static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
 static char *uart_device = DEFAULT_UART_INTERFACE;
 
 static void debug_cb(const char *format, va_list args)
@@ -177,6 +196,21 @@ void parse_cli(int argc, char *argv[])
             break;
         case 'C':
             send_charge_control = false;
+            break;
+        case 'c':
+            gpiochip = optarg;
+            break;
+        case 'r':
+            reset_gpioname = optarg;
+            break;
+        case 'm':
+            md_gpioname = optarg;
+            break;
+        case 'p':
+            reset_duration = atoi(optarg);
+            break;
+        case 'R':
+            no_reset = true;
             break;
 
         case 'v':
@@ -256,6 +290,32 @@ int main(int argc, char *argv[])
 
     /* maybe this need yet another option flag */
     uart_trace(&uart, verbose);
+
+    /* unless not desired, reset the safety controller via GPIO */
+    if (!no_reset) {
+        struct gpio_ctx *gpio;
+
+        gpio = ra_gpio_init(gpiochip, reset_gpioname, md_gpioname);
+        if (!gpio) {
+            error("could not acquire GPIOs: %m");
+            goto close_out;
+        }
+
+        ra_set_reset_duration(gpio, reset_duration);
+
+        rv = ra_reset_to_normal(gpio);
+
+        /* release the GPIOs immediately so that programs in parallel can acquire them */
+        ra_gpio_close(gpio);
+
+        if (rv) {
+            error("resetting safety controller failed: %m");
+            goto close_out;
+        }
+
+        /* when successfully reseted, sleep until controller is ready again */
+        msleep(CB_PROTO_STARTUP_DELAY);
+    }
 
     if (intial_sync) {
         /* sync the receiving side */
@@ -459,15 +519,20 @@ send_charge_control_frame:
 
                 error("unprocessed data in input buffer follows (%zu bytes):", c);
 
-                uart_dump_frame(false, buf, c);
+                uart_dump_frame(false, false, buf, c);
                 goto close_out;
             }
 
             cb_proto_set_ts_str(&ctx, com);
 
             switch (com) {
-            case COM_CHARGE_STATE:
             case COM_CHARGE_STATE_2:
+                // in case we connect to an already running firmware we could receive
+                // a Charge State 2 frame before we derived the platform from Firmware Version frame
+                // so set this already here too
+                cb_proto_set_mcs_mode(&ctx, true);
+                __attribute__ ((fallthrough));
+            case COM_CHARGE_STATE:
                 ctx.charge_state = data;
                 break;
             case COM_PT1000_STATE:

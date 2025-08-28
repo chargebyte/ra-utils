@@ -1,0 +1,14 @@
+pt1000s:
+  - disabled
+  - disabled
+  - disabled
+  - disabled
+
+contactors:
+  - without-feedback
+  - without-feedback
+
+estops:
+  - disabled
+  - disabled
+  - disabled

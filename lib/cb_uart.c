@@ -29,22 +29,42 @@ struct uart_frame {
 const char *cb_uart_com_to_str(enum cb_uart_com com)
 {
     switch (com) {
+    case COM_INQUIRY:
+        return "COM_INQUIRY";
+    case COM_DIGITAL_OUTPUT:
+        return "COM_DIGITAL_OUTPUT";
+    case COM_DIGITAL_INPUT:
+        return "COM_DIGITAL_INPUT";
+    case COM_ANALOG_INPUT_01:
+        return "COM_ANALOG_INPUT_01";
+    case COM_ANALOG_INPUT_02:
+        return "COM_ANALOG_INPUT_02";
+    case COM_ANALOG_INPUT_03:
+        return "COM_ANALOG_INPUT_03";
+    case COM_ANALOG_INPUT_04:
+        return "COM_ANALOG_INPUT_04";
     case COM_CHARGE_CONTROL:
         return "COM_CHARGE_CONTROL";
     case COM_CHARGE_STATE:
         return "COM_CHARGE_STATE";
     case COM_PT1000_STATE:
         return "COM_PT1000_STATE";
+    case COM_DIAGNOSTIC_MEASUREMENTS:
+        return "COM_DIAGNOSTIC_MEASUREMENTS";
     case COM_FW_VERSION:
         return "COM_FW_VERSION";
     case COM_GIT_HASH:
         return "COM_GIT_HASH";
-    case COM_INQUIRY:
-        return "COM_INQUIRY";
-    case COM_CHARGE_CONTROL_2:
-        return "COM_CHARGE_CONTROL_2";
+    case COM_ERROR_MESSAGE:
+        return "COM_ERROR_MESSAGE";
     case COM_CHARGE_STATE_2:
         return "COM_CHARGE_STATE_2";
+    case COM_CHARGE_CONTROL_2:
+        return "COM_CHARGE_CONTROL_2";
+    case COM_DIAGNOSTIC_MEASUREMENTS_2:
+        return "COM_DIAGNOSTIC_MEASUREMENTS_2";
+    case COM_ANALOG_INPUT_05:
+        return "COM_ANALOG_INPUT_05";
     default:
         return "UNKNOWN";
     }
@@ -71,7 +91,7 @@ int cb_uart_send(struct uart_ctx *uart, enum cb_uart_com com, uint64_t data)
     }
 
     if (uart->trace)
-        uart_dump_frame(true, (uint8_t *)&frame, sizeof(frame));
+        uart_dump_frame(true, true, (uint8_t *)&frame, sizeof(frame));
 
     c = uart_write_drain(uart, (const uint8_t *)&frame, sizeof(frame));
     if (c < 0)
@@ -95,7 +115,7 @@ int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data)
         return c;
 
     if (uart->trace)
-        uart_dump_frame(false, (uint8_t *)&frame, sizeof(frame));
+        uart_dump_frame(true, false, (uint8_t *)&frame, sizeof(frame));
 
     /* check field patterns */
     if (frame.sof != CB_SOF) {

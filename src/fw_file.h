@@ -34,7 +34,8 @@ struct version_app_infoblock {
 #define CODE_FIRMWARE_INFORMATION_START_ADDRESS 0x000003E0
 #define CODE_FIRMWARE_INFORMATION_END_ADDRESS   0x000003FF
 
-int fw_mmap(const char *filename, uint8_t **content, unsigned long *filesize);
+int fw_mmap_infile(const char *filename, uint8_t **content, unsigned long *filesize);
+int fw_mmap_outfile(const char *filename, uint8_t **content, unsigned long filesize);
 
 void fw_version_app_infoblock_to_host_endianess(struct version_app_infoblock *p);
 

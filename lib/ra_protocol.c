@@ -361,7 +361,7 @@ int ra_inquiry(struct uart_ctx *uart)
 
     if (ra_is_invalid_status_pkt(&status_rsp, INQUIRY_CMD)) {
         error("unexpected response for INQUIRY_CMD");
-        uart_dump_frame(false, (uint8_t *)&status_rsp, sizeof(status_rsp));
+        uart_dump_frame(false, false, (uint8_t *)&status_rsp, sizeof(status_rsp));
         return -1;
     }
 
@@ -400,7 +400,7 @@ int ra_set_baudrate(struct uart_ctx *uart, int baudrate)
 
     if (ra_is_invalid_status_pkt(&status_rsp, BAUDRATE_SETTING_CMD)) {
         error("unexpected response while trying to change baudrate");
-        uart_dump_frame(false, (uint8_t *)&status_rsp, sizeof(status_rsp));
+        uart_dump_frame(false, false, (uint8_t *)&status_rsp, sizeof(status_rsp));
         return -1;
     }
 
@@ -449,7 +449,7 @@ int ra_get_signature(struct uart_ctx *uart, struct signature_rsp *signatur_rsp)
         }
 
         error("unexpected response while trying to get signature");
-        uart_dump_frame(false, (uint8_t *)status_rsp, sizeof(*status_rsp));
+        uart_dump_frame(false, false, (uint8_t *)status_rsp, sizeof(*status_rsp));
         return -1;
     }
 
@@ -475,7 +475,7 @@ int ra_get_signature(struct uart_ctx *uart, struct signature_rsp *signatur_rsp)
         // invalid checksum
         || ra_is_checksum_invalid(&signatur_rsp->lnh, sizeof(struct signature_rsp) - 3, signatur_rsp->sum)) {
         error("unexpected response while trying to get signature");
-        uart_dump_frame(false, (uint8_t *)signatur_rsp, sizeof(*signatur_rsp));
+        uart_dump_frame(false, false, (uint8_t *)signatur_rsp, sizeof(*signatur_rsp));
         return -1;
     }
 
@@ -522,7 +522,7 @@ int ra_get_area_info(struct uart_ctx *uart, uint8_t num, struct area_info_rsp *a
         }
 
         error("unexpected response while trying to get area information");
-        uart_dump_frame(false, (uint8_t *)status_rsp, sizeof(*status_rsp));
+        uart_dump_frame(false, false, (uint8_t *)status_rsp, sizeof(*status_rsp));
         return -1;
     }
 
@@ -548,7 +548,7 @@ int ra_get_area_info(struct uart_ctx *uart, uint8_t num, struct area_info_rsp *a
         // invalid checksum
         || ra_is_checksum_invalid(&area_info_rsp->lnh, sizeof(struct area_info_rsp) - 3, area_info_rsp->sum)) {
         error("unexpected response while trying to get area info");
-        uart_dump_frame(false, (uint8_t *)area_info_rsp, sizeof(*area_info_rsp));
+        uart_dump_frame(false, false, (uint8_t *)area_info_rsp, sizeof(*area_info_rsp));
         return -1;
     }
 
@@ -621,7 +621,7 @@ int ra_rwe_cmd(struct uart_ctx *uart, enum rwe_command rwe, uint32_t start_addr,
 
         if (ra_is_invalid_status_pkt(&status_rsp, rwe_cmd.com)) {
             error("unexpected response for %s", rwe_cmd_str[rwe]);
-            uart_dump_frame(false, (uint8_t *)&status_rsp, sizeof(status_rsp));
+            uart_dump_frame(false, false, (uint8_t *)&status_rsp, sizeof(status_rsp));
             return -1;
         }
 
@@ -682,7 +682,7 @@ int ra_write_data(struct uart_ctx *uart, const uint8_t *payload, size_t len)
 
     if (ra_is_invalid_status_pkt(&status_rsp, WRITE_CMD)) {
         error("unexpected response for data packet status");
-        uart_dump_frame(false, (uint8_t *)&status_rsp, sizeof(status_rsp));
+        uart_dump_frame(false, false, (uint8_t *)&status_rsp, sizeof(status_rsp));
         return -1;
     }
 
@@ -756,14 +756,14 @@ int ra_read_data(struct uart_ctx *uart, uint8_t *buffer, size_t bufsize, bool ac
     if (c < 0) {
         if (errno == ETIMEDOUT) {
             error("timeout while receiving data packet, what we got so far follows (dump of full buffer):");
-            uart_dump_frame(false, (uint8_t *)&data_pkt, sizeof(data_pkt));
+            uart_dump_frame(false, false, (uint8_t *)&data_pkt, sizeof(data_pkt));
         }
         return c;
     }
 
     if (ra_is_invalid_data_pkt(&data_pkt, READ_CMD)) {
         error("unexpected response for data packet");
-        uart_dump_frame(false, (uint8_t *)&data_pkt, sizeof(data_pkt));
+        uart_dump_frame(false, false, (uint8_t *)&data_pkt, sizeof(data_pkt));
         return -1;
     }
 
@@ -794,26 +794,29 @@ int ra_read_data(struct uart_ctx *uart, uint8_t *buffer, size_t bufsize, bool ac
     return 0;
 }
 
-/* FIXME: assumes that only one single data packet is received -> TBD: looping */
 int ra_read(struct uart_ctx *uart, uint8_t *buffer, uint32_t start_addr, size_t len)
 {
     uint32_t end_addr = start_addr + len - 1;
+    size_t already_read = 0;
     int rv;
-
-    /* safety check - remove when implementation is complete */
-    if (len > MAX_DATA_PACKET_PAYLOAD) {
-        error("requested size for reading to big - not implemented yet");
-        errno = EFBIG;
-        return -1;
-    }
 
     rv = ra_rwe_cmd(uart, RWE_READ, start_addr, end_addr);
     if (rv)
         return rv;
 
-    rv = ra_read_data(uart, buffer, len, false);
-    if (rv)
-        return rv;
+    while (already_read < len) {
+        size_t len_for_this_round = min(len - already_read, MAX_DATA_PACKET_PAYLOAD);
+        uint32_t cur_addr = start_addr + already_read;
+        bool is_last_round = already_read + len_for_this_round == len;
+
+        debug("reading  0x%08" PRIx32 "-0x%08" PRIx32, cur_addr, (uint32_t)(cur_addr + len_for_this_round - 1));
+
+        rv = ra_read_data(uart, &buffer[already_read], len_for_this_round, !is_last_round);
+        if (rv)
+            return rv;
+
+        already_read += len_for_this_round;
+    }
 
     return 0;
 }
