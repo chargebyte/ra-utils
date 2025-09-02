@@ -1,0 +1,14 @@
+pt1000s:
+  - 85.0 °C
+  - 85.0 °C
+  - 85.0 °C
+  - 85.0 °C
+
+contactors:
+  - with-feedback
+  - disabled
+
+estops:
+  - active-low
+  - disabled
+  - disabled
