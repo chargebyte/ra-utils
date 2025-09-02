@@ -130,7 +130,7 @@ enum cs2_ce_state {
     CS2_CE_STATE_C,
     CS2_CE_STATE_E,
     CS2_CE_STATE_EC,
-    CS2_CE_STATE_INVALID = 0xf,
+    CS2_CE_STATE_INVALID,
     CS2_CE_STATE_MAX,
 };
 
@@ -139,7 +139,7 @@ enum cs2_id_state {
     CS2_ID_STATE_UNKNOWN = 0x0,
     CS2_ID_STATE_NOT_CONNECTED,
     CS2_ID_STATE_CONNECTED,
-    CS2_ID_STATE_INVALID = 0xf,
+    CS2_ID_STATE_INVALID,
     CS2_ID_STATE_MAX,
 };
 
