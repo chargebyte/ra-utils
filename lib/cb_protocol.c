@@ -407,7 +407,7 @@ const char *cb_proto_id_state_to_str(enum cs2_id_state state)
 const char *cb_proto_ce_state_to_str(enum cs2_ce_state state)
 {
     switch (state) {
-    case CP_STATE_UNKNOWN:
+    case CS2_CE_STATE_UNKNOWN:
         return "unknown";
     case CS2_CE_STATE_A:
         return "A";
@@ -421,7 +421,7 @@ const char *cb_proto_ce_state_to_str(enum cs2_ce_state state)
         return "E";
     case CS2_CE_STATE_EC:
         return "EC";
-    case CP_STATE_INVALID:
+    case CS2_CE_STATE_INVALID:
         return "invalid";
     default:
         return "undefined";
