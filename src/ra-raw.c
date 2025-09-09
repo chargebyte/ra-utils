@@ -538,6 +538,9 @@ send_charge_control_frame:
             case COM_PT1000_STATE:
                 ctx.pt1000 = data;
                 break;
+            case COM_ERROR_MESSAGE:
+                ctx.error_message = data;
+                break;
             case COM_FW_VERSION:
                 ctx.fw_version = data;
                 cb_proto_set_fw_version_str(&ctx);

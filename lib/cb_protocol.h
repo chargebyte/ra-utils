@@ -170,6 +170,33 @@ enum cs2_estop_reason {
 /* magic value to indicate that this channel is not used */
 #define PT1000_TEMPERATURE_UNUSED 0x1fff
 
+/* error message frame related stuff */
+enum errmsg_module {
+    ERRMSG_MODULE_DEFAULT = 0,
+    ERRMSG_MODULE_APP_TASK,
+    ERRMSG_MODULE_APP_COMM,
+    ERRMSG_MODULE_APP_SAFETY,
+    ERRMSG_MODULE_APP_CP_PP,
+    ERRMSG_MODULE_APP_TEMP,
+    ERRMSG_MODULE_APP_SYSTEM,
+    ERRMSG_MODULE_MW_ADC,
+    ERRMSG_MODULE_MW_I2C,
+    ERRMSG_MODULE_MW_PIN,
+    ERRMSG_MODULE_MW_PWM,
+    ERRMSG_MODULE_MW_UART,
+    ERRMSG_MODULE_MW_PARAM,
+    ERRMSG_MODULE_MAX,
+};
+
+/* error message frame */
+struct error_message {
+    uint16_t active:1;
+    uint16_t module:15;
+    uint16_t reason;
+    uint16_t additional_data_1;
+    uint16_t additional_data_2;
+} __attribute__((packed));
+
 /* buffer size for timestamp */
 #define TS_STR_RECV_COM_BUFSIZE 32
 
@@ -182,6 +209,7 @@ struct safety_controller {
     uint64_t charge_state;
     uint64_t pt1000;
     uint64_t fw_version;
+    uint64_t error_message;
 
     /* MCS mode */
     bool mcs;
@@ -257,6 +285,15 @@ enum cs2_estop_reason cb_proto_get_estop_reason(struct safety_controller *ctx);
 enum cc2_ccs_ready cb_proto_get_target_ccs_ready(struct safety_controller *ctx);
 void cb_proto_set_ccs_ready(struct safety_controller *ctx, bool ready);
 void cb_proto_set_estop(struct safety_controller *ctx, bool estop);
+
+/* Error Message related (accesses the last received error message) */
+bool cb_proto_errmsg_is_active(struct safety_controller *ctx);
+enum errmsg_module cb_proto_errmsg_get_module(struct safety_controller *ctx);
+unsigned int cb_proto_errmsg_get_reason(struct safety_controller *ctx);
+unsigned int cb_proto_errmsg_get_additional_data_1(struct safety_controller *ctx);
+unsigned int cb_proto_errmsg_get_additional_data_2(struct safety_controller *ctx);
+const char *cb_proto_errmsg_module_to_str(enum errmsg_module module);
+const char *cb_proto_errmsg_reason_to_str(enum errmsg_module module, unsigned int reason);
 
 /* possible firmware platform types */
 enum fw_platform_type {

@@ -250,6 +250,31 @@ void cb_proto_set_estop(struct safety_controller *ctx, bool estop)
     DATA_SET_BITS(ctx->charge_control, 60, 4, estop ? CC2_CCS_EMERGENCY_STOP : CC2_CCS_NOT_READY);
 }
 
+bool cb_proto_errmsg_is_active(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->error_message, 63, 1);
+}
+
+enum errmsg_module cb_proto_errmsg_get_module(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->error_message, 48, 15);
+}
+
+unsigned int cb_proto_errmsg_get_reason(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->error_message, 32, 16);
+}
+
+unsigned int cb_proto_errmsg_get_additional_data_1(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->error_message, 16, 16);
+}
+
+unsigned int cb_proto_errmsg_get_additional_data_2(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->error_message, 0, 16);
+}
+
 unsigned int cb_proto_fw_get_major(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->fw_version, 56, 8);
@@ -540,6 +565,144 @@ const char *cb_proto_ccs_ready_to_str(enum cc2_ccs_ready state)
     }
 }
 
+static const char *errmsg_module_strings[ERRMSG_MODULE_MAX] = {
+    "DEFAULT",
+    "APP_TASK",
+    "APP_COMM",
+    "APP_SAFETY",
+    "APP_CP_PP",
+    "APP_TEMP",
+    "APP_SYSTEM",
+    "MW_ADC",
+    "MW_I2C",
+    "MW_PIN",
+    "MW_PWM",
+    "MW_UART",
+    "MW_PARAM",
+};
+
+const char *cb_proto_errmsg_module_to_str(enum errmsg_module module)
+{
+    if (module >= ERRMSG_MODULE_MAX)
+        return "unknown";
+
+    return errmsg_module_strings[module];
+}
+
+#define DEFINE_REASON_STRINGS(module, ...) \
+    static const char * const errmsg_reason_strings_##module[] = { __VA_ARGS__ NULL }
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_DEFAULT,
+    "default",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_TASK,
+    "default",
+    "task was not executed in time",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_COMM,
+    "default",
+    "safety message timeouted",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SAFETY,
+    "default",
+    "safety state mismatch",
+    "CP safety fault",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CP_PP,
+    "default",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_TEMP,
+    "default",
+    "short to battery",
+    "short to ground",
+    "open load",
+    "temperature over limit",
+    "temperature under limit",
+    "resistance too high",
+    "resistance negative",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SYSTEM,
+    "default",
+    "watchdog error",
+    "application initial selftests failed",
+    "application CRC mismatch",
+    "application initial ADC test error",
+    "CPU test error",
+    "RAM test error",
+    "clock test error",
+    "clock stop error",
+    "ROM test error",
+    "ADC test error",
+    "voltage test error",
+    "temperature error",
+    "other test failed",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_ADC,
+    "default",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_I2C,
+    "default",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PIN,
+    "default",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PWM,
+    "default",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_UART,
+    "default",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PARAM,
+    "default",
+    "parameter not found in memory, defaults will be used",
+    "CRC mismatch, defaults will be used",
+);
+
+static const char * const * const errmsg_reason_strings[ERRMSG_MODULE_MAX] = {
+    [ERRMSG_MODULE_DEFAULT]     = errmsg_reason_strings_ERRMSG_MODULE_DEFAULT,
+    [ERRMSG_MODULE_APP_TASK]    = errmsg_reason_strings_ERRMSG_MODULE_APP_TASK,
+    [ERRMSG_MODULE_APP_COMM]    = errmsg_reason_strings_ERRMSG_MODULE_APP_COMM,
+    [ERRMSG_MODULE_APP_SAFETY]  = errmsg_reason_strings_ERRMSG_MODULE_APP_SAFETY,
+    [ERRMSG_MODULE_APP_CP_PP]   = errmsg_reason_strings_ERRMSG_MODULE_APP_CP_PP,
+    [ERRMSG_MODULE_APP_TEMP]    = errmsg_reason_strings_ERRMSG_MODULE_APP_TEMP,
+    [ERRMSG_MODULE_APP_SYSTEM]  = errmsg_reason_strings_ERRMSG_MODULE_APP_SYSTEM,
+    [ERRMSG_MODULE_MW_ADC]      = errmsg_reason_strings_ERRMSG_MODULE_MW_ADC,
+    [ERRMSG_MODULE_MW_I2C]      = errmsg_reason_strings_ERRMSG_MODULE_MW_I2C,
+    [ERRMSG_MODULE_MW_PIN]      = errmsg_reason_strings_ERRMSG_MODULE_MW_PIN,
+    [ERRMSG_MODULE_MW_PWM]      = errmsg_reason_strings_ERRMSG_MODULE_MW_PWM,
+    [ERRMSG_MODULE_MW_UART]     = errmsg_reason_strings_ERRMSG_MODULE_MW_UART,
+    [ERRMSG_MODULE_MW_PARAM]    = errmsg_reason_strings_ERRMSG_MODULE_MW_PARAM,
+};
+
+const char *cb_proto_errmsg_reason_to_str(enum errmsg_module module, unsigned int reason)
+{
+    if (module < ERRMSG_MODULE_MAX) {
+        const char * const *module_reasons = errmsg_reason_strings[module];
+
+        while (*module_reasons != NULL) {
+            if (reason == 0)
+                return *module_reasons;
+
+            module_reasons++;
+            reason--;
+        }
+    }
+
+    return "unknown";
+}
+
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type)
 {
     switch (type) {
@@ -632,8 +795,9 @@ void cb_proto_dump(struct safety_controller *ctx)
         printfnl("");
 
         printfnl("HV Ready: %u", cb_proto_get_hv_ready(ctx));
-        printfnl("Safe State Active: %s", cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)));
-        printfnl("Safe State Reason: %s", cb_proto_safestate_reason_to_str(cb_proto_get_safestate_reason(ctx)));
+        printfnl("Safe State Active: %-11s Reason: %s",
+                 cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)),
+                 cb_proto_safestate_reason_to_str(cb_proto_get_safestate_reason(ctx)));
 
         printfnl("");
         printfnl("== PWM ==");
@@ -657,8 +821,9 @@ void cb_proto_dump(struct safety_controller *ctx)
         printfnl("== MCS ==");
         printfnl("ID State: %s", cb_proto_id_state_to_str(cb_proto_get_id_state(ctx)));
         printfnl("CE State: %s", cb_proto_ce_state_to_str(cb_proto_get_ce_state(ctx)));
-        printfnl("Safe State Active: %s", cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)));
-        printfnl("EStop Reason: %s", cb_proto_estop_reason_to_str(cb_proto_get_estop_reason(ctx)));
+        printfnl("Safe State Active: %-11s Reason: %s",
+                 cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)),
+                 cb_proto_estop_reason_to_str(cb_proto_get_estop_reason(ctx)));
 
         printfnl("");
         printfnl("CCS Ready: %-3s", cb_proto_ccs_ready_to_str(cb_proto_get_target_ccs_ready(ctx)));
@@ -688,6 +853,23 @@ void cb_proto_dump(struct safety_controller *ctx)
            cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(ctx)),
            cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(ctx)));
     printfnl("Git Hash: %s", ctx->git_hash ? ctx->git_hash_str : "unknown");
+
+    printfnl("");
+    printfnl("== Latest Error Message ==");
+    if (ctx->error_message) {
+        enum errmsg_module module = cb_proto_errmsg_get_module(ctx);
+        unsigned int reason = cb_proto_errmsg_get_reason(ctx);
+
+        printfnl("Active: %-8s Module: %-15s Reason: %s",
+                 cb_proto_errmsg_is_active(ctx) ? "yes" : "no",
+                 cb_proto_errmsg_module_to_str(module),
+                 cb_proto_errmsg_reason_to_str(module, reason));
+        printfnl("Additional Data: 0x%04x 0x%04x",
+                 cb_proto_errmsg_get_additional_data_1(ctx),
+                 cb_proto_errmsg_get_additional_data_2(ctx));
+    } else {
+        printfnl("None");
+    }
 
     printfnl("");
     printfnl("== Timestamps ==");
