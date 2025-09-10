@@ -27,3 +27,38 @@ the currently used/tested version is v2.0.1 of the library.
 
 To parse YAML files, the library [libyaml](https://pyyaml.org/wiki/LibYAML)
 is used, at time of writing v0.2.5.
+
+## Building and Installation on the Target
+
+Since this project is quite small and only has few dependencies, it is possible
+to compile it on the target itself. Here is an example transcript:
+
+    git clone https://github.com/chargebyte/ra-utils.git
+
+    mkdir ra-utils/build
+
+    cd ra-utils/build
+
+    CMAKE_INSTALL_PATH_DEFINES=" \
+          -DCMAKE_INSTALL_PREFIX:PATH=/usr \
+          -DCMAKE_INSTALL_BINDIR:PATH=/usr/bin \
+          -DCMAKE_INSTALL_SBINDIR:PATH=/usr/sbin \
+          -DCMAKE_INSTALL_LIBEXECDIR:PATH=/usr/libexec  \
+          -DCMAKE_INSTALL_SYSCONFDIR:PATH=/etc \
+          -DCMAKE_INSTALL_SHAREDSTATEDIR:PATH=/var/share \
+          -DCMAKE_INSTALL_LOCALSTATEDIR:PATH=/var \
+          -DCMAKE_INSTALL_LIBDIR:PATH=/usr/lib \
+    "
+    export CMAKE_INSTALL_PATH_DEFINES
+
+    cmake \
+          $CMAKE_INSTALL_PATH_DEFINES \
+          ..
+
+    make -j$(nproc)
+
+    make install
+
+Remember, that the tool is already pre-installed on chargebyte's distributions.
+The very same procedure can be used on a host system, e.g. when the tools are
+needed to create parameter block files on the host system.
