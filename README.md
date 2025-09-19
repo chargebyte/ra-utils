@@ -59,6 +59,11 @@ to compile it on the target itself. Here is an example transcript:
 
     make install
 
+Note: After `make install` multiple firmware files are placed in `/usr/share/ra-utils`
+but the update script only expects a single firmware file matching the platform it
+runs on. So just delete the files manually which are not needed in your setup (this
+platform selection is done automatically in chargebyte's Yocto recipe).
+
 Remember, that the tool is already pre-installed on chargebyte's distributions.
 The very same procedure can be used on a host system, e.g. when the tools are
 needed to create parameter block files on the host system.
