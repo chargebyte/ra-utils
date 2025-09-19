@@ -598,54 +598,66 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_DEFAULT,
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_TASK,
     "default",
-    "task was not executed in time",
+    "task was not executed in time [task id, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_COMM,
     "default",
-    "safety message timeouted",
+    "safety message timeouted [message id, last timestamp]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SAFETY,
     "default",
-    "safety state mismatch",
-    "CP safety fault",
+    "safety state mismatch [active safety fault, inverted safety fault]",
+    "CP safety fault [CP pos voltage, CP neg voltage]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CP_PP,
     "default",
+    "[CP pos voltage, CP neg voltage]",
+    "[PP voltage, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_TEMP,
     "default",
-    "short to battery",
-    "short to ground",
-    "open load",
-    "temperature over limit",
-    "temperature under limit",
-    "resistance too high",
-    "resistance negative",
+    "short to battery [raw current, index]",
+    "short to ground [raw current, index:4 | raw voltage:12]",
+    "open load [raw current, index:4 | raw voltage:12]",
+    "temperature over limit [raw temp, index]",
+    "temperature under limit [raw temp, index]",
+    "resistance too high [resistance/10000, index]",
+    "resistance negative [abs(resistance), index]",
+    "invalid evaluation state [state, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SYSTEM,
     "default",
-    "watchdog error",
-    "application initial selftests failed",
-    "application CRC mismatch",
-    "application initial ADC test error",
-    "CPU test error",
-    "RAM test error",
-    "clock test error",
-    "clock stop error",
-    "ROM test error",
-    "ADC test error",
-    "voltage test error",
-    "temperature error",
-    "other test failed",
+    "watchdog error [watchdog state, -]",
+    "application initial selftests failed [-, -]",
+    "application CRC mismatch [calculated CRC, stored CRC]",
+    "application initial ADC test error [-, -]",
+    "CPU test error [-, -]",
+    "RAM test error [-, -]",
+    "clock test error [-, -]",
+    "clock stop error [-, -]",
+    "ROM test error [-, -]",
+    "ADC test error [-, -]",
+    "voltage test error [-, -]",
+    "temperature error [-, -]",
+    "other test failed [-, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_ADC,
     "default",
+    "ELC initialization failed [FSP error code, -]",
+    "ADC initialization failed [FSP error code, -]",
+    "ADC scan configuration failed [FSP error code, -]",
+    "ELC enable failed [FSP error code, -]",
+    "ADC scan start failed [FSP error code, -]",
+    "GPT initialization failed [FSP error code, -]",
+    "GPT start failed [FSP error code, -]",
+    "ADC read failed [group, FSP error code]",
+    "invalid parameter for adcif_get_value [value, average_size]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_I2C,
@@ -658,16 +670,25 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PIN,
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PWM,
     "default",
+    "GPT initialization failed [FSP error code, -]",
+    "GPT start failed [FSP error code, -]",
+    "setting duty cycle failed [dutycycle, FSP error code]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_UART,
     "default",
+    "UART initialization failed [FSP error code, -]",
+    "UART RX buffer overflow [packet type, buffer index]",
+    "UART TX buffer overflow [packet type, buffer index]",
+    "UART TX failed [packet type, FSP error code]",
+    "no TX packet set [ -, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PARAM,
     "default",
     "parameter not found in memory, defaults will be used",
-    "CRC mismatch, defaults will be used",
+    "CRC mismatch, defaults will be used ",
+    "index out of bounds [index, [1= temp, 2=hv connector, 3=emergency in]]",
 );
 
 static const char * const * const errmsg_reason_strings[ERRMSG_MODULE_MAX] = {
