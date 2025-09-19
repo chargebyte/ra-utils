@@ -133,7 +133,7 @@ void pb_init(struct param_block *param_block)
     for (i = 0; i < ARRAY_SIZE(param_block->contactor); i++)
         param_block->contactor[i] = CONTACTOR_NONE;
     for (i = 0; i < ARRAY_SIZE(param_block->estop); i++)
-        param_block->contactor[i] = EMERGENY_STOP_NONE;
+        param_block->estop[i] = EMERGENY_STOP_NONE;
 
     pb_refresh_crc(param_block);
 }
