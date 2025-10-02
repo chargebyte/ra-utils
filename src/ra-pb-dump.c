@@ -131,30 +131,31 @@ void parse_cli(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
     int rv = EXIT_FAILURE;
-    bool crc_error = true;
 
     /* handle command line options */
     parse_cli(argc, argv);
 
-    if (fread(&param_block, sizeof(param_block), 1, f) != 1) {
+    /* read parameter block and try to auto-detect version, migrate if necessary */
+    switch (pb_read(f, &param_block)) {
+    case PB_READ_SUCCESS:
+        rv = EXIT_SUCCESS;
+        break;
+
+    case PB_READ_ERROR_CRC:
+        fprintf(stderr, "Warning: parameter block's CRC is wrong, dumping nevertheless.\n");
+        break;
+
+    case PB_READ_ERROR_MAGIC:
+        fprintf(stderr, "Error: file does not look like a parameter block.\n");
+        goto err_out;
+
+    default:
         if (errno)
             fprintf(stderr, "Error while reading: %m\n");
         goto err_out;
     }
 
-    if (param_block.sob != htole32(MARKER) ||
-        param_block.eob != htole32(MARKER)) {
-        fprintf(stderr, "Error: file does not look like a parameter block.\n");
-        goto err_out;
-    }
-
-    crc_error = param_block.crc != crc8((uint8_t *)&param_block, sizeof(param_block) - 1);
-    if (crc_error)
-        fprintf(stderr, "Warning: parameter block's CRC is wrong, dumping nevertheless.\n");
-
     pb_dump(&param_block);
-    if (!crc_error)
-        rv = EXIT_SUCCESS;
 
 err_out:
     /* close but do not look at result */

@@ -156,8 +156,8 @@ void parse_cli(int argc, char *argv[])
     argv += CB_PROTO_MAX_PT1000S;
 
     for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-        param_block.contactor[i] = str_to_contactor_type(argv[i]);
-        if (param_block.contactor[i] == CONTACTOR_MAX) {
+        param_block.contactor_type[i] = str_to_contactor_type(argv[i]);
+        if (param_block.contactor_type[i] == CONTACTOR_MAX) {
             fprintf(stderr, "Error: invalid contactor specification: %s\n\n", argv[i]);
             usage(program_invocation_short_name, EXIT_FAILURE);
         }

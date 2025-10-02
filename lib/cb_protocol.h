@@ -25,7 +25,7 @@ extern "C" {
 #define CB_PROTO_CHARGE_STATE_INTERVAL 100
 
 /* maximum supported contactors */
-#define CB_PROTO_MAX_CONTACTORS 2
+#define CB_PROTO_MAX_CONTACTORS 3
 
 /* maximum count of PT1000 channels */
 #define CB_PROTO_MAX_PT1000S 4
