@@ -127,6 +127,7 @@ void fw_version_app_infoblock_to_host_endianess(struct version_app_infoblock *p)
     p->application_checksum = le32toh(p->application_checksum);
     p->git_hash = le64toh(p->git_hash);
     p->end_magic_pattern = le32toh(p->end_magic_pattern);
+    p->parameter_version = le16toh(p->parameter_version);
 }
 
 bool fw_valid_version_app_infoblock(struct version_app_infoblock *p)
@@ -153,6 +154,8 @@ void fw_dump_version_app_infoblock(struct version_app_infoblock *p)
 
     printf("Git Hash:                  %016" PRIx64 "\n", p->git_hash);
 
+    printf("Parameter Block Version:   %" PRIu16 "\n", p->parameter_version);
+
     printf("End Magic Pattern:         0x%08" PRIx32 "\n", p->end_magic_pattern);
 }
 
@@ -167,6 +170,7 @@ bool fw_print_amended_version_app_infoblock(struct version_app_infoblock *p, con
      * Firmware Platform Type:    default (0x81)
      * Firmware Application Type: qualification (0x05)
      * Git Hash:                  a9653ba5c34eeba8
+     * Parameter Block Version:   1
      * End Magic Pattern:         0xcafebabe
      *
      * We enclose it a little bit to make it nice.
