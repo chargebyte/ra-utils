@@ -39,25 +39,6 @@ target_link_libraries(ra-raw
 
 install(TARGETS ra-raw DESTINATION sbin)
 
-add_executable(ra-gen-param-block
-    ra-gen-param-block.c
-    param_block.c
-    param_block_crc8.c
-)
-
-target_include_directories(ra-gen-param-block
-    PRIVATE
-        ${LIBRAUTILS_INCLUDE_DIR}
-        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
-)
-
-target_link_libraries(ra-gen-param-block
-    PRIVATE
-        m
-)
-
-install(TARGETS ra-gen-param-block DESTINATION bin)
-
 add_executable(ra-pb-dump
     ra-pb-dump.c
     param_block.c

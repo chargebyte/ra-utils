@@ -16,9 +16,6 @@ Tools included here:
 - **ra-pb-create**: This tools creates a binary parameter block file
   from a YAML file/stdin.
 - **ra-pb-dump**: This tools dumps a binary parameter block file as YAML.
-- **ra-gen-param-block**: This tools allows to generate a parameter block
-  which is used as parameterization for the safety controller.
-  Please don't use this tool anymore and prefer the YAML tools above.
 
 ## Dependencies
 
