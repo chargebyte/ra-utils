@@ -65,9 +65,9 @@ enum pp_state {
 
 /* possible contactor states */
 enum contactor_state {
-    CONTACTOR_STATE_OPEN = 0x0,
-    CONTACTOR_STATE_CLOSED = 0x1,
-    CONTACTOR_STATE_RESERVED = 0x2,
+    CONTACTOR_STATE_UNDEFINED = 0x0,
+    CONTACTOR_STATE_OPEN = 0x1,
+    CONTACTOR_STATE_CLOSED = 0x2,
     CONTACTOR_STATE_UNUSED = 0x3,
     CONTACTOR_STATE_MAX,
 };

@@ -69,7 +69,7 @@ void cb_proto_set_duty_cycle(struct safety_controller *ctx, unsigned int duty_cy
 
 enum contactor_state cb_proto_contactorN_get_actual_state(struct safety_controller *ctx, unsigned int contactor)
 {
-    return DATA_GET_BITS(ctx->charge_state, 24 + (3 * contactor), 2);
+    return DATA_GET_BITS(ctx->charge_state, 24 + (2 * contactor), 2);
 }
 
 bool cb_proto_contactorN_get_target_state(struct safety_controller *ctx, unsigned int contactor)
@@ -84,8 +84,7 @@ void cb_proto_contactorN_set_state(struct safety_controller *ctx, unsigned int c
 
 bool cb_proto_contactorN_is_enabled(struct safety_controller *ctx, unsigned int contactor)
 {
-    return (cb_proto_contactorN_get_actual_state(ctx, contactor) == CONTACTOR_STATE_OPEN) ||
-           (cb_proto_contactorN_get_actual_state(ctx, contactor) == CONTACTOR_STATE_CLOSED);
+    return cb_proto_contactorN_get_actual_state(ctx, contactor) != CONTACTOR_STATE_UNUSED;
 }
 
 bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int contactor)
@@ -95,7 +94,9 @@ bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int c
 
 bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor)
 {
-    return DATA_GET_BITS(ctx->charge_state, 24 + (3 * contactor) + 2, 1);
+    /* FIXME: currently returning global HW switch error flag */
+    (void)contactor;
+    return cb_proto_get_safestate_reason(ctx) == CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION;
 }
 
 bool cb_proto_contactors_have_errors(struct safety_controller *ctx)
@@ -379,16 +380,16 @@ const char *cb_proto_pp_state_to_str(enum pp_state state)
 const char *cb_proto_contactor_state_to_str(enum contactor_state state)
 {
     switch (state) {
+    case CONTACTOR_STATE_UNDEFINED:
+        return "undefined";
     case CONTACTOR_STATE_OPEN:
         return "open";
     case CONTACTOR_STATE_CLOSED:
         return "CLOSED";
-    case CONTACTOR_STATE_RESERVED:
-        return "reserved";
     case CONTACTOR_STATE_UNUSED:
         return "unused";
     default:
-        return "undefined";
+        return "invalid";
     }
 }
 
