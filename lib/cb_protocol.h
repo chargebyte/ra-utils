@@ -314,6 +314,7 @@ unsigned int cb_proto_fw_get_minor(struct safety_controller *ctx);
 unsigned int cb_proto_fw_get_build(struct safety_controller *ctx);
 enum fw_platform_type cb_proto_fw_get_platform_type(struct safety_controller *ctx);
 enum fw_application_type cb_proto_fw_get_application_type(struct safety_controller *ctx);
+unsigned int cb_proto_fw_get_param_version(struct safety_controller *ctx);
 
 void cb_proto_set_fw_version_str(struct safety_controller *ctx);
 void cb_proto_set_git_hash_str(struct safety_controller *ctx);

@@ -300,6 +300,11 @@ enum fw_application_type cb_proto_fw_get_application_type(struct safety_controll
     return DATA_GET_BITS(ctx->fw_version, 24, 8);
 }
 
+unsigned int cb_proto_fw_get_param_version(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->fw_version, 8, 16);
+}
+
 void cb_proto_set_fw_version_str(struct safety_controller *ctx)
 {
     snprintf(ctx->fw_version_str, sizeof(ctx->fw_version_str), "%u.%u.%u",
@@ -869,10 +874,11 @@ void cb_proto_dump(struct safety_controller *ctx)
 
     printfnl("");
     printfnl("== Firmware Info ==");
-    printfnl("Version: %s (%s, %s)",
-           ctx->fw_version ? ctx->fw_version_str : "unknown",
-           cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(ctx)),
-           cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(ctx)));
+    printfnl("Version: %s (%s, %s, Parameter Version: %u)",
+             ctx->fw_version ? ctx->fw_version_str : "unknown",
+             cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(ctx)),
+             cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(ctx)),
+             cb_proto_fw_get_param_version(ctx));
     printfnl("Git Hash: %s", ctx->git_hash ? ctx->git_hash_str : "unknown");
 
     printfnl("");
