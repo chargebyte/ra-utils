@@ -579,6 +579,7 @@ static const char *errmsg_module_strings[ERRMSG_MODULE_MAX] = {
     "APP_CP_PP",
     "APP_TEMP",
     "APP_SYSTEM",
+    "APP_HVSWITCH",
     "MW_ADC",
     "MW_I2C",
     "MW_PIN",
@@ -616,6 +617,7 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SAFETY,
     "default",
     "safety state mismatch [active safety fault, inverted safety fault]",
     "CP safety fault [CP pos voltage, CP neg voltage]",
+    "Detected State C, while ID was not connected [-, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CP_PP,
@@ -651,6 +653,15 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SYSTEM,
     "voltage test error [-, -]",
     "temperature error [-, -]",
     "other test failed [-, -]",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_HVSWITCH,
+    "default",
+    "feedback pin is wrong while open [feedback, index]",
+    "feedback pin didn't indicate close in time [- , index]",
+    "feedback pin is wrong while close [feedback, index]",
+    "feedback pin didn't indicate open in time [- , index]",
+    "feedback pin is wrong while open [code_line, index]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_ADC,
@@ -695,22 +706,27 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PARAM,
     "parameter not found in memory, defaults will be used",
     "CRC mismatch, defaults will be used ",
     "index out of bounds [index, [1= temp, 2=hv connector, 3=emergency in]]",
+    "TMax value out of bounds [value, index]",
+    "temperature sensor resistance offset out of bounds [-50 to 50 Ohm] [value, index]",
+    "Version mismatch [version in parameter section | version stored in firmware]",
+
 );
 
 static const char * const * const errmsg_reason_strings[ERRMSG_MODULE_MAX] = {
-    [ERRMSG_MODULE_DEFAULT]     = errmsg_reason_strings_ERRMSG_MODULE_DEFAULT,
-    [ERRMSG_MODULE_APP_TASK]    = errmsg_reason_strings_ERRMSG_MODULE_APP_TASK,
-    [ERRMSG_MODULE_APP_COMM]    = errmsg_reason_strings_ERRMSG_MODULE_APP_COMM,
-    [ERRMSG_MODULE_APP_SAFETY]  = errmsg_reason_strings_ERRMSG_MODULE_APP_SAFETY,
-    [ERRMSG_MODULE_APP_CP_PP]   = errmsg_reason_strings_ERRMSG_MODULE_APP_CP_PP,
-    [ERRMSG_MODULE_APP_TEMP]    = errmsg_reason_strings_ERRMSG_MODULE_APP_TEMP,
-    [ERRMSG_MODULE_APP_SYSTEM]  = errmsg_reason_strings_ERRMSG_MODULE_APP_SYSTEM,
-    [ERRMSG_MODULE_MW_ADC]      = errmsg_reason_strings_ERRMSG_MODULE_MW_ADC,
-    [ERRMSG_MODULE_MW_I2C]      = errmsg_reason_strings_ERRMSG_MODULE_MW_I2C,
-    [ERRMSG_MODULE_MW_PIN]      = errmsg_reason_strings_ERRMSG_MODULE_MW_PIN,
-    [ERRMSG_MODULE_MW_PWM]      = errmsg_reason_strings_ERRMSG_MODULE_MW_PWM,
-    [ERRMSG_MODULE_MW_UART]     = errmsg_reason_strings_ERRMSG_MODULE_MW_UART,
-    [ERRMSG_MODULE_MW_PARAM]    = errmsg_reason_strings_ERRMSG_MODULE_MW_PARAM,
+    [ERRMSG_MODULE_DEFAULT]      = errmsg_reason_strings_ERRMSG_MODULE_DEFAULT,
+    [ERRMSG_MODULE_APP_TASK]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TASK,
+    [ERRMSG_MODULE_APP_COMM]     = errmsg_reason_strings_ERRMSG_MODULE_APP_COMM,
+    [ERRMSG_MODULE_APP_SAFETY]   = errmsg_reason_strings_ERRMSG_MODULE_APP_SAFETY,
+    [ERRMSG_MODULE_APP_CP_PP]    = errmsg_reason_strings_ERRMSG_MODULE_APP_CP_PP,
+    [ERRMSG_MODULE_APP_TEMP]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TEMP,
+    [ERRMSG_MODULE_APP_SYSTEM]   = errmsg_reason_strings_ERRMSG_MODULE_APP_SYSTEM,
+    [ERRMSG_MODULE_APP_HVSWITCH] = errmsg_reason_strings_ERRMSG_MODULE_APP_HVSWITCH,
+    [ERRMSG_MODULE_MW_ADC]       = errmsg_reason_strings_ERRMSG_MODULE_MW_ADC,
+    [ERRMSG_MODULE_MW_I2C]       = errmsg_reason_strings_ERRMSG_MODULE_MW_I2C,
+    [ERRMSG_MODULE_MW_PIN]       = errmsg_reason_strings_ERRMSG_MODULE_MW_PIN,
+    [ERRMSG_MODULE_MW_PWM]       = errmsg_reason_strings_ERRMSG_MODULE_MW_PWM,
+    [ERRMSG_MODULE_MW_UART]      = errmsg_reason_strings_ERRMSG_MODULE_MW_UART,
+    [ERRMSG_MODULE_MW_PARAM]     = errmsg_reason_strings_ERRMSG_MODULE_MW_PARAM,
 };
 
 const char *cb_proto_errmsg_reason_to_str(enum errmsg_module module, unsigned int reason)
