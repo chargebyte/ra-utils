@@ -92,26 +92,6 @@ bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int c
     return cb_proto_contactorN_get_actual_state(ctx, contactor) == CONTACTOR_STATE_CLOSED;
 }
 
-bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor)
-{
-    /* FIXME: currently returning global HW switch error flag */
-    (void)contactor;
-    return cb_proto_get_safestate_reason(ctx) == CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION;
-}
-
-bool cb_proto_contactors_have_errors(struct safety_controller *ctx)
-{
-    unsigned int i;
-
-    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-        if (cb_proto_contactorN_is_enabled(ctx, i) &&
-            cb_proto_contactorN_has_error(ctx, i))
-            return true;
-    }
-
-    return false;
-}
-
 bool cb_proto_get_hv_ready(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_state, 30, 1);
@@ -854,10 +834,9 @@ void cb_proto_dump(struct safety_controller *ctx)
         printfnl("");
         printfnl("== Contactor ==");
         for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-            printfnl("Contactor %d: requested=%-5s   actual=%-9s   %s", i + 1,
+            printfnl("Contactor %d: requested=%-5s   actual=%-9s", i + 1,
                      cb_proto_contactorN_get_target_state(ctx, i) ? "CLOSE" : "open",
-                     cb_proto_contactor_state_to_str(cb_proto_contactorN_get_actual_state(ctx, i)),
-                     cb_proto_contactorN_has_error(ctx, i) ? "ERROR" : "no error");
+                     cb_proto_contactor_state_to_str(cb_proto_contactorN_get_actual_state(ctx, i)));
         }
     } else {
         printfnl("");

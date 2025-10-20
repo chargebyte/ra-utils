@@ -248,9 +248,6 @@ void cb_proto_contactorN_set_state(struct safety_controller *ctx, unsigned int c
 
 bool cb_proto_contactorN_is_enabled(struct safety_controller *ctx, unsigned int contactor);
 bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int contactor);
-bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor);
-
-bool cb_proto_contactors_have_errors(struct safety_controller *ctx);
 
 bool cb_proto_get_hv_ready(struct safety_controller *ctx);
 
