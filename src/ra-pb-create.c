@@ -190,23 +190,41 @@ void print_event_type(yaml_event_type_t type)
     }
 }
 
+enum param_block_state {
+    PBS_NONE,
+    PBS_VERSION,
+    PBS_PT1000S, /* in the array */
+    PBS_PT1000,  /* in a specific array item */
+    PBS_PT1000_TEMP,
+    PBS_PT1000_OFFSET,
+    PBS_CONTACTORS, /* in the array */
+    PBS_CONTACTOR, /* in a specific array item */
+    PBS_CONTACTOR_TYPE,
+    PBS_CONTACTOR_CLOSE_TIME,
+    PBS_CONTACTOR_OPEN_TIME,
+    PBS_ESTOPS,
+    PBS_MAX,
+};
+
+static const char *param_block_state_str[PBS_MAX] = {
+    "PBS_NONE",
+    "PBS_VERSION",
+    "PBS_PT1000S",
+    "PBS_PT1000",
+    "PBS_PT1000_TEMP",
+    "PBS_PT1000_OFFSET",
+    "PBS_CONTACTORS",
+    "PBS_CONTACTOR",
+    "PBS_CONTACTOR_TYPE",
+    "PBS_CONTACTOR_CLOSE_TIME",
+    "PBS_CONTACTOR_OPEN_TIME",
+    "PBS_ESTOPS",
+};
+
 int main(int argc, char *argv[])
 {
+    enum param_block_state param_block_state = PBS_NONE;
     int rv = EXIT_FAILURE;
-    enum {
-        PBS_NONE,
-        PBS_VERSION,
-        PBS_PT1000S, /* in the array */
-        PBS_PT1000,  /* in a specific array item */
-        PBS_PT1000_TEMP,
-        PBS_PT1000_OFFSET,
-        PBS_CONTACTORS, /* in the array */
-        PBS_CONTACTOR, /* in a specific array item */
-        PBS_CONTACTOR_TYPE,
-        PBS_CONTACTOR_CLOSE_TIME,
-        PBS_CONTACTOR_OPEN_TIME,
-        PBS_ESTOPS,
-    } param_block_state;
     int current_temperature_idx = -1;
     int current_contactor_idx = -1;
     int current_estop_idx = -1;
@@ -237,6 +255,7 @@ int main(int argc, char *argv[])
 
             if (event.type == YAML_SCALAR_EVENT) {
                 PRINT_EVENT(indent, "Scalar:", event.data.scalar.value);
+                fprintf(stderr, "%*sparam_block_state: %s\n", indent * 2, "", param_block_state_str[param_block_state]);
             }
         }
 
