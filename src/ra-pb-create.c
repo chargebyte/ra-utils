@@ -9,6 +9,7 @@
  * Options:
  *         -i, --infile            use the given filename as input file (default: stdin)
  *         -o, --outfile           use the given filename for output (default: stdout)
+ *         -D, --debug             print debug output to stderr
  *         -V, --version           print version and exit
  *         -h, --help              print this usage and exit
  *
