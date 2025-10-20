@@ -466,7 +466,7 @@ int main(int argc, char *argv[])
     /* special case: no properties found at all, e.g. libyaml could not parse, e.g. due to wrong YAML file encoding */
     if (current_temperature_idx == -1 &&
         current_contactor_idx == -1 &&
-        current_estop_idx == 0) {
+        current_estop_idx == -1) {
         fprintf(stderr, "Error: no or wrong input data - YAML file is probably not UTF-8 encoded.\n");
         goto err_out;
     }
