@@ -259,6 +259,7 @@ void pb_dump(struct param_block *param_block)
     int i;
 
     printf("version: %u\n", param_block->version);
+    printf("\n");
 
     printf("pt1000s:\n");
     for (i = 0; i < ARRAY_SIZE(param_block->temperature); i++) {
