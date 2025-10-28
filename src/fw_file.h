@@ -23,7 +23,8 @@ struct version_app_infoblock {
     uint64_t git_hash;             ///< Git hash of the HEAD used to build this SW
     uint8_t sw_platform_type;      ///< Software platform type
     uint8_t sw_application_type;   ///< Software application type
-    uint8_t reserved[3];           ///< 5 bytes for future use
+    uint16_t parameter_version;    ///< Expected parameter file version
+    uint8_t reserved;              ///< 1 bytes for future use
     uint32_t end_magic_pattern;    ///< Magic pattern to ensure, that this block is valid
 } __attribute__((packed));
 

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 project(ra-utils
-    VERSION 0.8.1
+    VERSION 0.9.0
     DESCRIPTION "Command line tools related to the Renesas MCU (aka safety controller)"
     LANGUAGES C
 )

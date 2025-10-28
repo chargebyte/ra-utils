@@ -16,9 +16,6 @@ Tools included here:
 - **ra-pb-create**: This tools creates a binary parameter block file
   from a YAML file/stdin.
 - **ra-pb-dump**: This tools dumps a binary parameter block file as YAML.
-- **ra-gen-param-block**: This tools allows to generate a parameter block
-  which is used as parameterization for the safety controller.
-  Please don't use this tool anymore and prefer the YAML tools above.
 
 ## Dependencies
 
@@ -27,6 +24,11 @@ the currently used/tested version is v2.0.1 of the library.
 
 To parse YAML files, the library [libyaml](https://pyyaml.org/wiki/LibYAML)
 is used, at time of writing v0.2.5.
+
+## Compatibility
+
+Unless stated otherwise, please use the tagged ra-utils version only with
+the safety firmware version included in the actual tag.
 
 ## Building and Installation on the Target
 

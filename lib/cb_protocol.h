@@ -25,7 +25,7 @@ extern "C" {
 #define CB_PROTO_CHARGE_STATE_INTERVAL 100
 
 /* maximum supported contactors */
-#define CB_PROTO_MAX_CONTACTORS 2
+#define CB_PROTO_MAX_CONTACTORS 3
 
 /* maximum count of PT1000 channels */
 #define CB_PROTO_MAX_PT1000S 4
@@ -65,9 +65,9 @@ enum pp_state {
 
 /* possible contactor states */
 enum contactor_state {
-    CONTACTOR_STATE_OPEN = 0x0,
-    CONTACTOR_STATE_CLOSED = 0x1,
-    CONTACTOR_STATE_RESERVED = 0x2,
+    CONTACTOR_STATE_UNDEFINED = 0x0,
+    CONTACTOR_STATE_OPEN = 0x1,
+    CONTACTOR_STATE_CLOSED = 0x2,
     CONTACTOR_STATE_UNUSED = 0x3,
     CONTACTOR_STATE_MAX,
 };
@@ -179,6 +179,7 @@ enum errmsg_module {
     ERRMSG_MODULE_APP_CP_PP,
     ERRMSG_MODULE_APP_TEMP,
     ERRMSG_MODULE_APP_SYSTEM,
+    ERRMSG_MODULE_APP_HVSWITCH,
     ERRMSG_MODULE_MW_ADC,
     ERRMSG_MODULE_MW_I2C,
     ERRMSG_MODULE_MW_PIN,
@@ -247,9 +248,6 @@ void cb_proto_contactorN_set_state(struct safety_controller *ctx, unsigned int c
 
 bool cb_proto_contactorN_is_enabled(struct safety_controller *ctx, unsigned int contactor);
 bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int contactor);
-bool cb_proto_contactorN_has_error(struct safety_controller *ctx, unsigned int contactor);
-
-bool cb_proto_contactors_have_errors(struct safety_controller *ctx);
 
 bool cb_proto_get_hv_ready(struct safety_controller *ctx);
 
@@ -314,6 +312,7 @@ unsigned int cb_proto_fw_get_minor(struct safety_controller *ctx);
 unsigned int cb_proto_fw_get_build(struct safety_controller *ctx);
 enum fw_platform_type cb_proto_fw_get_platform_type(struct safety_controller *ctx);
 enum fw_application_type cb_proto_fw_get_application_type(struct safety_controller *ctx);
+unsigned int cb_proto_fw_get_param_version(struct safety_controller *ctx);
 
 void cb_proto_set_fw_version_str(struct safety_controller *ctx);
 void cb_proto_set_git_hash_str(struct safety_controller *ctx);
