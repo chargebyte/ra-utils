@@ -25,6 +25,11 @@ the currently used/tested version is v2.0.1 of the library.
 To parse YAML files, the library [libyaml](https://pyyaml.org/wiki/LibYAML)
 is used, at time of writing v0.2.5.
 
+## Compatibility
+
+Unless stated otherwise, please use the tagged ra-utils version only with
+the safety firmware version included in the actual tag.
+
 ## Building and Installation on the Target
 
 Since this project is quite small and only has few dependencies, it is possible
