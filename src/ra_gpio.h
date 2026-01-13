@@ -6,15 +6,6 @@
 
 #include <gpiod.h>
 
-/* the default gpiochip device to use */
-#define DEFAULT_RA_GPIOCHIP "/dev/gpiochip2"
-
-/* the default gpio name of the MCU reset pin */
-#define DEFAULT_RA_GPIO_RESET_PIN "nSAFETY_RESET_INT"
-
-/* the default gpio name of the gpio to toogle the MCU boot mode */
-#define DEFAULT_RA_GPIO_MD_PIN "SAFETY_BOOTMODE_SET"
-
 /* forward declaration */
 struct gpio_ctx;
 
