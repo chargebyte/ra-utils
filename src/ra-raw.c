@@ -48,6 +48,7 @@
 #include <version.h>
 #include "ra_gpio.h"
 #include "stringify.h"
+#include "gpio-defaults.h"
 #include "uart-defaults.h"
 
 /* fallback if not set by build system */
@@ -248,6 +249,9 @@ int main(int argc, char *argv[])
     struct pollfd poll_fds[2]; /* stdin at [0], UART fd at [1] */
     int fds = 2;
     char *env_uart_device = NULL;
+    char *env_gpiochip = NULL;
+    char *env_reset_gpioname = NULL;
+    char *env_md_gpioname = NULL;
     struct uart_ctx uart = { .fd = -1 };
     struct safety_controller ctx = {};
     enum cb_uart_com com;
@@ -259,13 +263,25 @@ int main(int argc, char *argv[])
     int rc = EXIT_FAILURE;
     int rv;
 
-    /* check whether environment variable SAFETY_MCU_UART is set and use it
+    /* check whether any of the environment variables SAFETY_MCU_... is set and use it
      * as default; so the resulting order is:
      * compiled-in default -> can be overridden by environment -> can be overridden by cmdline
      */
     env_uart_device = getenv(GETENV_UART_KEY);
     if (env_uart_device)
         uart_device = env_uart_device;
+
+    env_gpiochip = getenv(GETENV_GPIOCHIP_KEY);
+    if (env_gpiochip)
+        gpiochip = env_gpiochip;
+
+    env_reset_gpioname = getenv(GETENV_RESET_PIN_KEY);
+    if (env_reset_gpioname)
+        reset_gpioname = env_reset_gpioname;
+
+    env_md_gpioname = getenv(GETENV_MD_PIN_KEY);
+    if (env_md_gpioname)
+        md_gpioname = env_md_gpioname;
 
     /* handle command line options */
     parse_cli(argc, argv);

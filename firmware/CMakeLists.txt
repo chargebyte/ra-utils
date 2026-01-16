@@ -9,8 +9,17 @@ install(
 
 install(
     FILES
-        ra-update.service
+        ra-update@.service
     DESTINATION /lib/systemd/system
+)
+
+install(
+    DIRECTORY
+        ra-update@ttyLP1.service.d
+        ra-update@ttyLP2.service.d
+    DESTINATION /lib/systemd/system
+    FILES_MATCHING
+    PATTERN "*.conf"
 )
 
 install(
