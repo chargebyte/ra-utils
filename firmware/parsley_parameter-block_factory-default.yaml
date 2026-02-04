@@ -6,7 +6,7 @@ pt1000s:
 
 contactors:
   - with-feedback-normally-open
-  - disabled
+  - with-feedback-normally-open
   - disabled
 
 estops:
