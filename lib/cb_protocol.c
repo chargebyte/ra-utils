@@ -92,6 +92,18 @@ bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int c
     return cb_proto_contactorN_get_actual_state(ctx, contactor) == CONTACTOR_STATE_CLOSED;
 }
 
+bool cb_proto_contactors_are_used(struct safety_controller *ctx)
+{
+    unsigned int i;
+
+    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+        if (cb_proto_contactorN_is_enabled(ctx, i))
+            return true;
+    }
+
+    return false;
+}
+
 bool cb_proto_get_hv_ready(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_state, 30, 1);

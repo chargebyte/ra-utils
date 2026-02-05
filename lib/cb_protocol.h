@@ -249,6 +249,8 @@ void cb_proto_contactorN_set_state(struct safety_controller *ctx, unsigned int c
 bool cb_proto_contactorN_is_enabled(struct safety_controller *ctx, unsigned int contactor);
 bool cb_proto_contactorN_is_closed(struct safety_controller *ctx, unsigned int contactor);
 
+bool cb_proto_contactors_are_used(struct safety_controller *ctx);
+
 bool cb_proto_get_hv_ready(struct safety_controller *ctx);
 
 enum cp_state cb_proto_get_cp_state(struct safety_controller *ctx);
