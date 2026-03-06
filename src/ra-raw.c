@@ -256,10 +256,14 @@ int main(int argc, char *argv[])
     struct safety_controller ctx = {};
     enum cb_uart_com com;
     uint64_t data;
-    bool fw_version_requested = false;
-    bool fw_version_received = false;
-    bool git_hash_requested = false;
-    bool git_hash_received = false;
+    enum {
+        STATE_INIT_FW_VERSION,
+        STATE_INIT_PNM1,
+        STATE_INIT_PNM2,
+        STATE_INIT_CHIPINFO,
+        STATE_INIT_GIT_HASH,
+        STATE_RUN_LOOP,
+    } state = STATE_INIT_FW_VERSION;
     int rc = EXIT_FAILURE;
     int rv;
 
@@ -348,38 +352,54 @@ int main(int argc, char *argv[])
     while (1) {
         int rv;
 
-        if (!fw_version_requested) {
-            rv = cb_send_uart_inquiry(&uart, COM_FW_VERSION);
-            if (rv) {
-                error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(COM_FW_VERSION));
-                goto close_out;
-            }
-            fw_version_requested = true;
-        } else if (!git_hash_requested && fw_version_received) {
-            rv = cb_send_uart_inquiry(&uart, COM_GIT_HASH);
-            if (rv) {
-                error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(COM_GIT_HASH));
-                goto close_out;
-            }
-            git_hash_requested = true;
+        switch (state) {
+        case STATE_INIT_FW_VERSION:
+            com = COM_FW_VERSION;
+            break;
+        case STATE_INIT_PNM1:
+            com = COM_PARTNUMBER_1;
+            break;
+        case STATE_INIT_PNM2:
+            com = COM_PARTNUMBER_2;
+            break;
+        case STATE_INIT_CHIPINFO:
+            com = COM_CHIPINFO;
+            break;
+        case STATE_INIT_GIT_HASH:
+            com = COM_GIT_HASH;
+            break;
+        default:
+            /* no inquiry */
+        }
 
-            // this is a little bit tricky/small hack: in case we want to send out
-            // charge control frames automatically, we just jump over the else condition
-            // otherwise we had to duplicate code here
-            if (send_charge_control)
-                goto send_charge_control_frame;
-
-        } else if (com == COM_CHARGE_STATE || com == COM_CHARGE_STATE_2) {
-            if (send_charge_control) {
+        switch (state) {
+        case STATE_RUN_LOOP:
+            if (com == COM_CHARGE_STATE || com == COM_CHARGE_STATE_2) {
+                if (send_charge_control) {
 send_charge_control_frame:
-                /* remember the timestamp */
-                cb_proto_set_ts_str(&ctx, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL);
-                /* send out charge control frame 1 when last received frame was a charge state 1 one */
-                rv = cb_uart_send(&uart, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL, ctx.charge_control);
-                if (rv) {
-                    error("error while sending charge control frame: %m");
-                    goto close_out;
+                    /* remember the timestamp */
+                    cb_proto_set_ts_str(&ctx, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL);
+                    /* send out charge control frame 1 when last received frame was a charge state 1 one */
+                    rv = cb_uart_send(&uart, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL, ctx.charge_control);
+                    if (rv) {
+                        error("error while sending charge control frame: %m");
+                        goto close_out;
+                    }
                 }
+            }
+            break;
+        default:
+            rv = cb_send_uart_inquiry(&uart, com);
+            if (rv) {
+                error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(com));
+                goto close_out;
+            }
+            if (state == STATE_INIT_GIT_HASH) {
+                // this is a little bit tricky/small hack: in case we want to send out
+                // charge control frames automatically, we just jump over the else condition
+                // otherwise we had to duplicate code here
+                if (send_charge_control)
+                    goto send_charge_control_frame;
             }
         }
 
@@ -559,14 +579,33 @@ send_charge_control_frame:
             case COM_FW_VERSION:
                 ctx.fw_version = data;
                 cb_proto_set_fw_version_str(&ctx);
-                fw_version_received = true;
                 if (cb_proto_fw_get_platform_type(&ctx) == FW_PLATFORM_TYPE_CCY)
                     cb_proto_set_mcs_mode(&ctx, true);
+
+                /* fw version prior to 0.2.9 does not support part number reading,
+                 * so we have to skip directly to git hash reading */
+                if (compare_version(ctx.fw_version_str, "0.2.9") <= 0)
+                    state = STATE_INIT_GIT_HASH;
+                else
+                    state = STATE_INIT_PNM1;
                 break;
             case COM_GIT_HASH:
                 ctx.git_hash = data;
                 cb_proto_set_git_hash_str(&ctx);
-                git_hash_received = true;
+                state = STATE_RUN_LOOP;
+                break;
+            case COM_PARTNUMBER_1:
+                ctx.partnumber1 = data;
+                state = STATE_INIT_PNM2;
+                break;
+            case COM_PARTNUMBER_2:
+                ctx.partnumber2 = data;
+                cb_proto_set_partnumber_str(&ctx);
+                state = STATE_INIT_CHIPINFO;
+                break;
+            case COM_CHIPINFO:
+                ctx.chipinfo = data;
+                state = STATE_INIT_GIT_HASH;
                 break;
             default:
                 /* not yet implemented */

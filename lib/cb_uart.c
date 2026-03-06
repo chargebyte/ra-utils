@@ -65,6 +65,12 @@ const char *cb_uart_com_to_str(enum cb_uart_com com)
         return "COM_DIAGNOSTIC_MEASUREMENTS_2";
     case COM_ANALOG_INPUT_05:
         return "COM_ANALOG_INPUT_05";
+    case COM_PARTNUMBER_1:
+        return "COM_PARTNUMBER_1";
+    case COM_PARTNUMBER_2:
+        return "COM_PARTNUMBER_2";
+    case COM_CHIPINFO:
+        return "COM_CHIPINFO";
     default:
         return "UNKNOWN";
     }

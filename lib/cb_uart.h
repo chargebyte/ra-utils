@@ -36,9 +36,12 @@ enum cb_uart_com {
     COM_CHARGE_CONTROL_2          = 0x11,
     COM_DIAGNOSTIC_MEASUREMENTS_2 = 0x12,
     COM_ANALOG_INPUT_05           = 0x13,
+    COM_PARTNUMBER_1              = 0x14,
+    COM_PARTNUMBER_2              = 0x15,
+    COM_CHIPINFO                  = 0x16,
 
     /* special value: keep in sync with above values but ignore INQUIRY */
-    COM_MAX = 0x14,
+    COM_MAX = 0x17,
 };
 
 /* forward declaration so that it is not necessary to include uart.h completely */

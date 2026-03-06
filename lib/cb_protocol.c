@@ -298,6 +298,11 @@ unsigned int cb_proto_fw_get_param_version(struct safety_controller *ctx)
     return DATA_GET_BITS(ctx->fw_version, 8, 16);
 }
 
+unsigned int cb_proto_get_mcu_version(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->chipinfo, 56, 8);
+}
+
 void cb_proto_set_fw_version_str(struct safety_controller *ctx)
 {
     snprintf(ctx->fw_version_str, sizeof(ctx->fw_version_str), "%u.%u.%u",
@@ -319,6 +324,80 @@ void cb_proto_set_git_hash_str(struct safety_controller *ctx)
     }
 
     *s = '\0';
+}
+
+void cb_proto_set_partnumber_str(struct safety_controller *ctx)
+{
+    /* we need to byte-swap and then want to directly access as string, so
+     * let's use this helper struct (which then needs to be packed to be safe)
+     */
+    struct {
+        uint64_t pnm1;
+        uint64_t pnm2;
+    } __attribute__((packed)) pnm;
+    char *s = (char *)&pnm;
+    size_t start = 0;
+    size_t end = sizeof(pnm);
+    size_t len;
+
+    /* fix byte order */
+    pnm.pnm1 = be64toh(ctx->partnumber1);
+    pnm.pnm2 = be64toh(ctx->partnumber2);
+
+    /* trim NUL bytes or whitespace */
+    while (start < end && (s[start] == '\0' || s[start] == ' '))
+        start++;
+    while (end > start && (s[end - 1] == '\0' || s[end - 1] == ' '))
+        end--;
+
+    len = end - start;
+
+    memcpy(ctx->partnumber_str, &s[start], len);
+    ctx->partnumber_str[len] = '\0';
+
+    /* populate details */
+    if (strncmp(ctx->partnumber_str, "R7FA2E1A", 8) == 0) {
+        len = 0;
+        len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "(");
+
+        switch (ctx->partnumber_str[8]) {
+        case '9':
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "128 kB, ");
+            break;
+        case '7':
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "64 kB, ");
+            break;
+        case '5':
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "32 kB, ");
+            break;
+        default:
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "unknown, ");
+        }
+
+        switch (ctx->partnumber_str[9]) {
+        case '2':
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "-40 - 85 °C, ");
+            break;
+        case '3':
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "-40 - 105 °C, ");
+            break;
+        default:
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "unknown, ");
+        }
+
+        switch (ctx->partnumber_str[10]) {
+        case 'C':
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "Industrial");
+            break;
+        case 'D':
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "Consumer");
+            break;
+        default:
+            len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, "unknown, ");
+        }
+
+        len += snprintf(&ctx->partnumber_details[len], sizeof(ctx->partnumber_details) - len, ")");
+    }
 }
 
 const char *cb_proto_cp_state_to_str(enum cp_state state)
@@ -881,8 +960,12 @@ void cb_proto_dump(struct safety_controller *ctx)
     }
 
     printfnl("");
-    printfnl("== Firmware Info ==");
-    printfnl("Version: %s (%s, %s, Parameter Version: %u)",
+    printfnl("== Controller Info / Firmware Info ==");
+    printfnl("MCU Version: %-4u Part Number: %s %s",
+             cb_proto_get_mcu_version(ctx),
+             (ctx->partnumber1 && ctx->partnumber2) ? ctx->partnumber_str : "unknown",
+             (ctx->partnumber1 && ctx->partnumber2 && ctx->partnumber_details[0]) ? ctx->partnumber_details : "");
+    printfnl("Firmware Version: %s (%s, %s, Parameter Version: %u)",
              ctx->fw_version ? ctx->fw_version_str : "unknown",
              cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(ctx)),
              cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(ctx)),
