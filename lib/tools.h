@@ -40,6 +40,7 @@ int timespec_compare(const struct timespec *lhs, const struct timespec *rhs);
 long long timespec_to_ms(struct timespec ts);
 long long timespec_to_us(struct timespec ts);
 int msleep(int ms);
+int compare_version(const char *val, const char *ref);
 
 #ifdef __cplusplus
 }
