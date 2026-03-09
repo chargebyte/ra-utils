@@ -69,3 +69,25 @@ platform selection is done automatically in chargebyte's Yocto recipe).
 Remember, that the tool is already pre-installed on chargebyte's distributions.
 The very same procedure can be used on a host system, e.g. when the tools are
 needed to create parameter block files on the host system.
+
+## Using the UART Trace Feature
+
+During testing and bugfixing it is sometimes desired to create a communication protocol
+trace of the messages exchanged between the host and the safety controller.
+Since the UART protocol is derived from and looks like a CAN protocol, this idea is picked
+up again for tracing: instead of fiddling around with yet another UART trace format and to
+develop custom tools for analyzing, let's simply dump all UART frames as CAN ones on
+a CAN interface (for example a VCAN interface) so that existing tools can be re-used.
+
+On Charge SOM for example, you can create such a VCAN interface as follows:
+
+    ip link add dev vcan0 type vcan
+
+    ip link set dev vcan0 up
+
+Then you can start ``ra-raw -M vcan0`` in a first SSH session which dumps all UART frames
+to this virtual interface.
+In a second, parallel SSH session, use for example ``candump -t A vcan0`` to generate
+a textual traffic dump.
+It is also possible to capture the CAN traffic into a pcap trace, then download this
+trace file to your PC and analyze it offline using e.g. Wireshark.

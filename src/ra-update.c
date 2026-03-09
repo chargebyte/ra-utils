@@ -428,7 +428,7 @@ int main(int argc, char *argv[])
     char *env_gpiochip = NULL;
     char *env_reset_gpioname = NULL;
     char *env_md_gpioname = NULL;
-    struct uart_ctx uart = { .fd = -1 };
+    struct uart_ctx uart = INIT_UART_CTX;
     struct gpio_ctx *gpio = NULL;
     uint8_t *fw_content = NULL;
     unsigned long fw_filesize = 0;

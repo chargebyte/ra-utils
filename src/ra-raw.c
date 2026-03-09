@@ -18,6 +18,7 @@
  *          -m, --md-gpio           GPIO name for controlling MD pin of MCU (default: SAFETY_BOOTMODE_SET)
  *          -p, --reset-period      reset duration (in ms, default: 500)
  *          -R, --no-reset          don't reset the safety controller before starting UART communication
+ *          -M, --can-mirror        mirror RX/TX traffic to given CAN interface
  *          -v, --verbose           verbose operation
  *          -V, --version           print version and exit
  *          -h, --help              print this usage and exit
@@ -67,6 +68,7 @@ static const struct option long_options[] = {
     { "md-gpio",            required_argument,      0,      'm' },
     { "reset-period",       required_argument,      0,      'p' },
     { "no-reset",           no_argument,            0,      'R' },
+    { "can-mirror",         required_argument,      0,      'M' },
 
     { "verbose",            no_argument,            0,      'v' },
     { "version",            no_argument,            0,      'V' },
@@ -74,7 +76,7 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "d:SDCc:r:m:p:RvVh";
+static const char *short_options = "d:SDCc:r:m:p:RM:vVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
@@ -87,6 +89,7 @@ static const char *long_options_descs[] = {
     "GPIO name for controlling MD pin of MCU (default: " DEFAULT_RA_GPIO_MD_PIN ")",
     "reset duration (in ms, default: " __stringify(DEFAULT_RA_RESET_DELAY) ")",
     "don't reset the safety controller before starting UART communication",
+    "mirror RX/TX traffic to given CAN interface",
 
     "verbose operation",
     "print version and exit",
@@ -135,6 +138,7 @@ static char *reset_gpioname = DEFAULT_RA_GPIO_RESET_PIN;
 static char *md_gpioname = DEFAULT_RA_GPIO_MD_PIN;
 static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
 static char *uart_device = DEFAULT_UART_INTERFACE;
+static char *can_mirror_device = NULL;
 
 static void debug_cb(const char *format, va_list args)
 {
@@ -212,6 +216,9 @@ void parse_cli(int argc, char *argv[])
         case 'R':
             no_reset = true;
             break;
+        case 'M':
+            can_mirror_device = optarg;
+            break;
 
         case 'v':
             verbose = true;
@@ -251,7 +258,7 @@ int main(int argc, char *argv[])
     char *env_gpiochip = NULL;
     char *env_reset_gpioname = NULL;
     char *env_md_gpioname = NULL;
-    struct uart_ctx uart = { .fd = -1 };
+    struct uart_ctx uart = INIT_UART_CTX;
     struct safety_controller ctx = {};
     enum cb_uart_com com;
     uint64_t data;
@@ -313,6 +320,15 @@ int main(int argc, char *argv[])
 
     /* maybe this need yet another option flag */
     uart_trace(&uart, verbose);
+
+    /* enable CAN mirroring if requested */
+    if (can_mirror_device) {
+        rv = uart_can_mirror_enable(&uart, can_mirror_device);
+        if (rv) {
+            error("opening '%s' failed: %m", can_mirror_device);
+            goto close_out;
+        }
+    }
 
     /* unless not desired, reset the safety controller via GPIO */
     if (!no_reset) {
