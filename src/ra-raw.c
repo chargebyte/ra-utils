@@ -166,7 +166,6 @@ void make_stdin_unbuffered(struct termios *orig)
 {
     struct termios termios_new;
 
-    tcgetattr(STDIN_FILENO, orig);
     memcpy(&termios_new, orig, sizeof(termios_new));
     cfmakeraw(&termios_new);
 
@@ -267,6 +266,10 @@ int main(int argc, char *argv[])
     int rc = EXIT_FAILURE;
     int rv;
 
+    /* let's save the current termios settings first, so that we don't another flag and can restore
+     * the setting on (error) exit unconditionally */
+    tcgetattr(STDIN_FILENO, &termios_orig);
+
     /* check whether any of the environment variables SAFETY_MCU_... is set and use it
      * as default; so the resulting order is:
      * compiled-in default -> can be overridden by environment -> can be overridden by cmdline
@@ -342,7 +345,7 @@ int main(int argc, char *argv[])
         rv = cb_uart_recv_and_sync(&uart, &com, &data);
         if (rv) {
             error("could not synchronize to the safety controller: %m");
-            return -1;
+            goto close_out;
         }
     }
 
