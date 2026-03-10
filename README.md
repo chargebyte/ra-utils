@@ -81,6 +81,29 @@ a CAN interface (for example a VCAN interface) so that existing tools can be re-
 
 On Charge SOM for example, you can create such a VCAN interface as follows:
 
+    cat <<EOF > /etc/systemd/network/vcan0.netdev
+    [NetDev]
+    Name=vcan0
+    Kind=vcan
+    EOF
+
+    cat <<EOF > /etc/systemd/network/vcan0.network
+    [Match]
+    Name=vcan0
+
+    [Link]
+    RequiredForOnline=no
+
+    [CAN]
+    BitRate=1M
+    EOF
+
+    networkctl reload
+    networkctl reconfigure vcan0
+
+This configures systemd-networkd to create such a VCAN interface also during boot.
+If you prefer it manually and non-persistent (only until reboot), just run this:
+
     ip link add dev vcan0 type vcan
 
     ip link set dev vcan0 up
