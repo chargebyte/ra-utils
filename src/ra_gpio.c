@@ -81,6 +81,8 @@ struct gpio_ctx *ra_gpio_init(const char *gpiochip, const char *reset_gpioname, 
         goto err_out;
 
     ctx->line_request = gpiod_chip_request_lines(chip, req_config, line_config);
+    if (!ctx->line_request)
+        goto err_out;
 
     gpiod_request_config_free(req_config);
     gpiod_line_settings_free(line_settings);
