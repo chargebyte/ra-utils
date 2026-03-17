@@ -389,6 +389,7 @@ int main(int argc, char *argv[])
             break;
         default:
             /* no inquiry */
+            break;
         }
 
         switch (state) {
@@ -420,6 +421,7 @@ send_charge_control_frame:
                 if (send_charge_control)
                     goto send_charge_control_frame;
             }
+            break;
         }
 
         rv = poll(poll_fds, fds, -1);

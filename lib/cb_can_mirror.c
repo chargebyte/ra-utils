@@ -46,7 +46,7 @@ err_out:
 
 int cb_can_mirror_close(int fd)
 {
-    if (fd == -1)
+    if (fd < 0)
         return 0;
 
     return close(fd);
