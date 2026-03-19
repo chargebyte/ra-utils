@@ -210,6 +210,9 @@ struct safety_controller {
     uint64_t charge_state;
     uint64_t pt1000;
     uint64_t fw_version;
+    uint64_t partnumber1;
+    uint64_t partnumber2;
+    uint64_t chipinfo;
     uint64_t error_message;
 
     /* MCS mode */
@@ -229,6 +232,14 @@ struct safety_controller {
      * 2 char a 8 byte + NUL = 17 byte; padded to 64 bit => 24 byte
      */
     char git_hash_str[24];
+
+    /* string representation of chip's part number;
+     * 16 chars + NUL = 17 byte; already whitespace trimmed
+     */
+    char partnumber_str[17];
+
+    /* string with parsed details of the part number */
+    char partnumber_details[64];
 
     /* plain text receive timestampes for each packet type */
     char ts_str_recv_com[COM_MAX][TS_STR_RECV_COM_BUFSIZE];
@@ -316,8 +327,11 @@ enum fw_platform_type cb_proto_fw_get_platform_type(struct safety_controller *ct
 enum fw_application_type cb_proto_fw_get_application_type(struct safety_controller *ctx);
 unsigned int cb_proto_fw_get_param_version(struct safety_controller *ctx);
 
+unsigned int cb_proto_get_mcu_version(struct safety_controller *ctx);
+
 void cb_proto_set_fw_version_str(struct safety_controller *ctx);
 void cb_proto_set_git_hash_str(struct safety_controller *ctx);
+void cb_proto_set_partnumber_str(struct safety_controller *ctx);
 
 /* helpers */
 const char *cb_proto_cp_state_to_str(enum cp_state state);

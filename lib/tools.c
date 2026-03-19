@@ -2,6 +2,7 @@
  * Copyright © 2024 chargebyte GmbH
  * SPDX-License-Identifier: Apache-2.0
  */
+#include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -92,4 +93,60 @@ int msleep(int ms)
     } while (rv == -1 && errno == EINTR);
 
     return rv;
+}
+
+int compare_version(const char *val, const char *ref)
+{
+    for (;;) {
+        const char *v1, *r1;
+        int len1 = 0, len2 = 0;
+
+        while (*val == '.')
+            val++;
+        while (*ref == '.')
+            ref++;
+
+        while (*val == '0')
+            val++;
+        while (*ref == '0')
+            ref++;
+
+        v1 = val;
+        r1 = ref;
+
+        while (isdigit((unsigned char)*val)) {
+            len1++;
+            val++;
+        }
+
+        while (isdigit((unsigned char)*ref)) {
+            len2++;
+            ref++;
+        }
+
+        if (len1 < len2)
+            return -1;
+        if (len1 > len2)
+            return 1;
+
+        for (int i = 0; i < len1; i++) {
+            if (v1[i] < r1[i])
+                return -1;
+            if (v1[i] > r1[i])
+                return 1;
+        }
+
+        if (!*val && !*ref)
+            return 0;
+
+        if (*val == '.')
+            val++;
+        else if (*val)
+            return 1;
+
+        if (*ref == '.')
+            ref++;
+        else if (*ref)
+            return -1;
+    }
 }

@@ -11,6 +11,7 @@ add_library(ra-utils SHARED)
 
 target_sources(ra-utils
     PRIVATE
+    	"cb_can_mirror.c"
         "cb_uart.c"
         "cb_protocol.c"
         "ra_protocol.c"
@@ -22,6 +23,7 @@ target_sources(ra-utils
 
 install(
     FILES
+    	"cb_can_mirror.h"
         "cb_uart.h"
         "cb_protocol.h"
         "ra_protocol.h"
@@ -36,7 +38,7 @@ target_link_libraries(ra-utils m)
 set_target_properties(ra-utils
     PROPERTIES
        VERSION ${PROJECT_VERSION}
-       SOVERSION 3
+       SOVERSION 4
 )
 
 set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})

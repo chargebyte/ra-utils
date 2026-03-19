@@ -32,7 +32,15 @@ struct uart_ctx {
 
     /* enable tracing of sent and received frames */
     bool trace;
+
+    /* device name of mirror CAN device */
+    const char *can_mirror_device;
+
+    /* file descriptor of CAN mirror */
+    int fd_can_mirror;
 };
+
+#define INIT_UART_CTX { .fd = -1, .fd_can_mirror = -1 }
 
 int uart_open(struct uart_ctx *ctx, const char *port, int baudrate);
 int uart_close(struct uart_ctx *ctx);
@@ -52,6 +60,15 @@ ssize_t uart_write_drain(struct uart_ctx *ctx, const uint8_t *buf, size_t count)
 
 /* read bytes (looped), with overall timeout in ms */
 ssize_t uart_read_with_timeout(struct uart_ctx *ctx, uint8_t *buf, size_t count, int timeout_ms);
+
+/* return whether CAN mirroring is enabled */
+bool uart_can_mirror_enabled(struct uart_ctx *ctx);
+
+/* open CAN mirror device and enable mirroring of frames to this CAN device */
+int uart_can_mirror_enable(struct uart_ctx *ctx, const char *can_device);
+
+/* disable CAN mirroring and close the CAN device */
+int uart_can_mirror_disable(struct uart_ctx *ctx);
 
 #ifdef __cplusplus
 }

@@ -12,6 +12,7 @@
 #include "logging.h"
 #include "crc8_j1850.h"
 #include "cb_uart.h"
+#include "cb_can_mirror.h"
 
 /* frame start/end markers */
 #define CB_SOF 0xA5
@@ -65,6 +66,12 @@ const char *cb_uart_com_to_str(enum cb_uart_com com)
         return "COM_DIAGNOSTIC_MEASUREMENTS_2";
     case COM_ANALOG_INPUT_05:
         return "COM_ANALOG_INPUT_05";
+    case COM_PARTNUMBER_1:
+        return "COM_PARTNUMBER_1";
+    case COM_PARTNUMBER_2:
+        return "COM_PARTNUMBER_2";
+    case COM_CHIPINFO:
+        return "COM_CHIPINFO";
     default:
         return "UNKNOWN";
     }
@@ -96,6 +103,9 @@ int cb_uart_send(struct uart_ctx *uart, enum cb_uart_com com, uint64_t data)
     c = uart_write_drain(uart, (const uint8_t *)&frame, sizeof(frame));
     if (c < 0)
         return c;
+
+    if (uart_can_mirror_enabled(uart))
+        cb_can_mirror_write(uart->fd_can_mirror, com, htobe64(data));
 
     return 0;
 }
@@ -140,6 +150,9 @@ int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data)
     debug("received frame looks valid (SOF, EOF, CRC)");
 
     debug("received frame: %s", cb_uart_com_to_str(frame.com));
+
+    if (uart_can_mirror_enabled(uart))
+        cb_can_mirror_write(uart->fd_can_mirror, frame.com, frame.data);
 
     if (com)
         *com = frame.com;

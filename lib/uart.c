@@ -19,6 +19,7 @@
 #include "uart.h"
 #include "tools.h"
 #include "logging.h"
+#include "cb_can_mirror.h"
 
 static speed_t baudrate_to_speed(int baudrate)
 {
@@ -344,4 +345,24 @@ ssize_t uart_read_with_timeout(struct uart_ctx *ctx, uint8_t *buf, size_t count,
     }
 
     return bytes_read;
+}
+
+bool uart_can_mirror_enabled(struct uart_ctx *ctx)
+{
+    return ctx->fd_can_mirror != -1;
+}
+
+int uart_can_mirror_enable(struct uart_ctx *ctx, const char *can_device)
+{
+    ctx->fd_can_mirror = cb_can_mirror_open(can_device);
+    if (ctx->fd_can_mirror == -1)
+        return -1;
+
+    ctx->can_mirror_device = can_device;
+    return 0;
+}
+
+int uart_can_mirror_disable(struct uart_ctx *ctx)
+{
+    return cb_can_mirror_close(ctx->fd_can_mirror);
 }

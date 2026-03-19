@@ -18,6 +18,7 @@
  *          -m, --md-gpio           GPIO name for controlling MD pin of MCU (default: SAFETY_BOOTMODE_SET)
  *          -p, --reset-period      reset duration (in ms, default: 500)
  *          -R, --no-reset          don't reset the safety controller before starting UART communication
+ *          -M, --can-mirror        mirror RX/TX traffic to given CAN interface
  *          -v, --verbose           verbose operation
  *          -V, --version           print version and exit
  *          -h, --help              print this usage and exit
@@ -67,6 +68,7 @@ static const struct option long_options[] = {
     { "md-gpio",            required_argument,      0,      'm' },
     { "reset-period",       required_argument,      0,      'p' },
     { "no-reset",           no_argument,            0,      'R' },
+    { "can-mirror",         required_argument,      0,      'M' },
 
     { "verbose",            no_argument,            0,      'v' },
     { "version",            no_argument,            0,      'V' },
@@ -74,7 +76,7 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "d:SDCc:r:m:p:RvVh";
+static const char *short_options = "d:SDCc:r:m:p:RM:vVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
@@ -87,6 +89,7 @@ static const char *long_options_descs[] = {
     "GPIO name for controlling MD pin of MCU (default: " DEFAULT_RA_GPIO_MD_PIN ")",
     "reset duration (in ms, default: " __stringify(DEFAULT_RA_RESET_DELAY) ")",
     "don't reset the safety controller before starting UART communication",
+    "mirror RX/TX traffic to given CAN interface",
 
     "verbose operation",
     "print version and exit",
@@ -135,6 +138,7 @@ static char *reset_gpioname = DEFAULT_RA_GPIO_RESET_PIN;
 static char *md_gpioname = DEFAULT_RA_GPIO_MD_PIN;
 static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
 static char *uart_device = DEFAULT_UART_INTERFACE;
+static char *can_mirror_device = NULL;
 
 static void debug_cb(const char *format, va_list args)
 {
@@ -166,7 +170,6 @@ void make_stdin_unbuffered(struct termios *orig)
 {
     struct termios termios_new;
 
-    tcgetattr(STDIN_FILENO, orig);
     memcpy(&termios_new, orig, sizeof(termios_new));
     cfmakeraw(&termios_new);
 
@@ -213,6 +216,9 @@ void parse_cli(int argc, char *argv[])
         case 'R':
             no_reset = true;
             break;
+        case 'M':
+            can_mirror_device = optarg;
+            break;
 
         case 'v':
             verbose = true;
@@ -252,16 +258,24 @@ int main(int argc, char *argv[])
     char *env_gpiochip = NULL;
     char *env_reset_gpioname = NULL;
     char *env_md_gpioname = NULL;
-    struct uart_ctx uart = { .fd = -1 };
+    struct uart_ctx uart = INIT_UART_CTX;
     struct safety_controller ctx = {};
     enum cb_uart_com com;
     uint64_t data;
-    bool fw_version_requested = false;
-    bool fw_version_received = false;
-    bool git_hash_requested = false;
-    bool git_hash_received = false;
+    enum {
+        STATE_INIT_FW_VERSION,
+        STATE_INIT_PNM1,
+        STATE_INIT_PNM2,
+        STATE_INIT_CHIPINFO,
+        STATE_INIT_GIT_HASH,
+        STATE_RUN_LOOP,
+    } state = STATE_INIT_FW_VERSION;
     int rc = EXIT_FAILURE;
     int rv;
+
+    /* let's save the current termios settings first, so that we don't another flag and can restore
+     * the setting on (error) exit unconditionally */
+    tcgetattr(STDIN_FILENO, &termios_orig);
 
     /* check whether any of the environment variables SAFETY_MCU_... is set and use it
      * as default; so the resulting order is:
@@ -307,6 +321,15 @@ int main(int argc, char *argv[])
     /* maybe this need yet another option flag */
     uart_trace(&uart, verbose);
 
+    /* enable CAN mirroring if requested */
+    if (can_mirror_device) {
+        rv = uart_can_mirror_enable(&uart, can_mirror_device);
+        if (rv) {
+            error("opening '%s' failed: %m", can_mirror_device);
+            goto close_out;
+        }
+    }
+
     /* unless not desired, reset the safety controller via GPIO */
     if (!no_reset) {
         struct gpio_ctx *gpio;
@@ -338,7 +361,7 @@ int main(int argc, char *argv[])
         rv = cb_uart_recv_and_sync(&uart, &com, &data);
         if (rv) {
             error("could not synchronize to the safety controller: %m");
-            return -1;
+            goto close_out;
         }
     }
 
@@ -348,39 +371,57 @@ int main(int argc, char *argv[])
     while (1) {
         int rv;
 
-        if (!fw_version_requested) {
-            rv = cb_send_uart_inquiry(&uart, COM_FW_VERSION);
-            if (rv) {
-                error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(COM_FW_VERSION));
-                goto close_out;
-            }
-            fw_version_requested = true;
-        } else if (!git_hash_requested && fw_version_received) {
-            rv = cb_send_uart_inquiry(&uart, COM_GIT_HASH);
-            if (rv) {
-                error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(COM_GIT_HASH));
-                goto close_out;
-            }
-            git_hash_requested = true;
+        switch (state) {
+        case STATE_INIT_FW_VERSION:
+            com = COM_FW_VERSION;
+            break;
+        case STATE_INIT_PNM1:
+            com = COM_PARTNUMBER_1;
+            break;
+        case STATE_INIT_PNM2:
+            com = COM_PARTNUMBER_2;
+            break;
+        case STATE_INIT_CHIPINFO:
+            com = COM_CHIPINFO;
+            break;
+        case STATE_INIT_GIT_HASH:
+            com = COM_GIT_HASH;
+            break;
+        default:
+            /* no inquiry */
+            break;
+        }
 
-            // this is a little bit tricky/small hack: in case we want to send out
-            // charge control frames automatically, we just jump over the else condition
-            // otherwise we had to duplicate code here
-            if (send_charge_control)
-                goto send_charge_control_frame;
-
-        } else if (com == COM_CHARGE_STATE || com == COM_CHARGE_STATE_2) {
-            if (send_charge_control) {
+        switch (state) {
+        case STATE_RUN_LOOP:
+            if (com == COM_CHARGE_STATE || com == COM_CHARGE_STATE_2) {
+                if (send_charge_control) {
 send_charge_control_frame:
-                /* remember the timestamp */
-                cb_proto_set_ts_str(&ctx, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL);
-                /* send out charge control frame 1 when last received frame was a charge state 1 one */
-                rv = cb_uart_send(&uart, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL, ctx.charge_control);
-                if (rv) {
-                    error("error while sending charge control frame: %m");
-                    goto close_out;
+                    /* remember the timestamp */
+                    cb_proto_set_ts_str(&ctx, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL);
+                    /* send out charge control frame 1 when last received frame was a charge state 1 one */
+                    rv = cb_uart_send(&uart, cb_proto_is_mcs_mode(&ctx) ? COM_CHARGE_CONTROL_2 : COM_CHARGE_CONTROL, ctx.charge_control);
+                    if (rv) {
+                        error("error while sending charge control frame: %m");
+                        goto close_out;
+                    }
                 }
             }
+            break;
+        default:
+            rv = cb_send_uart_inquiry(&uart, com);
+            if (rv) {
+                error("error while sending inquiry frame for '%s': %m", cb_uart_com_to_str(com));
+                goto close_out;
+            }
+            if (state == STATE_INIT_GIT_HASH) {
+                // this is a little bit tricky/small hack: in case we want to send out
+                // charge control frames automatically, we just jump over the else condition
+                // otherwise we had to duplicate code here
+                if (send_charge_control)
+                    goto send_charge_control_frame;
+            }
+            break;
         }
 
         rv = poll(poll_fds, fds, -1);
@@ -559,14 +600,33 @@ send_charge_control_frame:
             case COM_FW_VERSION:
                 ctx.fw_version = data;
                 cb_proto_set_fw_version_str(&ctx);
-                fw_version_received = true;
                 if (cb_proto_fw_get_platform_type(&ctx) == FW_PLATFORM_TYPE_CCY)
                     cb_proto_set_mcs_mode(&ctx, true);
+
+                /* fw version prior to 0.2.9 does not support part number reading,
+                 * so we have to skip directly to git hash reading */
+                if (compare_version(ctx.fw_version_str, "0.2.9") <= 0)
+                    state = STATE_INIT_GIT_HASH;
+                else
+                    state = STATE_INIT_PNM1;
                 break;
             case COM_GIT_HASH:
                 ctx.git_hash = data;
                 cb_proto_set_git_hash_str(&ctx);
-                git_hash_received = true;
+                state = STATE_RUN_LOOP;
+                break;
+            case COM_PARTNUMBER_1:
+                ctx.partnumber1 = data;
+                state = STATE_INIT_PNM2;
+                break;
+            case COM_PARTNUMBER_2:
+                ctx.partnumber2 = data;
+                cb_proto_set_partnumber_str(&ctx);
+                state = STATE_INIT_CHIPINFO;
+                break;
+            case COM_CHIPINFO:
+                ctx.chipinfo = data;
+                state = STATE_INIT_GIT_HASH;
                 break;
             default:
                 /* not yet implemented */
