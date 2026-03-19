@@ -352,7 +352,8 @@ void cb_proto_set_partnumber_str(struct safety_controller *ctx)
 
     len = end - start;
 
-    memcpy(ctx->partnumber_str, &s[start], len);
+    if (len)
+        memcpy(ctx->partnumber_str, &s[start], len);
     ctx->partnumber_str[len] = '\0';
 
     /* populate details */
