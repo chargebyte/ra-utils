@@ -11,7 +11,7 @@ add_library(ra-utils SHARED)
 
 target_sources(ra-utils
     PRIVATE
-    	"cb_can_mirror.c"
+        "cb_can_mirror.c"
         "cb_uart.c"
         "cb_protocol.c"
         "ra_protocol.c"
@@ -23,7 +23,7 @@ target_sources(ra-utils
 
 install(
     FILES
-    	"cb_can_mirror.h"
+        "cb_can_mirror.h"
         "cb_uart.h"
         "cb_protocol.h"
         "ra_protocol.h"
@@ -41,7 +41,7 @@ set_target_properties(ra-utils
        SOVERSION 4
 )
 
-set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
+set(LIBRAUTILS_INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}")
 
 install(
     TARGETS ra-utils
@@ -60,7 +60,7 @@ configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/ra-utilsConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/ra-utilsConfig.cmake
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ra-utils
-    PATH_VARS INCLUDE_INSTALL_DIR
+    PATH_VARS LIBRAUTILS_INCLUDE_INSTALL_DIR
 )
 
 install(
