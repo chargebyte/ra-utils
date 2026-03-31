@@ -249,6 +249,37 @@ void parse_cli(int argc, char *argv[])
         usage(program_invocation_short_name, EXIT_FAILURE);
 }
 
+int reset_controller(const char *gpiochip,
+                     const char *reset_gpioname, const char *md_gpioname,
+                     const unsigned int reset_duration)
+{
+    struct gpio_ctx *gpio;
+    int rv;
+
+    gpio = ra_gpio_init(gpiochip, reset_gpioname, md_gpioname);
+    if (!gpio) {
+        error("could not acquire GPIOs: %m");
+        return -1;
+    }
+
+    ra_set_reset_duration(gpio, reset_duration);
+
+    rv = ra_reset_to_normal(gpio);
+
+    /* release the GPIOs immediately so that programs in parallel can acquire them */
+    ra_gpio_close(gpio);
+
+    if (rv) {
+        error("resetting safety controller failed: %m");
+        return rv;
+    }
+
+    /* when successfully reseted, sleep until controller is ready again */
+    msleep(CB_PROTO_STARTUP_DELAY);
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     struct termios termios_orig;
@@ -332,28 +363,12 @@ int main(int argc, char *argv[])
 
     /* unless not desired, reset the safety controller via GPIO */
     if (!no_reset) {
-        struct gpio_ctx *gpio;
-
-        gpio = ra_gpio_init(gpiochip, reset_gpioname, md_gpioname);
-        if (!gpio) {
-            error("could not acquire GPIOs: %m");
-            goto close_out;
-        }
-
-        ra_set_reset_duration(gpio, reset_duration);
-
-        rv = ra_reset_to_normal(gpio);
-
-        /* release the GPIOs immediately so that programs in parallel can acquire them */
-        ra_gpio_close(gpio);
-
+restart_reset:
+        rv = reset_controller(gpiochip, reset_gpioname, md_gpioname, reset_duration);
         if (rv) {
             error("resetting safety controller failed: %m");
             goto close_out;
         }
-
-        /* when successfully reseted, sleep until controller is ready again */
-        msleep(CB_PROTO_STARTUP_DELAY);
     }
 
     if (intial_sync) {
@@ -509,6 +524,11 @@ send_charge_control_frame:
                     case 'q':
                     case 0x03: /* Ctrl-C */
                         goto close_out;
+                    case 0x12: /* Ctrl-R */
+                        state = STATE_INIT_FW_VERSION;
+                        /* restore terminal settings */
+                        tcsetattr(STDIN_FILENO, TCSANOW, &termios_orig);
+                        goto restart_reset;
                     case '\r':
                     case '\n':
                         printf("\r\n");
@@ -544,6 +564,11 @@ send_charge_control_frame:
                     case 'q':
                     case 0x03: /* Ctrl-C */
                         goto close_out;
+                    case 0x12: /* Ctrl-R */
+                        state = STATE_INIT_FW_VERSION;
+                        /* restore terminal settings */
+                        tcsetattr(STDIN_FILENO, TCSANOW, &termios_orig);
+                        goto restart_reset;
                     case '\r':
                     case '\n':
                         printf("\r\n");

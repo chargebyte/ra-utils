@@ -98,9 +98,14 @@ int str_to_resistance_offset(const char *s, int16_t *offset)
 
     /* conversion failed: no valid float, or suffix not 'Ω' (with possible single whitespace before) */
     if (errno != 0 || endptr == s ||
-        // Important note: we want to use strcmp here because we want a dump binary comparison
+        // Important note 1: we want to use strcmp here because we want a dump binary comparison
         // (our source code is UTF-8 and we expect the YAML also as UTF-8)
-        !(strcmp(endptr, "Ω") == 0 || strcmp(endptr, " Ω") == 0))
+        // Important note 2: there is a dedicated Ohm symbol in UTF-8 (U+2126 = 0xe2 0x84 0xa6),
+        // but very often the Greek letter Omega is also used. We accept both characters, but
+        // output the Omega version. Next line is Greek letter, second line
+        // is Ohm symbol - humans will probably see no difference.
+        !(strcmp(endptr, "Ω") == 0 || strcmp(endptr, " Ω") == 0 ||
+          strcmp(endptr, "Ω") == 0 || strcmp(endptr, " Ω") == 0))
        return -1;
 
     /* we store it as int with 0.001 Ω resolution, so multiply with 1000
