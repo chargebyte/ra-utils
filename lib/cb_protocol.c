@@ -35,6 +35,16 @@ int cb_send_uart_inquiry(struct uart_ctx *uart, uint8_t com)
     return cb_uart_send(uart, COM_INQUIRY, data);
 }
 
+int cb_send_uart_action_inquiry(struct uart_ctx *uart, uint8_t action)
+{
+    uint64_t data = 0;
+
+    DATA_SET_BITS(data, 56, 8, COM_ACTION);
+    DATA_SET_BITS(data, 48, 8, action);
+
+    return cb_uart_send(uart, COM_INQUIRY, data);
+}
+
 bool cb_proto_get_actual_pwm_active(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_state, 63, 1);
@@ -166,6 +176,11 @@ bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx)
     }
 
     return false;
+}
+
+enum rcm_state cb_proto_get_rcm_state(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 22, 2);
 }
 
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel)
@@ -401,6 +416,11 @@ void cb_proto_set_partnumber_str(struct safety_controller *ctx)
     }
 }
 
+enum action_id cb_proto_get_confirmed_action(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->action_ack, 56, 8);
+}
+
 const char *cb_proto_cp_state_to_str(enum cp_state state)
 {
     switch (state) {
@@ -476,6 +496,22 @@ const char *cb_proto_estop_state_to_str(enum estop_state state)
         return "reserved";
     case ESTOP_STATE_UNUSED:
         return "unused";
+    default:
+        return "undefined";
+    }
+}
+
+const char *cb_proto_rcm_state_to_str(enum rcm_state state)
+{
+    switch (state) {
+    case RCM_STATE_NOT_CONFIGURED:
+        return "not configured";
+    case RCM_STATE_MONITORING:
+        return "monitoring";
+    case RCM_STATE_SELFTEST:
+        return "self-test running";
+    case RCM_STATE_ERROR:
+        return "error";
     default:
         return "undefined";
     }
@@ -638,6 +674,18 @@ const char *cb_proto_ccs_ready_to_str(enum cc2_ccs_ready state)
         return "ready";
     case CC2_CCS_EMERGENCY_STOP:
         return "emergency stop";
+    default:
+        return "undefined";
+    }
+}
+
+const char *cb_proto_action_id_to_str(enum action_id action)
+{
+    switch (action) {
+    case ACTION_ID_NO_ACTION:
+        return "no action";
+    case ACTION_ID_RCM_SELFTEST:
+        return "rcm-selftest";
     default:
         return "undefined";
     }
@@ -909,7 +957,9 @@ void cb_proto_dump(struct safety_controller *ctx)
         }
         printfnl("");
 
-        printfnl("HV Ready: %u", cb_proto_get_hv_ready(ctx));
+        printfnl("HV Ready: %u                    RCM State: %s",
+                 cb_proto_get_hv_ready(ctx),
+                 cb_proto_rcm_state_to_str(cb_proto_get_rcm_state(ctx)));
         printfnl("Safe State Active: %-11s Reason: %s",
                  cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)),
                  cb_proto_safestate_reason_to_str(cb_proto_get_safestate_reason(ctx)));

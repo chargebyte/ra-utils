@@ -32,6 +32,8 @@ const char *cb_uart_com_to_str(enum cb_uart_com com)
     switch (com) {
     case COM_INQUIRY:
         return "COM_INQUIRY";
+    case COM_ACTION:
+        return "COM_ACTION";
     case COM_DIGITAL_OUTPUT:
         return "COM_DIGITAL_OUTPUT";
     case COM_DIGITAL_INPUT:

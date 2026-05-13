@@ -81,6 +81,15 @@ enum estop_state {
     ESTOP_STATE_MAX,
 };
 
+/* possible rcm states */
+enum rcm_state {
+    RCM_STATE_NOT_CONFIGURED = 0x0,
+    RCM_STATE_MONITORING = 0x1,
+    RCM_STATE_SELFTEST = 0x2,
+    RCM_STATE_ERROR = 0x3,
+    RCM_STATE_MAX,
+};
+
 /* possible SafeStateActive states in Charge State 1/2 frames */
 enum cs_safestate_active {
     CS_SAFESTATE_ACTIVE_NORMAL = 0x0,
@@ -214,6 +223,7 @@ struct safety_controller {
     uint64_t partnumber2;
     uint64_t chipinfo;
     uint64_t error_message;
+    uint64_t action_ack;
 
     /* MCS mode */
     bool mcs;
@@ -278,6 +288,8 @@ bool cb_proto_estopN_is_enabled(struct safety_controller *ctx, unsigned int esto
 bool cb_proto_estopN_is_tripped(struct safety_controller *ctx, unsigned int estop);
 bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx);
 
+enum rcm_state cb_proto_get_rcm_state(struct safety_controller *ctx);
+
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel);
 double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int channel);
 unsigned int cb_proto_pt1000_get_errors(struct safety_controller *ctx, unsigned int channel);
@@ -333,11 +345,21 @@ void cb_proto_set_fw_version_str(struct safety_controller *ctx);
 void cb_proto_set_git_hash_str(struct safety_controller *ctx);
 void cb_proto_set_partnumber_str(struct safety_controller *ctx);
 
+enum action_id {
+    ACTION_ID_NO_ACTION = 0x0,
+    ACTION_ID_RCM_SELFTEST = 0x1,
+    ACTION_ID_MAX,
+};
+
+enum action_id cb_proto_get_confirmed_action(struct safety_controller *ctx);
+
 /* helpers */
 const char *cb_proto_cp_state_to_str(enum cp_state state);
 const char *cb_proto_pp_state_to_str(enum pp_state state);
 const char *cb_proto_contactor_state_to_str(enum contactor_state state);
 const char *cb_proto_estop_state_to_str(enum estop_state state);
+
+const char *cb_proto_rcm_state_to_str(enum rcm_state state);
 
 const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason);
 
@@ -352,6 +374,8 @@ const char *cb_proto_ccs_ready_to_str(enum cc2_ccs_ready state);
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type);
 const char *cb_proto_fw_application_type_to_str(enum fw_application_type type);
 
+const char *cb_proto_action_id_to_str(enum action_id action);
+
 int cb_proto_set_ts_str(struct safety_controller *ctx, uint8_t com);
 
 void cb_proto_dump(struct safety_controller *ctx);
@@ -362,6 +386,8 @@ void cb_proto_dump(struct safety_controller *ctx);
 struct uart_ctx;
 
 int cb_send_uart_inquiry(struct uart_ctx *uart, uint8_t com);
+
+int cb_send_uart_action_inquiry(struct uart_ctx *uart, uint8_t action);
 
 #ifdef __cplusplus
 }
