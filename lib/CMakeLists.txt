@@ -38,7 +38,7 @@ target_link_libraries(ra-utils m)
 set_target_properties(ra-utils
     PROPERTIES
        VERSION ${PROJECT_VERSION}
-       SOVERSION 4
+       SOVERSION 5
 )
 
 set(LIBRAUTILS_INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}")
