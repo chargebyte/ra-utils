@@ -646,6 +646,12 @@ const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason)
         return "emergency input 2";
     case CS1_SAFESTATE_REASON_EMERGENCY_INPUT_3:
         return "emergency input 3";
+    case CS1_SAFESTATE_REASON_UNDEFINED_1:
+        return "undefined";
+    case CS1_SAFESTATE_REASON_RCM_ERROR:
+        return "RCM tripped";
+    case CS1_SAFESTATE_REASON_RCM_SELFTEST:
+        return "RCM self-test failed";
     default:
         return "unknown";
     }
@@ -829,7 +835,8 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PARAM,
     "TMax value out of bounds [value, index]",
     "temperature sensor resistance offset out of bounds [-50 to 50 Ohm] [value, index]",
     "Version mismatch [version in parameter section | version stored in firmware]",
-
+    "Value not allowed [value]",
+    "Value not allowed [value, index]",
 );
 
 static const char * const * const errmsg_reason_strings[ERRMSG_MODULE_MAX] = {
