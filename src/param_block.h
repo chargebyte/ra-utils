@@ -23,10 +23,7 @@ struct unversioned_param_block {
     uint8_t crc;
 } __attribute__((packed));
 
-/* latest parameter version this code understands */
-#define PARAMETER_BLOCK_VERSION 1
-
-struct param_block {
+struct param_block_v1 {
     uint32_t sob;
 
     uint16_t version;
@@ -43,6 +40,33 @@ struct param_block {
     uint8_t crc;
 } __attribute__((packed));
 
+/* latest parameter version this code understands */
+#define PARAMETER_BLOCK_VERSION 2
+
+struct param_block_v2 {
+    uint32_t sob;
+
+    uint16_t version;
+
+    int16_t temperature[CB_PROTO_MAX_PT1000S];
+    int16_t temperature_resistance_offset[CB_PROTO_MAX_PT1000S]; // offset for temperature sensor resistance in 10mOhm
+
+    uint8_t contactor_type[CB_PROTO_MAX_CONTACTORS];
+    uint8_t contactor_close_time[CB_PROTO_MAX_CONTACTORS]; // close time for HV contactor in multiples of 10ms
+    uint8_t contactor_open_time[CB_PROTO_MAX_CONTACTORS]; // open time for HV contactor in multiples of 10ms
+
+    uint8_t estop[CB_PROTO_MAX_ESTOPS];  // 0 = disabled, 1 = active-low, 2 = active-high
+
+    uint8_t rcm_fault_polarity; // 0 = disabled, 1 = active-low, 2 = active-high
+    uint8_t rcm_test_polarity; // 0 = disabled, 1 = active-low, 2 = active-high
+    uint8_t rcm_test_trigger_time; // time to hold the test trigger output in multiples of 20ms
+    uint8_t rcm_test_check_tripped_time; // time to check feedback pin for TRIPPPED after test start, in multiples of 20ms
+    uint8_t rcm_test_check_normal_time; // time to check feedback pin for NORMAL after trigger was released, in multiples of 20ms
+
+    uint32_t eob;
+    uint8_t crc;
+} __attribute__((packed));
+
 
 enum contactor_type {
     CONTACTOR_NONE = 0,
@@ -52,10 +76,11 @@ enum contactor_type {
     CONTACTOR_MAX,
 };
 
-enum emergeny_stop_type {
-    EMERGENY_STOP_NONE = 0,
-    EMERGENY_STOP_ACTIVE_LOW,
-    EMERGENY_STOP_MAX,
+enum pin_polarity_type {
+    PIN_POLARITY_NONE = 0,
+    PIN_POLARITY_ACTIVE_LOW,
+    PIN_POLARITY_ACTIVE_HIGH,
+    PIN_POLARITY_MAX,
 };
 
 int str_to_version(const char *s, uint16_t *version);
@@ -73,19 +98,31 @@ const char *contactor_type_to_str(const enum contactor_type type);
 int str_to_contactor_time(const char *s, uint8_t *time);
 int contactor_time_to_str(char *buffer, size_t size, int8_t time);
 
-enum emergeny_stop_type str_to_emergeny_stop_type(const char *s);
-const char *emergeny_stop_type_to_str(const enum emergeny_stop_type type);
+int str_to_rcm_time(const char *s, uint8_t *time);
+int rcm_time_to_str(char *buffer, size_t size, int8_t time);
 
-bool pb_is_pt1000_enabled(struct param_block *param_block, unsigned char n);
-bool pb_is_contactor_enabled(struct param_block *param_block, unsigned char n);
+enum pin_polarity_type str_to_pin_polarity_type(const char *s);
+const char *pin_polarity_type_to_str(const enum pin_polarity_type type);
 
-void pb_refresh_crc(struct param_block *param_block);
+int str_to_disabled_flag(const char *s, bool *flag);
+
+bool pb_is_pt1000_enabled(struct param_block_v1 *param_block, unsigned char n);
+bool pb_is_contactor_enabled(struct param_block_v1 *param_block, unsigned char n);
+
+bool pb_is_rcm_enabled(struct param_block_v2 *param_block);
+
+void pb_refresh_crc_v1(struct param_block_v1 *param_block);
+void pb_refresh_crc_v2(struct param_block_v2 *param_block);
 
 /* returns true if the CRC is correct */
-bool pb_check_crc(struct param_block *param_block);
+bool pb_check_crc_v1(struct param_block_v1 *param_block);
+bool pb_check_crc_v2(struct param_block_v2 *param_block);
 
-void pb_init(struct param_block *param_block);
-void pb_dump(struct param_block *param_block);
+void pb_init_v1(struct param_block_v1 *param_block);
+void pb_init_v2(struct param_block_v2 *param_block);
+
+void pb_init(struct param_block_v2 *param_block);
+void pb_dump(struct param_block_v2 *param_block);
 
 /* error return values for pb_read */
 #define PB_READ_SUCCESS     0
@@ -93,5 +130,5 @@ void pb_dump(struct param_block *param_block);
 #define PB_READ_ERROR_CRC   2
 
 /* returns 0 on success, -1 on generic error, or one of the PB_READ_... values above */
-int pb_read(FILE *f, struct param_block *param_block);
-int pb_write(struct param_block *param_block, FILE *f);
+int pb_read(FILE *f, struct param_block_v2 *param_block);
+int pb_write(struct param_block_v2 *param_block, FILE *f);

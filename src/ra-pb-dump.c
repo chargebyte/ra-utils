@@ -16,6 +16,7 @@
 #include <endian.h>
 #include <errno.h>
 #include <getopt.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -77,7 +78,7 @@ static void usage(char *p, int exitcode)
 
 /* to keep things easy, we use global variables here */
 FILE *f;
-struct param_block param_block;
+struct param_block_v2 param_block;
 
 void parse_cli(int argc, char *argv[])
 {

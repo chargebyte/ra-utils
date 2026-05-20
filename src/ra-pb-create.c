@@ -94,7 +94,7 @@ static void usage(char *p, int exitcode)
 char *filename_in = "-";
 char *filename_out = "-";
 FILE *infile, *outfile;
-struct param_block param_block;
+struct param_block_v2 param_block;
 yaml_parser_t yaml_parser;
 yaml_event_t event;
 bool debug;
@@ -203,6 +203,13 @@ enum param_block_state {
     PBS_CONTACTOR_CLOSE_TIME,
     PBS_CONTACTOR_OPEN_TIME,
     PBS_ESTOPS,
+    PBS_RCM_SCALAR,
+    PBS_RCM_MAPPING,
+    PBS_RCM_FAULT_POLARITY,
+    PBS_RCM_TEST_POLARITY,
+    PBS_RCM_TRIGGER_TIME,
+    PBS_RCM_CHECK_TRIPPED_TIME,
+    PBS_RCM_CHECK_NORMAL_TIME,
     PBS_MAX,
 };
 
@@ -219,6 +226,13 @@ static const char *param_block_state_str[PBS_MAX] = {
     "PBS_CONTACTOR_CLOSE_TIME",
     "PBS_CONTACTOR_OPEN_TIME",
     "PBS_ESTOPS",
+    "PBS_RCM_SCALAR",
+    "PBS_RCM_MAPPING",
+    "PBS_RCM_FAULT_POLARITY",
+    "PBS_RCM_TEST_POLARITY",
+    "PBS_RCM_TRIGGER_TIME",
+    "PBS_RCM_CHECK_TRIPPED_TIME",
+    "PBS_RCM_CHECK_NORMAL_TIME",
 };
 
 int main(int argc, char *argv[])
@@ -231,6 +245,7 @@ int main(int argc, char *argv[])
     bool parsing_done = false;
     uint16_t tmp_u16;
     int16_t tmp_i16;
+    bool rcm_config = false;
 
     /* handle command line options */
     parse_cli(argc, argv);
@@ -292,6 +307,9 @@ int main(int argc, char *argv[])
                             current_contactor_idx + 1);
                 }
                 break;
+            case PBS_RCM_SCALAR:
+                param_block_state = PBS_RCM_MAPPING;
+                break;
 
             default:
                 /* nothing */;
@@ -306,6 +324,10 @@ int main(int argc, char *argv[])
             case PBS_CONTACTOR:
                 param_block_state = PBS_CONTACTORS;
                 break;
+            case PBS_RCM_MAPPING:
+                param_block_state = PBS_RCM_SCALAR;
+                break;
+
             default:
                 /* nothing */;
             }
@@ -322,6 +344,8 @@ int main(int argc, char *argv[])
                     param_block_state = PBS_CONTACTORS;
                 else if (strcasecmp(event.data.scalar.value, "estops") == 0)
                     param_block_state = PBS_ESTOPS;
+                else if (strcasecmp(event.data.scalar.value, "rcm") == 0)
+                    param_block_state = PBS_RCM_SCALAR;
                 break;
             case PBS_VERSION:
                 param_block_state = PBS_NONE;
@@ -331,6 +355,10 @@ int main(int argc, char *argv[])
                     goto err_out;
                 }
                 param_block.version = tmp_u16;
+                if (param_block.version != PARAMETER_BLOCK_VERSION) {
+                    fprintf(stderr, "Warning: setting version to %" PRIu16 ", but file structure is version %u\n",
+                            param_block.version, PARAMETER_BLOCK_VERSION);
+                }
                 break;
             case PBS_PT1000:
                 if (strcasecmp(event.data.scalar.value, "abort-temperature") == 0)
@@ -440,9 +468,71 @@ int main(int argc, char *argv[])
                     break;
                 }
                 param_block.estop[current_estop_idx] =
-                    str_to_emergeny_stop_type(event.data.scalar.value);
-                if (param_block.estop[current_estop_idx] == EMERGENY_STOP_MAX) {
+                    str_to_pin_polarity_type(event.data.scalar.value);
+                if (param_block.estop[current_estop_idx] == PIN_POLARITY_MAX) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a estop configuration.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_RCM_SCALAR:
+                param_block_state = PBS_NONE;
+                if (str_to_disabled_flag(event.data.scalar.value, &rcm_config)) {
+                    fprintf(stderr, "Error: Value '%s' not allowed in this context (expected a 'disabled' flag)\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_RCM_MAPPING:
+                if (strcasecmp(event.data.scalar.value, "fault-polarity") == 0)
+                    param_block_state = PBS_RCM_FAULT_POLARITY;
+                else if (strcasecmp(event.data.scalar.value, "test-polarity") == 0)
+                    param_block_state = PBS_RCM_TEST_POLARITY;
+                else if (strcasecmp(event.data.scalar.value, "test-trigger-time") == 0)
+                    param_block_state = PBS_RCM_TRIGGER_TIME;
+                else if (strcasecmp(event.data.scalar.value, "test-check-tripped-time") == 0)
+                    param_block_state = PBS_RCM_CHECK_TRIPPED_TIME;
+                else if (strcasecmp(event.data.scalar.value, "test-check-normal-time") == 0)
+                    param_block_state = PBS_RCM_CHECK_NORMAL_TIME;
+                break;
+            case PBS_RCM_FAULT_POLARITY:
+                param_block_state = PBS_RCM_MAPPING;
+                param_block.rcm_fault_polarity = str_to_pin_polarity_type(event.data.scalar.value);
+                if (param_block.rcm_fault_polarity == PIN_POLARITY_MAX) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pin configuration for RCM fault pin.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_RCM_TEST_POLARITY:
+                param_block_state = PBS_RCM_MAPPING;
+                param_block.rcm_test_polarity = str_to_pin_polarity_type(event.data.scalar.value);
+                if (param_block.rcm_test_polarity == PIN_POLARITY_MAX) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pin configuration for RCM test pin.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_RCM_TRIGGER_TIME:
+                param_block_state = PBS_RCM_MAPPING;
+                if (str_to_rcm_time(event.data.scalar.value, &param_block.rcm_test_trigger_time)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid RCM test trigger time. Unit (ms) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_RCM_CHECK_TRIPPED_TIME:
+                param_block_state = PBS_RCM_MAPPING;
+                if (str_to_rcm_time(event.data.scalar.value, &param_block.rcm_test_check_tripped_time)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid time for RCM tripped check. Unit (ms) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_RCM_CHECK_NORMAL_TIME:
+                param_block_state = PBS_RCM_MAPPING;
+                if (str_to_rcm_time(event.data.scalar.value, &param_block.rcm_test_check_normal_time)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid time for RCM normal check. Unit (ms) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -477,6 +567,29 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Warning: only %d contactor configuration(s) set instead of expected %d.\n", current_contactor_idx + 1, CB_PROTO_MAX_CONTACTORS);
     if (current_estop_idx < CB_PROTO_MAX_ESTOPS - 1)
         fprintf(stderr, "Warning: only %d estop configuration(s) set instead of expected %d.\n", current_estop_idx + 1, CB_PROTO_MAX_ESTOPS);
+    /* check RCM configuration for plausibility */
+    if (param_block.rcm_fault_polarity == PIN_POLARITY_NONE && param_block.rcm_test_polarity != PIN_POLARITY_NONE) {
+        fprintf(stderr, "Error: invalid RCM pin polarity configuration: RCM fault pin polarity is also required\n");
+        goto err_out;
+    }
+    if (param_block.rcm_fault_polarity != PIN_POLARITY_NONE) {
+        if (param_block.rcm_test_polarity == PIN_POLARITY_NONE) {
+            fprintf(stderr, "Error: invalid RCM pin polarity configuration: RCM test pin polarity is required\n");
+            goto err_out;
+        }
+        if (param_block.rcm_test_trigger_time == 0) {
+            fprintf(stderr, "Error: invalid RCM timing: test-trigger-time must not be zero\n");
+            goto err_out;
+        }
+        if (param_block.rcm_test_check_tripped_time == 0) {
+            fprintf(stderr, "Error: invalid RCM timing: test-check-tripped-time must not be zero\n");
+            goto err_out;
+        }
+        if (param_block.rcm_test_check_normal_time == 0) {
+            fprintf(stderr, "Error: invalid RCM timing: test-check-normal-time must not be zero\n");
+            goto err_out;
+        }
+    }
 
     if (pb_write(&param_block, outfile)) {
         fprintf(stderr, "Error while writing to '%s': %m\n", filename_out);
