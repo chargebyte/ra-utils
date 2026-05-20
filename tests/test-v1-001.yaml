@@ -1,0 +1,27 @@
+version: 1
+
+pt1000s:
+  - abort-temperature: 75.0 °C
+    resistance-offset: 1.000 Ω
+  - abort-temperature: 80.0 °C
+    resistance-offset: 2.000 Ω
+  - abort-temperature: 85.0 °C
+    resistance-offset: 3.000 Ω
+  - abort-temperature: 90.0 °C
+    resistance-offset: 4.000 Ω
+
+contactors:
+  - type: without-feedback
+    close-time: 0 ms
+    open-time: 0 ms
+  - type: with-feedback-normally-open
+    close-time: 100 ms
+    open-time: 100 ms
+  - type: with-feedback-normally-closed
+    close-time: 200 ms
+    open-time: 200 ms
+
+estops:
+  - active-low
+  - disabled
+  - active-low
