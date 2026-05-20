@@ -1,0 +1,21 @@
+version: 1
+
+pt1000s:
+  - disabled
+  - disabled
+  - disabled
+  - disabled
+
+contactors:
+  - type: with-feedback-normally-closed
+    close-time: 100 ms
+    open-time: 100 ms
+  - type: with-feedback-normally-closed
+    close-time: 100 ms
+    open-time: 100 ms
+  - disabled
+
+estops:
+  - active-low
+  - disabled
+  - disabled

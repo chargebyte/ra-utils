@@ -1,0 +1,17 @@
+version: 1
+
+pt1000s:
+  - disabled
+  - disabled
+  - disabled
+  - disabled
+
+contactors:
+  - disabled
+  - disabled
+  - disabled
+
+estops:
+  - disabled
+  - disabled
+  - disabled
