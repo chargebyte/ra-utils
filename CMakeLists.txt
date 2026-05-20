@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 project(ra-utils
     VERSION 0.16.0
     DESCRIPTION "Command line tools related to the Renesas MCU (aka safety controller)"
-    LANGUAGES C
+    LANGUAGES C CXX
 )
 
 # tags in this repo are prefixed with 'v' which should be stripped;
@@ -27,6 +27,7 @@ else()
 endif()
 
 include(CMakePackageConfigHelpers)
+include(CTest)
 include(GNUInstallDirs)
 
 # latest firmware and example parameter blocks
@@ -43,3 +44,6 @@ pkg_search_module(LIBYAML REQUIRED yaml-0.1)
 
 add_subdirectory(lib)
 add_subdirectory(src)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
