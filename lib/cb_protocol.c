@@ -744,6 +744,8 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SAFETY,
     "safety state mismatch [active safety fault, inverted safety fault]",
     "CP safety fault [CP pos voltage, CP neg voltage]",
     "Detected State C, while ID was not connected [-, -]",
+    "Voltage mismatch at CE  [voltage mv, -]",
+    "Voltage mismatch at ID  [voltage mv, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CP_PP,
