@@ -78,7 +78,7 @@ static void usage(char *p, int exitcode)
 
 /* to keep things easy, we use global variables here */
 FILE *f;
-struct param_block_v2 param_block;
+struct param_block param_block;
 
 void parse_cli(int argc, char *argv[])
 {
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
     /* handle command line options */
     parse_cli(argc, argv);
 
-    /* read parameter block and try to auto-detect version, migrate if necessary */
+    /* read parameter block and auto-detect its on-disk version */
     switch (pb_read(f, &param_block)) {
     case PB_READ_SUCCESS:
         rv = EXIT_SUCCESS;

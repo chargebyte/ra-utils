@@ -9,6 +9,8 @@
  * Options:
  *         -i, --infile            use the given filename as input file (default: stdin)
  *         -o, --outfile           use the given filename for output (default: stdout)
+ *         -r, --version-as-requested
+ *                                 create the parameter block version requested in YAML instead of latest
  *         -D, --debug             print debug output to stderr
  *         -V, --version           print version and exit
  *         -h, --help              print this usage and exit
@@ -38,6 +40,7 @@
 static const struct option long_options[] = {
     { "infile",             required_argument,      0,      'i' },
     { "outfile",            required_argument,      0,      'o' },
+    { "version-as-requested", no_argument,          0,      'r' },
 
     { "debug",              no_argument,            0,      'D' },
 
@@ -46,12 +49,13 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "i:o:DVh";
+static const char *short_options = "i:o:rDVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
     "use the given filename as input file (default: stdin)",
     "use the given filename for output (default: stdout)",
+    "create the parameter block version requested in YAML instead of latest",
 
     "print debug output to stderr",
 
@@ -77,9 +81,9 @@ static void usage(char *p, int exitcode)
 
     while (op->name && desc) {
         if (op->val > 1) {
-            fprintf(stderr, "\t-%c, --%-12s\t%s\n", op->val, op->name, *desc);
+            fprintf(stderr, "\t-%c, --%-20s\t%s\n", op->val, op->name, *desc);
         } else {
-            fprintf(stderr, "\t    --%-12s\t%s\n", op->name, *desc);
+            fprintf(stderr, "\t    --%-20s\t%s\n", op->name, *desc);
         }
         op++;
         desc++;
@@ -98,6 +102,19 @@ struct param_block_v2 param_block;
 yaml_parser_t yaml_parser;
 yaml_event_t event;
 bool debug;
+bool version_as_requested;
+
+static void print_downgrade_warnings(unsigned int warnings, enum param_block_version version)
+{
+    if (warnings & PB_WARN_DROP_V0_RESISTANCE_OFFSETS)
+        fprintf(stderr, "Warning: dropping PT1000 resistance offsets when creating unversioned parameter block.\n");
+    if (warnings & PB_WARN_DROP_V0_CONTACTOR_TIMES)
+        fprintf(stderr, "Warning: dropping contactor close/open times when creating unversioned parameter block.\n");
+    if (warnings & PB_WARN_DROP_RCM)
+        fprintf(stderr, "Warning: dropping RCM configuration when creating parameter block version %u.\n", version);
+    if (warnings & PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC)
+        fprintf(stderr, "Warning: mapping 'with-feedback-normally-closed' to legacy unversioned contactor setting.\n");
+}
 
 void parse_cli(int argc, char *argv[])
 {
@@ -117,6 +134,9 @@ void parse_cli(int argc, char *argv[])
             break;
         case 'o':
             filename_out = optarg;
+            break;
+        case 'r':
+            version_as_requested = true;
             break;
 
         case 'D':
@@ -238,6 +258,7 @@ static const char *param_block_state_str[PBS_MAX] = {
 int main(int argc, char *argv[])
 {
     enum param_block_state param_block_state = PBS_NONE;
+    enum param_block_version output_version = PB_VERSION_V2;
     int rv = EXIT_FAILURE;
     int current_temperature_idx = -1;
     int current_contactor_idx = -1;
@@ -246,6 +267,8 @@ int main(int argc, char *argv[])
     uint16_t tmp_u16;
     int16_t tmp_i16;
     bool rcm_config = false;
+    bool yaml_has_version = false;
+    uint16_t yaml_version = PARAMETER_BLOCK_VERSION;
 
     /* handle command line options */
     parse_cli(argc, argv);
@@ -354,11 +377,8 @@ int main(int argc, char *argv[])
                             event.data.scalar.value, UINT16_MAX);
                     goto err_out;
                 }
-                param_block.version = tmp_u16;
-                if (param_block.version != PARAMETER_BLOCK_VERSION) {
-                    fprintf(stderr, "Warning: setting version to %" PRIu16 ", but file structure is version %u\n",
-                            param_block.version, PARAMETER_BLOCK_VERSION);
-                }
+                yaml_has_version = true;
+                yaml_version = tmp_u16;
                 break;
             case PBS_PT1000:
                 if (strcasecmp(event.data.scalar.value, "abort-temperature") == 0)
@@ -591,7 +611,22 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (pb_write(&param_block, outfile)) {
+    if (version_as_requested) {
+        if (!yaml_has_version) {
+            output_version = PB_VERSION_UNVERSIONED;
+        } else if (yaml_version == PB_VERSION_V1) {
+            output_version = PB_VERSION_V1;
+        } else if (yaml_version == PB_VERSION_V2) {
+            output_version = PB_VERSION_V2;
+        } else {
+            fprintf(stderr, "Error: requested parameter block version %" PRIu16 " is not supported.\n", yaml_version);
+            goto err_out;
+        }
+    }
+
+    print_downgrade_warnings(pb_get_downgrade_warnings(&param_block, output_version), output_version);
+
+    if (pb_write(&param_block, output_version, outfile)) {
         fprintf(stderr, "Error while writing to '%s': %m\n", filename_out);
         goto err_out;
     } else {
@@ -612,4 +647,3 @@ err_out:
 
     return rv;
 }
-

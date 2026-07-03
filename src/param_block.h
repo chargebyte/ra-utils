@@ -67,6 +67,28 @@ struct param_block_v2 {
     uint8_t crc;
 } __attribute__((packed));
 
+enum param_block_version {
+    PB_VERSION_UNVERSIONED = 0,
+    PB_VERSION_V1 = 1,
+    PB_VERSION_V2 = 2,
+};
+
+struct param_block {
+    enum param_block_version version;
+    union {
+        struct unversioned_param_block v0;
+        struct param_block_v1 v1;
+        struct param_block_v2 v2;
+    } data;
+};
+
+enum pb_downgrade_warning {
+    PB_WARN_DROP_V0_RESISTANCE_OFFSETS = 1U << 0,
+    PB_WARN_DROP_V0_CONTACTOR_TIMES = 1U << 1,
+    PB_WARN_DROP_RCM = 1U << 2,
+    PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC = 1U << 3,
+};
+
 
 enum contactor_type {
     CONTACTOR_NONE = 0,
@@ -122,7 +144,8 @@ void pb_init_v1(struct param_block_v1 *param_block);
 void pb_init_v2(struct param_block_v2 *param_block);
 
 void pb_init(struct param_block_v2 *param_block);
-void pb_dump(struct param_block_v2 *param_block);
+void pb_dump(struct param_block *param_block);
+unsigned int pb_get_downgrade_warnings(struct param_block_v2 *param_block, enum param_block_version version);
 
 /* error return values for pb_read */
 #define PB_READ_SUCCESS     0
@@ -130,5 +153,5 @@ void pb_dump(struct param_block_v2 *param_block);
 #define PB_READ_ERROR_CRC   2
 
 /* returns 0 on success, -1 on generic error, or one of the PB_READ_... values above */
-int pb_read(FILE *f, struct param_block_v2 *param_block);
-int pb_write(struct param_block_v2 *param_block, FILE *f);
+int pb_read(FILE *f, struct param_block *param_block);
+int pb_write(struct param_block_v2 *param_block, enum param_block_version version, FILE *f);

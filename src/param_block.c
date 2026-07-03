@@ -296,6 +296,11 @@ static bool pb_check_unversioned_param_block_crc(struct unversioned_param_block 
     return param_block->crc == crc8((uint8_t *)param_block, sizeof(*param_block) - 1);
 }
 
+static void pb_refresh_crc_unversioned(struct unversioned_param_block *param_block)
+{
+    param_block->crc = crc8((uint8_t *)param_block, sizeof(*param_block) - 1);
+}
+
 bool pb_check_crc_v1(struct param_block_v1 *param_block)
 {
     return param_block->crc == crc8((uint8_t *)param_block, sizeof(*param_block) - 1);
@@ -323,7 +328,7 @@ void pb_init_v1(struct param_block_v1 *param_block)
     pb_refresh_crc_v1(param_block);
 }
 
-void pb_dump_v1(struct param_block_v1 *param_block)
+static void pb_dump_temperatures_v1(struct param_block_v1 *param_block, bool include_resistance_offsets)
 {
     char buffer[32];
     int i;
@@ -335,13 +340,21 @@ void pb_dump_v1(struct param_block_v1 *param_block)
         if (pb_is_pt1000_enabled(param_block, i)) {
             printf("  - abort-temperature: %s\n", buffer);
 
-            resistance_offset_to_str(buffer, sizeof(buffer), param_block->temperature_resistance_offset[i]);
-            printf("    resistance-offset: %s\n", buffer);
+            if (include_resistance_offsets) {
+                resistance_offset_to_str(buffer, sizeof(buffer), param_block->temperature_resistance_offset[i]);
+                printf("    resistance-offset: %s\n", buffer);
+            }
         } else {
             printf("  - %s\n", buffer);
         }
     }
     printf("\n");
+}
+
+static void pb_dump_contactors_v1(struct param_block_v1 *param_block)
+{
+    char buffer[32];
+    int i;
 
     printf("contactors:\n");
     for (i = 0; i < ARRAY_SIZE(param_block->contactor_type); i++) {
@@ -359,10 +372,57 @@ void pb_dump_v1(struct param_block_v1 *param_block)
     }
 
     printf("\n");
+}
+
+static void pb_dump_estops_v1(struct param_block_v1 *param_block)
+{
+    int i;
 
     printf("estops:\n");
     for (i = 0; i < ARRAY_SIZE(param_block->estop); i++)
         printf("  - %s\n", pin_polarity_type_to_str(param_block->estop[i]));
+}
+
+static void pb_dump_v0(struct unversioned_param_block *param_block)
+{
+    char buffer[32];
+    int i;
+
+    printf("pt1000s:\n");
+    for (i = 0; i < ARRAY_SIZE(param_block->temperature); i++) {
+        temperature_to_str(buffer, sizeof(buffer), param_block->temperature[i]);
+        if (le16toh(param_block->temperature[i]) == CHANNEL_DISABLE_VALUE ||
+            le16toh(param_block->temperature[i]) == OLD_CHANNEL_DISABLE_VALUE) {
+            printf("  - %s\n", buffer);
+        } else {
+            printf("  - abort-temperature: %s\n", buffer);
+        }
+    }
+    printf("\n");
+
+    printf("contactors:\n");
+    for (i = 0; i < ARRAY_SIZE(param_block->contactor); i++) {
+        if (param_block->contactor[i] != CONTACTOR_NONE) {
+            printf("  - type: %s\n", contactor_type_to_str(param_block->contactor[i]));
+        } else {
+            printf("  - %s\n", contactor_type_to_str(param_block->contactor[i]));
+        }
+    }
+    printf("\n");
+
+    printf("estops:\n");
+    for (i = 0; i < ARRAY_SIZE(param_block->estop); i++)
+        printf("  - %s\n", pin_polarity_type_to_str(param_block->estop[i]));
+}
+
+static void pb_dump_v1(struct param_block_v1 *param_block)
+{
+    printf("version: %u\n", param_block->version);
+    printf("\n");
+
+    pb_dump_temperatures_v1(param_block, true);
+    pb_dump_contactors_v1(param_block);
+    pb_dump_estops_v1(param_block);
 }
 
 void pb_init_v2(struct param_block_v2 *param_block)
@@ -409,52 +469,75 @@ void pb_init(struct param_block_v2 *param_block)
     pb_init_v2(param_block);
 }
 
-void pb_dump(struct param_block_v2 *param_block)
+void pb_dump(struct param_block *param_block)
 {
-    printf("version: %u\n", param_block->version);
-    printf("\n");
-
-    pb_dump_v1((struct param_block_v1 *)param_block);
-
-    if (param_block->version >= 2) {
+    switch (param_block->version) {
+    case PB_VERSION_UNVERSIONED:
+        pb_dump_v0(&param_block->data.v0);
+        break;
+    case PB_VERSION_V1:
+        pb_dump_v1(&param_block->data.v1);
+        break;
+    case PB_VERSION_V2:
+        printf("version: %u\n", param_block->data.v2.version);
         printf("\n");
-        pb_dump_v2(param_block);
+        pb_dump_temperatures_v1((struct param_block_v1 *)&param_block->data.v2, true);
+        pb_dump_contactors_v1((struct param_block_v1 *)&param_block->data.v2);
+        pb_dump_estops_v1((struct param_block_v1 *)&param_block->data.v2);
+        printf("\n");
+        pb_dump_v2(&param_block->data.v2);
+        break;
+    default:
+        break;
     }
 }
 
-static void pb_migrate_unversioned_to_v1(struct unversioned_param_block *old, struct param_block_v1 *new)
+unsigned int pb_get_downgrade_warnings(struct param_block_v2 *param_block, enum param_block_version version)
 {
-    int i;
+    unsigned int warnings = 0;
+    unsigned int i;
 
-    /* we assume and rely on that the new parameter block has enough space */
-    memcpy(new->temperature, old->temperature, sizeof(new->temperature));
-    memcpy(new->contactor_type, old->contactor, sizeof(old->contactor));
-    memcpy(new->estop, old->estop, sizeof(old->estop));
+    if (version == PB_VERSION_V2)
+        return 0;
 
-    /* old version only supported CONTACTOR_WITH_FEEDBACK which is now CONTACTOR_WITH_FEEDBACK_NO but
-     * we migrate it to CONTACTOR_WITH_FEEDBACK_NC since this is the documented and recommended setting
-     * note: we iterate over the size of the old array but modify the new one
-     */
-    for (i = 0; i < ARRAY_SIZE(old->contactor); i++)
-        if (old->contactor[i] == CONTACTOR_WITH_FEEDBACK_NO)
-            new->contactor_type[i] = CONTACTOR_WITH_FEEDBACK_NC;
+    if (version == PB_VERSION_UNVERSIONED) {
+        for (i = 0; i < ARRAY_SIZE(param_block->temperature_resistance_offset); i++) {
+            if (le16toh(param_block->temperature_resistance_offset[i]) != 0) {
+                warnings |= PB_WARN_DROP_V0_RESISTANCE_OFFSETS;
+                break;
+            }
+        }
 
-    pb_refresh_crc_v1(new);
+        for (i = 0; i < ARRAY_SIZE(param_block->contactor_type); i++) {
+            if (param_block->contactor_close_time[i] != 0 || param_block->contactor_open_time[i] != 0) {
+                warnings |= PB_WARN_DROP_V0_CONTACTOR_TIMES;
+                break;
+            }
+        }
+
+        for (i = 0; i < ARRAY_SIZE(param_block->contactor_type); i++) {
+            if (param_block->contactor_type[i] == CONTACTOR_WITH_FEEDBACK_NC) {
+                warnings |= PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC;
+                break;
+            }
+        }
+    }
+
+    if (version != PB_VERSION_V2 &&
+        (param_block->rcm_fault_polarity != PIN_POLARITY_NONE ||
+         param_block->rcm_test_polarity != PIN_POLARITY_NONE ||
+         param_block->rcm_test_trigger_time != 0 ||
+         param_block->rcm_test_check_tripped_time != 0 ||
+         param_block->rcm_test_check_normal_time != 0))
+        warnings |= PB_WARN_DROP_RCM;
+
+    return warnings;
 }
 
-static void pb_migrate_v1_to_v2(struct param_block_v1 *old, struct param_block_v2 *new)
-{
-    /* copy the whole data block from v1 to v2 which has the same structure */
-    memcpy(&new->temperature, &old->temperature,
-           offsetof(struct param_block_v1, eob) - offsetof(struct param_block_v1, temperature));
-
-    pb_refresh_crc_v2(new);
-}
-
-int pb_read(FILE *f, struct param_block_v2 *param_block)
+int pb_read(FILE *f, struct param_block *param_block)
 {
     struct unversioned_param_block pb_unversioned;
-    struct param_block_v1 pb_v1;
+    struct param_block_v1 pb_v1 = {};
 
     /* try to read older, smaller parameter block first */
     if (fread(&pb_unversioned, sizeof(pb_unversioned), 1, f) != 1)
@@ -468,12 +551,8 @@ int pb_read(FILE *f, struct param_block_v2 *param_block)
 
     /* if the second marker also matches, then this is probably an old version */
     if (pb_unversioned.eob == htole32(MARKER)) {
-        /* let's migrate it without prior looking at the CRC */
-        pb_init_v1(&pb_v1);
-        pb_migrate_unversioned_to_v1(&pb_unversioned, &pb_v1);
-
-        pb_init_v2(param_block);
-        pb_migrate_v1_to_v2(&pb_v1, param_block);
+        param_block->version = PB_VERSION_UNVERSIONED;
+        memcpy(&param_block->data.v0, &pb_unversioned, sizeof(pb_unversioned));
 
         /* check CRC */
         if (!pb_check_unversioned_param_block_crc(&pb_unversioned))
@@ -491,9 +570,8 @@ int pb_read(FILE *f, struct param_block_v2 *param_block)
 
     /* now let's check whether the second marker matches for v1 and the version number indicates v1 */
     if (pb_v1.eob == htole32(MARKER) && pb_v1.version == 1) {
-        /* let's migrate it without prior looking at the CRC */
-        pb_init_v2(param_block);
-        pb_migrate_v1_to_v2(&pb_v1, param_block);
+        param_block->version = PB_VERSION_V1;
+        memcpy(&param_block->data.v1, &pb_v1, sizeof(pb_v1));
 
         /* check CRC */
         if (!pb_check_crc_v1(&pb_v1))
@@ -503,25 +581,64 @@ int pb_read(FILE *f, struct param_block_v2 *param_block)
     }
 
     /* looks not like an older parameter block, try to append the (missing) data */
-    memcpy(param_block, &pb_v1, sizeof(pb_v1));
+    param_block->version = PB_VERSION_V2;
+    memcpy(&param_block->data.v2, &pb_v1, sizeof(pb_v1));
 
-    if (fread((char *)param_block + sizeof(pb_v1),
-              sizeof(*param_block) - sizeof(pb_v1), 1, f) != 1)
+    if (fread((char *)&param_block->data.v2 + sizeof(pb_v1),
+              sizeof(param_block->data.v2) - sizeof(pb_v1), 1, f) != 1)
         return -1;
 
     /* now check the second magic value */
-    if (param_block->eob != htole32(MARKER))
+    if (param_block->data.v2.eob != htole32(MARKER))
         return PB_READ_ERROR_MAGIC;
 
     /* check CRC */
-    if (!pb_check_crc_v2(param_block))
+    if (!pb_check_crc_v2(&param_block->data.v2))
         return PB_READ_ERROR_CRC;
 
     return 0;
 }
 
-int pb_write(struct param_block_v2 *param_block, FILE *f)
+int pb_write(struct param_block_v2 *param_block, enum param_block_version version, FILE *f)
 {
+    if (version == PB_VERSION_UNVERSIONED) {
+        struct unversioned_param_block pb_v0 = {};
+        unsigned int i;
+
+        pb_v0.sob = htole32(MARKER);
+        pb_v0.eob = htole32(MARKER);
+
+        memcpy(pb_v0.temperature, param_block->temperature, sizeof(pb_v0.temperature));
+        memcpy(pb_v0.contactor, param_block->contactor_type, sizeof(pb_v0.contactor));
+        memcpy(pb_v0.estop, param_block->estop, sizeof(pb_v0.estop));
+
+        for (i = 0; i < ARRAY_SIZE(pb_v0.contactor); i++)
+            if (pb_v0.contactor[i] == CONTACTOR_WITH_FEEDBACK_NC)
+                pb_v0.contactor[i] = CONTACTOR_WITH_FEEDBACK_NO;
+
+        pb_refresh_crc_unversioned(&pb_v0);
+
+        if (fwrite(&pb_v0, sizeof(pb_v0), 1, f) != 1)
+            return -1;
+
+        return 0;
+    }
+
+    if (version == PB_VERSION_V1) {
+        struct param_block_v1 pb_v1;
+
+        pb_init_v1(&pb_v1);
+        memcpy(&pb_v1.temperature, &param_block->temperature,
+               offsetof(struct param_block_v1, eob) - offsetof(struct param_block_v1, temperature));
+        pb_refresh_crc_v1(&pb_v1);
+
+        if (fwrite(&pb_v1, sizeof(pb_v1), 1, f) != 1)
+            return -1;
+
+        return 0;
+    }
+
+    param_block->version = PB_VERSION_V2;
     pb_refresh_crc_v2(param_block);
 
     if (fwrite(param_block, sizeof(*param_block), 1, f) != 1)
