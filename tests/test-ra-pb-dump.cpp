@@ -73,11 +73,16 @@ std::string StripTrailingNewlines(std::string text)
     return text;
 }
 
-ProcessResult RunDump(const fs::path &binary, const fs::path &fixture)
+ProcessResult RunProcess(const std::vector<std::string> &arguments)
 {
     int stdout_pipe[2];
     int stderr_pipe[2];
     ProcessResult result;
+
+    if (arguments.empty()) {
+        ADD_FAILURE() << "No command arguments supplied";
+        return result;
+    }
 
     if (pipe(stdout_pipe) != 0) {
         ADD_FAILURE() << "pipe(stdout) failed: " << std::strerror(errno);
@@ -111,15 +116,13 @@ ProcessResult RunDump(const fs::path &binary, const fs::path &fixture)
         close(stdout_pipe[1]);
         close(stderr_pipe[1]);
 
-        const std::string binary_string = binary.string();
-        const std::string fixture_string = fixture.string();
-        char *const argv[] = {
-            const_cast<char *>(binary_string.c_str()),
-            const_cast<char *>(fixture_string.c_str()),
-            nullptr,
-        };
+        std::vector<char *> argv;
+        argv.reserve(arguments.size() + 1);
+        for (const auto &argument : arguments)
+            argv.push_back(const_cast<char *>(argument.c_str()));
+        argv.push_back(nullptr);
 
-        execv(binary_string.c_str(), argv);
+        execv(arguments.front().c_str(), argv.data());
         _exit(127);
     }
 
@@ -144,6 +147,11 @@ ProcessResult RunDump(const fs::path &binary, const fs::path &fixture)
     }
 
     return result;
+}
+
+ProcessResult RunDump(const fs::path &binary, const fs::path &fixture)
+{
+    return RunProcess({binary.string(), fixture.string()});
 }
 
 TEST(RaPbDumpTest, FixturesMatchExpectedYaml)
@@ -178,6 +186,60 @@ TEST(RaPbDumpTest, FixturesMatchExpectedYaml)
         EXPECT_EQ(StripTrailingNewlines(result.stdout_output), StripTrailingNewlines(expected_output))
             << result.stderr_output;
     }
+}
+
+TEST(RaPbDumpTest, HelpPrintsUsageAndExitsSuccessfully)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    const ProcessResult result = RunProcess({binary.string(), "--help"});
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS);
+    EXPECT_NE(result.stderr_output.find("Usage:"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("Options:"), std::string::npos);
+}
+
+TEST(RaPbDumpTest, VersionPrintsBannerAndExitsSuccessfully)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    const ProcessResult result = RunProcess({binary.string(), "--version"});
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS);
+    EXPECT_NE(result.stdout_output.find(binary.string()), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("ra-pb-dump"), std::string::npos);
+}
+
+TEST(RaPbDumpTest, MissingFileReturnsFailureAndPrintsOpenError)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    const fs::path missing = fs::path(RA_PB_DUMP_FIXTURE_DIR) / "does-not-exist.bin";
+    const ProcessResult result = RunProcess({binary.string(), missing.string()});
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_FAILURE);
+    EXPECT_NE(result.stderr_output.find("cannot open"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find(missing.string()), std::string::npos);
+}
+
+TEST(RaPbDumpTest, InvalidInputReturnsFailureAndPrintsMagicError)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    const fs::path invalid = fs::path(RA_PB_DUMP_FIXTURE_DIR) / "test-v1-001.yaml";
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+    ASSERT_TRUE(fs::exists(invalid)) << "Missing invalid-input fixture " << invalid;
+
+    const ProcessResult result = RunProcess({binary.string(), invalid.string()});
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_FAILURE);
+    EXPECT_NE(result.stderr_output.find("does not look like a parameter block"), std::string::npos);
 }
 
 }  // namespace

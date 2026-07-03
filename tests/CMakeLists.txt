@@ -3,6 +3,29 @@ include(GoogleTest)
 
 file(GLOB RA_PB_DUMP_FIXTURES "${CMAKE_CURRENT_SOURCE_DIR}/*.bin")
 
+add_executable(test-param-block
+    test-param-block.cpp
+    ${CMAKE_SOURCE_DIR}/src/param_block.c
+    ${CMAKE_SOURCE_DIR}/src/param_block_crc8.c
+)
+
+target_include_directories(test-param-block
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${LIBRAUTILS_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
+)
+
+target_link_libraries(test-param-block
+    PRIVATE
+        GTest::gtest_main
+        m
+)
+
+target_compile_features(test-param-block PRIVATE cxx_std_17)
+
+gtest_discover_tests(test-param-block)
+
 add_executable(test-ra-pb-dump
     test-ra-pb-dump.cpp
 )
