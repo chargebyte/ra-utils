@@ -22,7 +22,6 @@
  *         dump [<filename>]    -- dump the MCU's flash content to stdout or filename (if given)
  *
  * Options:
- *         -c, --gpiochip          GPIO chip device (default: /dev/gpiochip2)
  *         -r, --reset-gpio        GPIO name for controlling RESET pin of MCU (default: nSAFETY_RESET_INT)
  *         -m, --md-gpio           GPIO name for controlling MD pin of MCU (default: SAFETY_BOOTMODE_SET)
  *         -d, --uart              UART interface (default: /dev/ttyLP2)
@@ -113,7 +112,6 @@ static const char *cmd_descs[CMD_MAX] = {
 
 /* command line options */
 static const struct option long_options[] = {
-    { "gpiochip",           required_argument,      0,      'c' },
     { "reset-gpio"   ,      required_argument,      0,      'r' },
     { "md-gpio",            required_argument,      0,      'm' },
     { "uart",               required_argument,      0,      'd' },
@@ -127,11 +125,10 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "c:r:m:d:p:a:NvVh";
+static const char *short_options = "r:m:d:p:a:NvVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
-    "GPIO chip device (default: " DEFAULT_RA_GPIOCHIP ")",
     "GPIO name for controlling RESET pin of MCU (default: " DEFAULT_RA_GPIO_RESET_PIN ")",
     "GPIO name for controlling MD pin of MCU (default: " DEFAULT_RA_GPIO_MD_PIN ")",
     "UART interface (default: " DEFAULT_UART_INTERFACE ")",
@@ -191,7 +188,6 @@ static void usage(char *p, int exitcode)
 static bool verbose = false;
 
 /* here, too - to simplify, use these as globals */
-static char *gpiochip = DEFAULT_RA_GPIOCHIP;
 static char *reset_gpioname = DEFAULT_RA_GPIO_RESET_PIN;
 static char *md_gpioname = DEFAULT_RA_GPIO_MD_PIN;
 static char *uart_device = DEFAULT_UART_INTERFACE;
@@ -259,9 +255,6 @@ void parse_cli(int argc, char *argv[])
 
         switch (c) {
 
-        case 'c':
-            gpiochip = optarg;
-            break;
         case 'r':
             reset_gpioname = optarg;
             break;
@@ -425,7 +418,6 @@ int main(int argc, char *argv[])
 {
     struct version_app_infoblock version_info;
     char *env_uart_device = NULL;
-    char *env_gpiochip = NULL;
     char *env_reset_gpioname = NULL;
     char *env_md_gpioname = NULL;
     struct uart_ctx uart = INIT_UART_CTX;
@@ -445,10 +437,6 @@ int main(int argc, char *argv[])
     if (env_uart_device)
         uart_device = env_uart_device;
 
-    env_gpiochip = getenv(GETENV_GPIOCHIP_KEY);
-    if (env_gpiochip)
-        gpiochip = env_gpiochip;
-
     env_reset_gpioname = getenv(GETENV_RESET_PIN_KEY);
     if (env_reset_gpioname)
         reset_gpioname = env_reset_gpioname;
@@ -466,7 +454,7 @@ int main(int argc, char *argv[])
 
     /* we need the GPIO stuff always except when only printing the fw_info from a file */
     if (!(cmd == CMD_FW_INFO && fw_filename)) {
-        gpio = ra_gpio_init(gpiochip, reset_gpioname, md_gpioname);
+        gpio = ra_gpio_init(reset_gpioname, md_gpioname);
         if (!gpio) {
             xerror("Could not acquire GPIOs: %m");
             goto close_out;

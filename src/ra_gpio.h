@@ -12,7 +12,7 @@ struct gpio_ctx;
 /* ms */
 #define DEFAULT_RA_RESET_DELAY 500
 
-struct gpio_ctx *ra_gpio_init(const char *gpiochip, const char *reset_gpioname, const char *md_gpioname);
+struct gpio_ctx *ra_gpio_init(const char *reset_gpioname, const char *md_gpioname);
 void ra_gpio_close(struct gpio_ctx *ctx);
 
 int ra_reset_to_bootloader(struct gpio_ctx *ctx);

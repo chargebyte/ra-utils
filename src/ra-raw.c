@@ -13,7 +13,6 @@
  *          -S, --sync              initial receive sync (default: send packet first)
  *          -D, --no-dump           don't dump data (useful only in verbose mode to print only received frames)
  *          -C, --no-charge-control don't send Charge Control frames automatically
- *          -c, --gpiochip          GPIO chip device (default: /dev/gpiochip2)
  *          -r, --reset-gpio        GPIO name for controlling RESET pin of MCU (default: nSAFETY_RESET_INT)
  *          -m, --md-gpio           GPIO name for controlling MD pin of MCU (default: SAFETY_BOOTMODE_SET)
  *          -p, --reset-period      reset duration (in ms, default: 500)
@@ -63,7 +62,6 @@ static const struct option long_options[] = {
     { "sync",               no_argument,            0,      'S' },
     { "no-dump",            no_argument,            0,      'D' },
     { "no-charge-control",  no_argument,            0,      'C' },
-    { "gpiochip",           required_argument,      0,      'c' },
     { "reset-gpio"   ,      required_argument,      0,      'r' },
     { "md-gpio",            required_argument,      0,      'm' },
     { "reset-period",       required_argument,      0,      'p' },
@@ -76,7 +74,7 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "d:SDCc:r:m:p:RM:vVh";
+static const char *short_options = "d:SDCr:m:p:RM:vVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
@@ -84,7 +82,6 @@ static const char *long_options_descs[] = {
     "initial receive sync (default: send packet first)",
     "don't dump data (useful only in verbose mode to print only received frames)",
     "don't send Charge Control frames automatically",
-    "GPIO chip device (default: " DEFAULT_RA_GPIOCHIP ")",
     "GPIO name for controlling RESET pin of MCU (default: " DEFAULT_RA_GPIO_RESET_PIN ")",
     "GPIO name for controlling MD pin of MCU (default: " DEFAULT_RA_GPIO_MD_PIN ")",
     "reset duration (in ms, default: " __stringify(DEFAULT_RA_RESET_DELAY) ")",
@@ -133,7 +130,6 @@ static bool intial_sync = false;
 static bool no_dump = false;
 static bool send_charge_control = true;
 static bool no_reset = false;
-static char *gpiochip = DEFAULT_RA_GPIOCHIP;
 static char *reset_gpioname = DEFAULT_RA_GPIO_RESET_PIN;
 static char *md_gpioname = DEFAULT_RA_GPIO_MD_PIN;
 static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
@@ -201,9 +197,6 @@ void parse_cli(int argc, char *argv[])
         case 'C':
             send_charge_control = false;
             break;
-        case 'c':
-            gpiochip = optarg;
-            break;
         case 'r':
             reset_gpioname = optarg;
             break;
@@ -249,14 +242,13 @@ void parse_cli(int argc, char *argv[])
         usage(program_invocation_short_name, EXIT_FAILURE);
 }
 
-int reset_controller(const char *gpiochip,
-                     const char *reset_gpioname, const char *md_gpioname,
+int reset_controller(const char *reset_gpioname, const char *md_gpioname,
                      const unsigned int reset_duration)
 {
     struct gpio_ctx *gpio;
     int rv;
 
-    gpio = ra_gpio_init(gpiochip, reset_gpioname, md_gpioname);
+    gpio = ra_gpio_init(reset_gpioname, md_gpioname);
     if (!gpio) {
         error("could not acquire GPIOs: %m");
         return -1;
@@ -286,7 +278,6 @@ int main(int argc, char *argv[])
     struct pollfd poll_fds[2]; /* stdin at [0], UART fd at [1] */
     int fds = 2;
     char *env_uart_device = NULL;
-    char *env_gpiochip = NULL;
     char *env_reset_gpioname = NULL;
     char *env_md_gpioname = NULL;
     struct uart_ctx uart = INIT_UART_CTX;
@@ -315,10 +306,6 @@ int main(int argc, char *argv[])
     env_uart_device = getenv(GETENV_UART_KEY);
     if (env_uart_device)
         uart_device = env_uart_device;
-
-    env_gpiochip = getenv(GETENV_GPIOCHIP_KEY);
-    if (env_gpiochip)
-        gpiochip = env_gpiochip;
 
     env_reset_gpioname = getenv(GETENV_RESET_PIN_KEY);
     if (env_reset_gpioname)
@@ -364,7 +351,7 @@ int main(int argc, char *argv[])
     /* unless not desired, reset the safety controller via GPIO */
     if (!no_reset) {
 restart_reset:
-        rv = reset_controller(gpiochip, reset_gpioname, md_gpioname, reset_duration);
+        rv = reset_controller(reset_gpioname, md_gpioname, reset_duration);
         if (rv) {
             error("resetting safety controller failed: %m");
             goto close_out;
