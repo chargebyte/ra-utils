@@ -46,3 +46,34 @@ target_compile_definitions(test-ra-pb-dump
 add_dependencies(test-ra-pb-dump ra-pb-dump)
 
 gtest_discover_tests(test-ra-pb-dump)
+
+add_executable(test-ra-pb-create
+    test-ra-pb-create.cpp
+    ${CMAKE_SOURCE_DIR}/src/param_block.c
+    ${CMAKE_SOURCE_DIR}/src/param_block_crc8.c
+)
+
+target_include_directories(test-ra-pb-create
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${LIBRAUTILS_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
+)
+
+target_link_libraries(test-ra-pb-create
+    PRIVATE
+        GTest::gtest_main
+        m
+)
+
+target_compile_features(test-ra-pb-create PRIVATE cxx_std_17)
+
+target_compile_definitions(test-ra-pb-create
+    PRIVATE
+        RA_PB_CREATE_PATH="$<TARGET_FILE:ra-pb-create>"
+        RA_PB_CREATE_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+add_dependencies(test-ra-pb-create ra-pb-create)
+
+gtest_discover_tests(test-ra-pb-create)

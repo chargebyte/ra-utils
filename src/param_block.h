@@ -40,9 +40,6 @@ struct param_block_v1 {
     uint8_t crc;
 } __attribute__((packed));
 
-/* latest parameter version this code understands */
-#define PARAMETER_BLOCK_VERSION 2
-
 struct param_block_v2 {
     uint32_t sob;
 
@@ -69,9 +66,13 @@ struct param_block_v2 {
 
 enum param_block_version {
     PB_VERSION_UNVERSIONED = 0,
-    PB_VERSION_V1 = 1,
-    PB_VERSION_V2 = 2,
+    PB_VERSION_V1,
+    PB_VERSION_V2,
+    PB_VERSION_MAX
 };
+
+/* latest parameter version this code understands */
+#define PARAMETER_BLOCK_VERSION (PB_VERSION_MAX - 1)
 
 struct param_block {
     enum param_block_version version;

@@ -9,8 +9,9 @@
  * Options:
  *         -i, --infile            use the given filename as input file (default: stdin)
  *         -o, --outfile           use the given filename for output (default: stdout)
- *         -r, --version-as-requested
+ *         -Y, --version-from-yaml
  *                                 create the parameter block version requested in YAML instead of latest
+ *         -O, --version-override  create the given parameter block version instead of latest
  *         -D, --debug             print debug output to stderr
  *         -V, --version           print version and exit
  *         -h, --help              print this usage and exit
@@ -40,7 +41,8 @@
 static const struct option long_options[] = {
     { "infile",             required_argument,      0,      'i' },
     { "outfile",            required_argument,      0,      'o' },
-    { "version-as-requested", no_argument,          0,      'r' },
+    { "version-from-yaml",  no_argument,            0,      'Y' },
+    { "version-override",   required_argument,      0,      'O' },
 
     { "debug",              no_argument,            0,      'D' },
 
@@ -49,13 +51,14 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "i:o:rDVh";
+static const char *short_options = "i:o:YO:DVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
     "use the given filename as input file (default: stdin)",
     "use the given filename for output (default: stdout)",
     "create the parameter block version requested in YAML instead of latest",
+    "create the given parameter block version instead of latest",
 
     "print debug output to stderr",
 
@@ -102,7 +105,23 @@ struct param_block_v2 param_block;
 yaml_parser_t yaml_parser;
 yaml_event_t event;
 bool debug;
-bool version_as_requested;
+bool version_from_yaml;
+bool version_override_set;
+uint16_t version_override;
+
+static bool pb_version_from_u16(uint16_t requested_version, enum param_block_version *version)
+{
+    switch (requested_version) {
+    case PB_VERSION_V1:
+        *version = PB_VERSION_V1;
+        return true;
+    case PB_VERSION_V2:
+        *version = PB_VERSION_V2;
+        return true;
+    default:
+        return false;
+    }
+}
 
 static void print_downgrade_warnings(unsigned int warnings, enum param_block_version version)
 {
@@ -135,8 +154,16 @@ void parse_cli(int argc, char *argv[])
         case 'o':
             filename_out = optarg;
             break;
-        case 'r':
-            version_as_requested = true;
+        case 'Y':
+            version_from_yaml = true;
+            break;
+        case 'O':
+            if (str_to_version(optarg, &version_override)) {
+                fprintf(stderr, "Error: Cannot convert '%s' to a version value (allowed range: 1-%" PRIu16 ")\n",
+                        optarg, PARAMETER_BLOCK_VERSION);
+                exit(EXIT_FAILURE);
+            }
+            version_override_set = true;
             break;
 
         case 'D':
@@ -611,14 +638,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (version_as_requested) {
-        if (!yaml_has_version) {
-            output_version = PB_VERSION_UNVERSIONED;
-        } else if (yaml_version == PB_VERSION_V1) {
-            output_version = PB_VERSION_V1;
-        } else if (yaml_version == PB_VERSION_V2) {
-            output_version = PB_VERSION_V2;
-        } else {
+    if (version_override_set) {
+        if (!pb_version_from_u16(version_override, &output_version)) {
+            fprintf(stderr, "Error: requested parameter block version %" PRIu16 " is not supported.\n", version_override);
+            goto err_out;
+        }
+    } else if (version_from_yaml && yaml_has_version) {
+        if (!pb_version_from_u16(yaml_version, &output_version)) {
             fprintf(stderr, "Error: requested parameter block version %" PRIu16 " is not supported.\n", yaml_version);
             goto err_out;
         }
