@@ -43,7 +43,7 @@ target_link_libraries(test-tools
 
 target_compile_features(test-tools PRIVATE cxx_std_17)
 
-gtest_discover_tests(test-tools)
+gtest_discover_tests(test-tools NO_PRETTY_VALUES)
 
 add_executable(test-ra-pb-dump
     test-ra-pb-dump.cpp
