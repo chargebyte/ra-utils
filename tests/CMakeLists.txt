@@ -26,6 +26,25 @@ target_compile_features(test-param-block PRIVATE cxx_std_17)
 
 gtest_discover_tests(test-param-block)
 
+add_executable(test-tools
+    test-tools.cpp
+    ${CMAKE_SOURCE_DIR}/lib/tools.c
+)
+
+target_include_directories(test-tools
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/lib
+)
+
+target_link_libraries(test-tools
+    PRIVATE
+        GTest::gtest_main
+)
+
+target_compile_features(test-tools PRIVATE cxx_std_17)
+
+gtest_discover_tests(test-tools)
+
 add_executable(test-ra-pb-dump
     test-ra-pb-dump.cpp
 )
