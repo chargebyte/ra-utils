@@ -71,9 +71,10 @@ target_compile_features(test-ra-pb-create PRIVATE cxx_std_17)
 target_compile_definitions(test-ra-pb-create
     PRIVATE
         RA_PB_CREATE_PATH="$<TARGET_FILE:ra-pb-create>"
+        RA_PB_DUMP_PATH="$<TARGET_FILE:ra-pb-dump>"
         RA_PB_CREATE_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
-add_dependencies(test-ra-pb-create ra-pb-create)
+add_dependencies(test-ra-pb-create ra-pb-create ra-pb-dump)
 
 gtest_discover_tests(test-ra-pb-create)

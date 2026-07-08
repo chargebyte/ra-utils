@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -13,6 +14,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -54,6 +56,25 @@ std::string ReadFromFd(int fd)
     }
 
     return output;
+}
+
+std::string ReadFile(const fs::path &path)
+{
+    std::ifstream stream(path, std::ios::binary);
+    EXPECT_TRUE(stream.is_open()) << "Failed to open " << path;
+
+    std::ostringstream content;
+    content << stream.rdbuf();
+
+    return content.str();
+}
+
+std::string StripTrailingNewlines(std::string text)
+{
+    while (!text.empty() && (text.back() == '\n' || text.back() == '\r'))
+        text.pop_back();
+
+    return text;
 }
 
 ProcessResult RunProcess(const std::vector<std::string> &arguments)
@@ -184,6 +205,11 @@ ProcessResult RunCreate(const std::vector<std::string> &extra_arguments,
     return RunProcess(arguments);
 }
 
+ProcessResult RunDump(const fs::path &input_path)
+{
+    return RunProcess({RA_PB_DUMP_PATH, input_path.string()});
+}
+
 struct param_block ReadParamBlockOrFail(const fs::path &path)
 {
     FILE *file = std::fopen(path.c_str(), "rb");
@@ -215,6 +241,20 @@ const char kYamlWithoutVersion[] =
     "  - disabled\n"
     "  - disabled\n"
     "  - disabled\n";
+
+std::vector<fs::path> CollectBinFixtures()
+{
+    const fs::path fixture_dir(RA_PB_CREATE_FIXTURE_DIR);
+    std::vector<fs::path> fixtures;
+
+    for (const auto &entry : fs::directory_iterator(fixture_dir)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".bin")
+            fixtures.push_back(entry.path());
+    }
+
+    std::sort(fixtures.begin(), fixtures.end());
+    return fixtures;
+}
 
 TEST(RaPbCreateTest, HelpPrintsNewOptions)
 {
@@ -353,6 +393,57 @@ TEST(RaPbCreateTest, UnsupportedYamlVersionFailsWhenRequested)
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_FAILURE);
     EXPECT_NE(result.stderr_output.find("requested parameter block version 3 is not supported"), std::string::npos);
+}
+
+TEST(RaPbCreateTest, YamlFixturesCreateMatchingBinaryFixtures)
+{
+    const std::vector<fs::path> fixtures = CollectBinFixtures();
+    ASSERT_FALSE(fixtures.empty()) << "No .bin fixtures found in " << RA_PB_CREATE_FIXTURE_DIR;
+
+    for (const auto &bin_fixture : fixtures) {
+        TemporaryDirectory temp_dir;
+        const fs::path yaml_fixture = bin_fixture.parent_path() / (bin_fixture.stem().string() + ".yaml");
+        const fs::path output = temp_dir.path() / bin_fixture.filename();
+
+        SCOPED_TRACE(bin_fixture.string());
+        ASSERT_TRUE(fs::exists(yaml_fixture)) << "Missing YAML fixture " << yaml_fixture;
+
+        const ProcessResult result = RunCreate({"--version-from-yaml"}, yaml_fixture, output);
+
+        ASSERT_TRUE(result.exited) << result.stderr_output;
+        EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+        EXPECT_EQ(ReadFile(output), ReadFile(bin_fixture)) << result.stderr_output;
+    }
+}
+
+TEST(RaPbCreateTest, BinaryFixturesRoundTripThroughDumpAndCreate)
+{
+    const std::vector<fs::path> fixtures = CollectBinFixtures();
+    ASSERT_FALSE(fixtures.empty()) << "No .bin fixtures found in " << RA_PB_CREATE_FIXTURE_DIR;
+
+    for (const auto &bin_fixture : fixtures) {
+        TemporaryDirectory temp_dir;
+        const fs::path yaml_from_dump = temp_dir.path() / (bin_fixture.stem().string() + ".yaml");
+        const fs::path output = temp_dir.path() / bin_fixture.filename();
+
+        SCOPED_TRACE(bin_fixture.string());
+
+        const ProcessResult dump_result = RunDump(bin_fixture);
+        ASSERT_TRUE(dump_result.exited) << dump_result.stderr_output;
+        ASSERT_EQ(dump_result.exit_code, EXIT_SUCCESS) << dump_result.stderr_output;
+
+        WriteFile(yaml_from_dump, dump_result.stdout_output);
+
+        const ProcessResult create_result = RunCreate({"--version-from-yaml"}, yaml_from_dump, output);
+        ASSERT_TRUE(create_result.exited) << create_result.stderr_output;
+        EXPECT_EQ(create_result.exit_code, EXIT_SUCCESS) << create_result.stderr_output;
+        EXPECT_EQ(ReadFile(output), ReadFile(bin_fixture)) << create_result.stderr_output;
+
+        const fs::path expected_yaml = bin_fixture.parent_path() / (bin_fixture.stem().string() + ".yaml");
+        ASSERT_TRUE(fs::exists(expected_yaml)) << "Missing YAML fixture " << expected_yaml;
+        EXPECT_EQ(StripTrailingNewlines(dump_result.stdout_output), StripTrailingNewlines(ReadFile(expected_yaml)))
+            << dump_result.stderr_output;
+    }
 }
 
 }  // namespace
