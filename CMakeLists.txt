@@ -27,7 +27,6 @@ else()
 endif()
 
 include(CMakePackageConfigHelpers)
-include(CTest)
 include(GNUInstallDirs)
 
 # latest firmware and example parameter blocks
@@ -44,6 +43,9 @@ pkg_search_module(LIBYAML REQUIRED yaml-0.1)
 
 add_subdirectory(lib)
 add_subdirectory(src)
+
 if(BUILD_TESTING)
+    include(CTest)
+
     add_subdirectory(tests)
 endif()
