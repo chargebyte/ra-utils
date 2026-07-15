@@ -982,14 +982,17 @@ void cb_proto_dump(struct safety_controller *ctx)
     unsigned int i;
 
     if (!ctx->mcs) {
-        printfnl("== Various ==");
-        printfnl("Control Pilot:   %s (%s%s%s%s)", cb_proto_cp_state_to_str(cb_proto_get_cp_state(ctx)),
+        char buffer[64];
+
+        snprintf(buffer, sizeof(buffer), "%s (%s%s%s%s)", cb_proto_cp_state_to_str(cb_proto_get_cp_state(ctx)),
                  cb_proto_get_cp_errors(ctx) ? "" : "-no flags set-",
                  (cb_proto_get_cp_errors(ctx) & CP_DIODE_FAULT) ? "diode fault" : "",
                  THIS_BIT_AND_ANY_OF_THE_LOWER(cb_proto_get_cp_errors(ctx), CP_DIODE_FAULT) ? "," : "",
                  (cb_proto_get_cp_errors(ctx) & CP_SHORT_CIRCUIT) ? "short circuit" : "");
 
-        printfnl("Proximity Pilot: %s", cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
+        printfnl("== Various ==");
+        printfnl("Control Pilot: %-37s Proximity Pilot: %s", buffer,
+                  cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
 
         printf("Emergency Stop Tripped:");
         for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
@@ -997,9 +1000,11 @@ void cb_proto_dump(struct safety_controller *ctx)
         }
         printfnl("");
 
-        printfnl("HV Ready: %u                    RCM State: %s",
-                 cb_proto_get_hv_ready(ctx),
-                 cb_proto_rcm_state_to_str(cb_proto_get_rcm_state(ctx)));
+        printfnl("HV Ready: %-20s RCM State: %-21s Inlet State: %s",
+                 cb_proto_get_hv_ready(ctx) ? "yes" : "no",
+                 cb_proto_rcm_state_to_str(cb_proto_get_rcm_state(ctx)),
+                 cb_proto_inlet_state_to_str(cb_proto_get_inlet_state(ctx)));
+
         printfnl("Safe State Active: %-11s Reason: %s",
                  cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)),
                  cb_proto_safestate_reason_to_str(cb_proto_get_safestate_reason(ctx)));
