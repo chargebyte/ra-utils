@@ -119,6 +119,18 @@ TEST(ParamBlockTest, ContactorTypeParsingSupportsAliases)
     EXPECT_STREQ(contactor_type_to_str(CONTACTOR_MAX), "invalid");
 }
 
+TEST(ParamBlockTest, InletTypeParsingSupportsAliases)
+{
+    EXPECT_EQ(str_to_inlet_type("none"), INLET_NONE);
+    EXPECT_EQ(str_to_inlet_type("disable"), INLET_NONE);
+    EXPECT_EQ(str_to_inlet_type("disabled"), INLET_NONE);
+    EXPECT_EQ(str_to_inlet_type("without-feedback"), INLET_WITHOUT_FEEDBACK);
+    EXPECT_EQ(str_to_inlet_type("with-feedback"), INLET_WITH_FEEDBACK);
+    EXPECT_EQ(str_to_inlet_type("invalid"), INLET_MAX);
+    EXPECT_STREQ(inlet_type_to_str(INLET_WITH_FEEDBACK), "with-feedback");
+    EXPECT_STREQ(inlet_type_to_str(INLET_MAX), "invalid");
+}
+
 TEST(ParamBlockTest, TimeParsingConvertsAndClamps)
 {
     uint8_t time = 0;
@@ -137,6 +149,10 @@ TEST(ParamBlockTest, TimeParsingConvertsAndClamps)
 
     EXPECT_EQ(str_to_rcm_time("999999 ms", &time), 0);
     EXPECT_EQ(time, 255);
+
+    EXPECT_EQ(str_to_inlet_time("130 ms", &time), 0);
+    EXPECT_EQ(time, 13);
+    EXPECT_STREQ((inlet_time_to_str(buffer, sizeof(buffer), time), buffer), "130 ms");
 }
 
 TEST(ParamBlockTest, TimeParsingRejectsInvalidSuffix)
@@ -146,7 +162,32 @@ TEST(ParamBlockTest, TimeParsingRejectsInvalidSuffix)
     errno = 0;
     EXPECT_EQ(str_to_contactor_time("100", &time), -1);
     errno = 0;
+    EXPECT_EQ(str_to_inlet_time("100", &time), -1);
+    errno = 0;
     EXPECT_EQ(str_to_rcm_time("foo", &time), -1);
+}
+
+TEST(ParamBlockTest, MillivoltParsingConvertsAndClamps)
+{
+    uint16_t mv = 0;
+    char buffer[32];
+
+    EXPECT_EQ(str_to_mv("2200 mV", &mv), 0);
+    EXPECT_EQ(le16toh(mv), 2200);
+    EXPECT_STREQ((mv_to_str(buffer, sizeof(buffer), mv), buffer), "2200 mV");
+
+    EXPECT_EQ(str_to_mv("999999 mV", &mv), 0);
+    EXPECT_EQ(le16toh(mv), 3300);
+}
+
+TEST(ParamBlockTest, MillivoltParsingRejectsInvalidSuffix)
+{
+    uint16_t mv = 0;
+
+    errno = 0;
+    EXPECT_EQ(str_to_mv("2200", &mv), -1);
+    errno = 0;
+    EXPECT_EQ(str_to_mv("foo", &mv), -1);
 }
 
 TEST(ParamBlockTest, PinPolarityAndDisabledFlagSupportAliases)
@@ -187,6 +228,13 @@ TEST(ParamBlockTest, InitFunctionsSetMarkersDefaultsAndValidCrc)
     EXPECT_TRUE(pb_check_crc_v2(&pb_v2));
     for (size_t i = 0; i < sizeof(pb_v2.temperature) / sizeof(pb_v2.temperature[0]); ++i)
         EXPECT_EQ(le16toh(pb_v2.temperature[i]), CHANNEL_DISABLE_VALUE);
+    EXPECT_EQ(pb_v2.inlet_type, INLET_NONE);
+    EXPECT_EQ(pb_v2.inlet_open_time, 0);
+    EXPECT_EQ(pb_v2.inlet_close_time, 0);
+    EXPECT_EQ(le16toh(pb_v2.inlet_feedback_open_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(pb_v2.inlet_feedback_open_valid_max_mv), 0);
+    EXPECT_EQ(le16toh(pb_v2.inlet_feedback_closed_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(pb_v2.inlet_feedback_closed_valid_max_mv), 0);
 }
 
 TEST(ParamBlockTest, EnableHelpersReflectStoredValues)
@@ -273,6 +321,13 @@ TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1AndV2)
     source.contactor_close_time[0] = 11;
     source.contactor_open_time[0] = 7;
     source.estop[0] = PIN_POLARITY_ACTIVE_HIGH;
+    source.inlet_type = INLET_WITH_FEEDBACK;
+    source.inlet_open_time = 9;
+    source.inlet_close_time = 12;
+    source.inlet_feedback_open_valid_min_mv = htole16(2200);
+    source.inlet_feedback_open_valid_max_mv = htole16(2800);
+    source.inlet_feedback_closed_valid_min_mv = htole16(1700);
+    source.inlet_feedback_closed_valid_max_mv = htole16(2000);
     source.rcm_fault_polarity = PIN_POLARITY_ACTIVE_LOW;
     source.rcm_test_polarity = PIN_POLARITY_ACTIVE_HIGH;
     source.rcm_test_trigger_time = 3;
@@ -312,6 +367,13 @@ TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1AndV2)
             EXPECT_EQ(read_back.data.v2.contactor_close_time[0], 11);
             EXPECT_EQ(read_back.data.v2.contactor_open_time[0], 7);
             EXPECT_EQ(read_back.data.v2.estop[0], PIN_POLARITY_ACTIVE_HIGH);
+            EXPECT_EQ(read_back.data.v2.inlet_type, INLET_WITH_FEEDBACK);
+            EXPECT_EQ(read_back.data.v2.inlet_open_time, 9);
+            EXPECT_EQ(read_back.data.v2.inlet_close_time, 12);
+            EXPECT_EQ(le16toh(read_back.data.v2.inlet_feedback_open_valid_min_mv), 2200);
+            EXPECT_EQ(le16toh(read_back.data.v2.inlet_feedback_open_valid_max_mv), 2800);
+            EXPECT_EQ(le16toh(read_back.data.v2.inlet_feedback_closed_valid_min_mv), 1700);
+            EXPECT_EQ(le16toh(read_back.data.v2.inlet_feedback_closed_valid_max_mv), 2000);
             EXPECT_EQ(read_back.data.v2.rcm_fault_polarity, PIN_POLARITY_ACTIVE_LOW);
             EXPECT_EQ(read_back.data.v2.rcm_test_polarity, PIN_POLARITY_ACTIVE_HIGH);
             EXPECT_EQ(read_back.data.v2.rcm_test_trigger_time, 3);

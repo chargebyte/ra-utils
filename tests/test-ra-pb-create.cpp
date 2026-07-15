@@ -242,6 +242,83 @@ const char kYamlWithoutVersion[] =
     "  - disabled\n"
     "  - disabled\n";
 
+const char kYamlWithoutVersionAndInletNoneScalar[] =
+    "pt1000s:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "contactors:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "estops:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "inlet: none\n";
+
+const char kYamlWithoutVersionAndInletDisableScalar[] =
+    "pt1000s:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "contactors:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "estops:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "inlet: disable\n";
+
+const char kYamlWithoutVersionAndInletDisabledScalar[] =
+    "pt1000s:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "contactors:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "estops:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "inlet: disabled\n";
+
+const char kYamlWithoutVersionAndInletTypeNone[] =
+    "pt1000s:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "contactors:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "estops:\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "  - disabled\n"
+    "\n"
+    "inlet:\n"
+    "  type: none\n";
+
 std::vector<fs::path> CollectBinFixtures()
 {
     const fs::path fixture_dir(RA_PB_CREATE_FIXTURE_DIR);
@@ -282,6 +359,335 @@ TEST(RaPbCreateTest, DefaultOutputUsesLatestSupportedVersion)
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
     EXPECT_EQ(param_block.version, PB_VERSION_V2);
+}
+
+TEST(RaPbCreateTest, MissingInletDefaultsToNoInlet)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input, kYamlWithoutVersion);
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.data.v2.inlet_type, INLET_NONE);
+    EXPECT_EQ(param_block.data.v2.inlet_open_time, 0);
+    EXPECT_EQ(param_block.data.v2.inlet_close_time, 0);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_max_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_max_mv), 0);
+}
+
+TEST(RaPbCreateTest, InletDisabledAliasesAndTypeNoneProduceIdenticalBinary)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input_none = temp_dir.path() / "input-none.yaml";
+    const fs::path input_disable = temp_dir.path() / "input-disable.yaml";
+    const fs::path input_disabled = temp_dir.path() / "input-disabled.yaml";
+    const fs::path input_type_none = temp_dir.path() / "input-type-none.yaml";
+    const fs::path output_none = temp_dir.path() / "output-none.bin";
+    const fs::path output_disable = temp_dir.path() / "output-disable.bin";
+    const fs::path output_disabled = temp_dir.path() / "output-disabled.bin";
+    const fs::path output_type_none = temp_dir.path() / "output-type-none.bin";
+
+    WriteFile(input_none, kYamlWithoutVersionAndInletNoneScalar);
+    WriteFile(input_disable, kYamlWithoutVersionAndInletDisableScalar);
+    WriteFile(input_disabled, kYamlWithoutVersionAndInletDisabledScalar);
+    WriteFile(input_type_none, kYamlWithoutVersionAndInletTypeNone);
+
+    const ProcessResult result_none = RunCreate({}, input_none, output_none);
+    const ProcessResult result_disable = RunCreate({}, input_disable, output_disable);
+    const ProcessResult result_disabled = RunCreate({}, input_disabled, output_disabled);
+    const ProcessResult result_type_none = RunCreate({}, input_type_none, output_type_none);
+
+    ASSERT_TRUE(result_none.exited);
+    ASSERT_TRUE(result_disable.exited);
+    ASSERT_TRUE(result_disabled.exited);
+    ASSERT_TRUE(result_type_none.exited);
+    EXPECT_EQ(result_none.exit_code, EXIT_SUCCESS) << result_none.stderr_output;
+    EXPECT_EQ(result_disable.exit_code, EXIT_SUCCESS) << result_disable.stderr_output;
+    EXPECT_EQ(result_disabled.exit_code, EXIT_SUCCESS) << result_disabled.stderr_output;
+    EXPECT_EQ(result_type_none.exit_code, EXIT_SUCCESS) << result_type_none.stderr_output;
+    EXPECT_EQ(ReadFile(output_none), ReadFile(output_disable));
+    EXPECT_EQ(ReadFile(output_none), ReadFile(output_disabled));
+    EXPECT_EQ(ReadFile(output_none), ReadFile(output_type_none));
+}
+
+TEST(RaPbCreateTest, InletSequenceIsRejected)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "inlet:\n"
+              "  - none\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_FAILURE);
+    EXPECT_NE(result.stderr_output.find("sequences are not allowed"), std::string::npos);
+}
+
+TEST(RaPbCreateTest, InletScalarRejectsNonDisabledValues)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "inlet: without-feedback\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_FAILURE);
+    EXPECT_NE(result.stderr_output.find("expected an inlet disabled flag"), std::string::npos);
+}
+
+TEST(RaPbCreateTest, InletNoneAcceptsAndStoresAdditionalFields)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "inlet:\n"
+              "  type: none\n"
+              "  close-time: 100 ms\n"
+              "  open-time: 200 ms\n"
+              "  feedback-open-voltage-min: 2200 mV\n"
+              "  feedback-open-voltage-max: 2800 mV\n"
+              "  feedback-closed-voltage-min: 1700 mV\n"
+              "  feedback-closed-voltage-max: 2000 mV\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.data.v2.inlet_type, INLET_NONE);
+    EXPECT_EQ(param_block.data.v2.inlet_close_time, 10);
+    EXPECT_EQ(param_block.data.v2.inlet_open_time, 20);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_min_mv), 2200);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_max_mv), 2800);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_min_mv), 1700);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_max_mv), 2000);
+}
+
+TEST(RaPbCreateTest, InletWithoutFeedbackRequiresTimes)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "inlet:\n"
+              "  type: without-feedback\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_FAILURE);
+    EXPECT_NE(result.stderr_output.find("invalid inlet timing"), std::string::npos);
+}
+
+TEST(RaPbCreateTest, InletWithoutFeedbackDefaultsThresholdsToZero)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "inlet:\n"
+              "  type: without-feedback\n"
+              "  close-time: 100 ms\n"
+              "  open-time: 110 ms\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.data.v2.inlet_type, INLET_WITHOUT_FEEDBACK);
+    EXPECT_EQ(param_block.data.v2.inlet_close_time, 10);
+    EXPECT_EQ(param_block.data.v2.inlet_open_time, 11);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_max_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_max_mv), 0);
+}
+
+TEST(RaPbCreateTest, InletWithFeedbackRequiresAllThresholds)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "inlet:\n"
+              "  type: with-feedback\n"
+              "  close-time: 100 ms\n"
+              "  open-time: 110 ms\n"
+              "  feedback-open-voltage-min: 2200 mV\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_FAILURE);
+    EXPECT_NE(result.stderr_output.find("all four feedback voltages are required"), std::string::npos);
+}
+
+TEST(RaPbCreateTest, InletWithFeedbackStoresConfiguredValues)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "inlet:\n"
+              "  type: with-feedback\n"
+              "  close-time: 100 ms\n"
+              "  open-time: 110 ms\n"
+              "  feedback-open-voltage-min: 2200 mV\n"
+              "  feedback-open-voltage-max: 2800 mV\n"
+              "  feedback-closed-voltage-min: 1700 mV\n"
+              "  feedback-closed-voltage-max: 2000 mV\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.data.v2.inlet_type, INLET_WITH_FEEDBACK);
+    EXPECT_EQ(param_block.data.v2.inlet_close_time, 10);
+    EXPECT_EQ(param_block.data.v2.inlet_open_time, 11);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_min_mv), 2200);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_max_mv), 2800);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_min_mv), 1700);
+    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_max_mv), 2000);
 }
 
 TEST(RaPbCreateTest, VersionFromYamlUsesRequestedSupportedVersion)

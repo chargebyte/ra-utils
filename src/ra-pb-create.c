@@ -257,6 +257,15 @@ enum param_block_state {
     PBS_RCM_TRIGGER_TIME,
     PBS_RCM_CHECK_TRIPPED_TIME,
     PBS_RCM_CHECK_NORMAL_TIME,
+    PBS_INLET_SCALAR,
+    PBS_INLET_MAPPING,
+    PBS_INLET_TYPE,
+    PBS_INLET_CLOSE_TIME,
+    PBS_INLET_OPEN_TIME,
+    PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN,
+    PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX,
+    PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN,
+    PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX,
     PBS_MAX,
 };
 
@@ -280,6 +289,15 @@ static const char *param_block_state_str[PBS_MAX] = {
     "PBS_RCM_TRIGGER_TIME",
     "PBS_RCM_CHECK_TRIPPED_TIME",
     "PBS_RCM_CHECK_NORMAL_TIME",
+    "PBS_INLET_SCALAR",
+    "PBS_INLET_MAPPING",
+    "PBS_INLET_TYPE",
+    "PBS_INLET_CLOSE_TIME",
+    "PBS_INLET_OPEN_TIME",
+    "PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN",
+    "PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX",
+    "PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN",
+    "PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX",
 };
 
 int main(int argc, char *argv[])
@@ -296,6 +314,14 @@ int main(int argc, char *argv[])
     bool rcm_config = false;
     bool yaml_has_version = false;
     uint16_t yaml_version = PARAMETER_BLOCK_VERSION;
+    bool inlet_seen = false;
+    bool inlet_type_set = false;
+    bool inlet_close_time_set = false;
+    bool inlet_open_time_set = false;
+    bool inlet_feedback_open_min_set = false;
+    bool inlet_feedback_open_max_set = false;
+    bool inlet_feedback_closed_min_set = false;
+    bool inlet_feedback_closed_max_set = false;
 
     /* handle command line options */
     parse_cli(argc, argv);
@@ -325,6 +351,13 @@ int main(int argc, char *argv[])
         }
 
         switch (event.type) {
+        case YAML_SEQUENCE_START_EVENT:
+            if (param_block_state == PBS_INLET_SCALAR) {
+                fprintf(stderr, "Error: invalid inlet configuration: sequences are not allowed.\n");
+                goto err_out;
+            }
+            break;
+
         case YAML_SEQUENCE_END_EVENT:
             switch (param_block_state) {
             case PBS_PT1000S:
@@ -360,6 +393,9 @@ int main(int argc, char *argv[])
             case PBS_RCM_SCALAR:
                 param_block_state = PBS_RCM_MAPPING;
                 break;
+            case PBS_INLET_SCALAR:
+                param_block_state = PBS_INLET_MAPPING;
+                break;
 
             default:
                 /* nothing */;
@@ -376,6 +412,9 @@ int main(int argc, char *argv[])
                 break;
             case PBS_RCM_MAPPING:
                 param_block_state = PBS_RCM_SCALAR;
+                break;
+            case PBS_INLET_MAPPING:
+                param_block_state = PBS_NONE;
                 break;
 
             default:
@@ -396,6 +435,10 @@ int main(int argc, char *argv[])
                     param_block_state = PBS_ESTOPS;
                 else if (strcasecmp(event.data.scalar.value, "rcm") == 0)
                     param_block_state = PBS_RCM_SCALAR;
+                else if (strcasecmp(event.data.scalar.value, "inlet") == 0) {
+                    param_block_state = PBS_INLET_SCALAR;
+                    inlet_seen = true;
+                }
                 break;
             case PBS_VERSION:
                 param_block_state = PBS_NONE;
@@ -584,6 +627,105 @@ int main(int argc, char *argv[])
                     goto err_out;
                 }
                 break;
+            case PBS_INLET_SCALAR:
+                if (str_to_disabled_flag(event.data.scalar.value, &rcm_config)) {
+                    fprintf(stderr, "Error: Value '%s' not allowed in this context (expected an inlet disabled flag)\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_type = INLET_NONE;
+                inlet_type_set = true;
+                param_block_state = PBS_NONE;
+                break;
+            case PBS_INLET_MAPPING:
+                if (strcasecmp(event.data.scalar.value, "type") == 0)
+                    param_block_state = PBS_INLET_TYPE;
+                else if (strcasecmp(event.data.scalar.value, "close-time") == 0)
+                    param_block_state = PBS_INLET_CLOSE_TIME;
+                else if (strcasecmp(event.data.scalar.value, "open-time") == 0)
+                    param_block_state = PBS_INLET_OPEN_TIME;
+                else if (strcasecmp(event.data.scalar.value, "feedback-open-voltage-min") == 0)
+                    param_block_state = PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN;
+                else if (strcasecmp(event.data.scalar.value, "feedback-open-voltage-max") == 0)
+                    param_block_state = PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX;
+                else if (strcasecmp(event.data.scalar.value, "feedback-closed-voltage-min") == 0)
+                    param_block_state = PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN;
+                else if (strcasecmp(event.data.scalar.value, "feedback-closed-voltage-max") == 0)
+                    param_block_state = PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX;
+                else {
+                    fprintf(stderr, "Error: Unknown inlet configuration key '%s'.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_INLET_TYPE:
+                param_block_state = PBS_INLET_MAPPING;
+                param_block.inlet_type = str_to_inlet_type(event.data.scalar.value);
+                if (param_block.inlet_type == INLET_MAX) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to an inlet type configuration.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                inlet_type_set = true;
+                break;
+            case PBS_INLET_CLOSE_TIME:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_inlet_time(event.data.scalar.value, &param_block.inlet_close_time)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet close time. Unit (ms) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                inlet_close_time_set = true;
+                break;
+            case PBS_INLET_OPEN_TIME:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_inlet_time(event.data.scalar.value, &param_block.inlet_open_time)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet open time. Unit (ms) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                inlet_open_time_set = true;
+                break;
+            case PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet feedback open minimum voltage. Unit (mV) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_feedback_open_valid_min_mv = tmp_u16;
+                inlet_feedback_open_min_set = true;
+                break;
+            case PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet feedback open maximum voltage. Unit (mV) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_feedback_open_valid_max_mv = tmp_u16;
+                inlet_feedback_open_max_set = true;
+                break;
+            case PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet feedback closed minimum voltage. Unit (mV) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_feedback_closed_valid_min_mv = tmp_u16;
+                inlet_feedback_closed_min_set = true;
+                break;
+            case PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet feedback closed maximum voltage. Unit (mV) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_feedback_closed_valid_max_mv = tmp_u16;
+                inlet_feedback_closed_max_set = true;
+                break;
             }
             break;
 
@@ -614,6 +756,27 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Warning: only %d contactor configuration(s) set instead of expected %d.\n", current_contactor_idx + 1, CB_PROTO_MAX_CONTACTORS);
     if (current_estop_idx < CB_PROTO_MAX_ESTOPS - 1)
         fprintf(stderr, "Warning: only %d estop configuration(s) set instead of expected %d.\n", current_estop_idx + 1, CB_PROTO_MAX_ESTOPS);
+    if (inlet_seen && !inlet_type_set) {
+        fprintf(stderr, "Error: invalid inlet configuration: type is required when inlet is configured as mapping.\n");
+        goto err_out;
+    }
+    if (param_block.inlet_type == INLET_WITHOUT_FEEDBACK || param_block.inlet_type == INLET_WITH_FEEDBACK) {
+        if (!inlet_close_time_set) {
+            fprintf(stderr, "Error: invalid inlet timing: close-time is required\n");
+            goto err_out;
+        }
+        if (!inlet_open_time_set) {
+            fprintf(stderr, "Error: invalid inlet timing: open-time is required\n");
+            goto err_out;
+        }
+    }
+    if (param_block.inlet_type == INLET_WITH_FEEDBACK) {
+        if (!inlet_feedback_open_min_set || !inlet_feedback_open_max_set ||
+            !inlet_feedback_closed_min_set || !inlet_feedback_closed_max_set) {
+            fprintf(stderr, "Error: invalid inlet feedback voltages: all four feedback voltages are required for with-feedback\n");
+            goto err_out;
+        }
+    }
     /* check RCM configuration for plausibility */
     if (param_block.rcm_fault_polarity == PIN_POLARITY_NONE && param_block.rcm_test_polarity != PIN_POLARITY_NONE) {
         fprintf(stderr, "Error: invalid RCM pin polarity configuration: RCM fault pin polarity is also required\n");

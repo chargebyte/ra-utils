@@ -60,6 +60,14 @@ struct param_block_v2 {
     uint8_t rcm_test_check_tripped_time; // time to check feedback pin for TRIPPPED after test start, in multiples of 20ms
     uint8_t rcm_test_check_normal_time; // time to check feedback pin for NORMAL after trigger was released, in multiples of 20ms
 
+    uint8_t inlet_type;
+    uint8_t inlet_open_time; // time for inlet open in multiples of 10ms
+    uint8_t inlet_close_time; // time for inlet close in multiples of 10ms
+    uint16_t inlet_feedback_open_valid_min_mv;
+    uint16_t inlet_feedback_open_valid_max_mv;
+    uint16_t inlet_feedback_closed_valid_min_mv;
+    uint16_t inlet_feedback_closed_valid_max_mv;
+
     uint32_t eob;
     uint8_t crc;
 } __attribute__((packed));
@@ -99,6 +107,13 @@ enum contactor_type {
     CONTACTOR_MAX,
 };
 
+enum inlet_type {
+    INLET_NONE = 0,
+    INLET_WITHOUT_FEEDBACK,
+    INLET_WITH_FEEDBACK,
+    INLET_MAX,
+};
+
 enum pin_polarity_type {
     PIN_POLARITY_NONE = 0,
     PIN_POLARITY_ACTIVE_LOW,
@@ -120,6 +135,15 @@ const char *contactor_type_to_str(const enum contactor_type type);
 
 int str_to_contactor_time(const char *s, uint8_t *time);
 int contactor_time_to_str(char *buffer, size_t size, int8_t time);
+
+enum inlet_type str_to_inlet_type(const char *s);
+const char *inlet_type_to_str(const enum inlet_type type);
+
+int str_to_inlet_time(const char *s, uint8_t *time);
+int inlet_time_to_str(char *buffer, size_t size, int8_t time);
+
+int str_to_mv(const char *s, uint16_t *mv);
+int mv_to_str(char *buffer, size_t size, uint16_t mv);
 
 int str_to_rcm_time(const char *s, uint8_t *time);
 int rcm_time_to_str(char *buffer, size_t size, int8_t time);

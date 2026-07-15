@@ -189,6 +189,32 @@ int contactor_time_to_str(char *buffer, size_t size, int8_t time)
     return snprintf(buffer, size, "%u ms", time * 10);
 }
 
+int str_to_mv(const char *s, uint16_t *mv)
+{
+    char *endptr;
+    unsigned long val;
+
+    errno = 0;
+    val = strtoul(s, &endptr, 10);
+
+    if (errno != 0 || endptr == s ||
+        !(strcmp(endptr, "mV") == 0 || strcmp(endptr, " mV") == 0))
+       return -1;
+
+    // clamp to max ADC range
+    if (val > 3300)
+        val = 3300;
+
+    *mv = htole16((uint16_t)val);
+
+    return 0;
+}
+
+int mv_to_str(char *buffer, size_t size, uint16_t mv)
+{
+    return snprintf(buffer, size, "%" PRIu16 " mV", le16toh(mv));
+}
+
 int str_to_rcm_time(const char *s, uint8_t *time)
 {
     char *endptr;
@@ -215,6 +241,47 @@ int str_to_rcm_time(const char *s, uint8_t *time)
 int rcm_time_to_str(char *buffer, size_t size, int8_t time)
 {
     return snprintf(buffer, size, "%u ms", time * 20);
+}
+
+static const char *inlet_type_to_string[INLET_MAX] = {
+    "none",
+    "without-feedback",
+    "with-feedback",
+};
+
+enum inlet_type str_to_inlet_type(const char *s)
+{
+    unsigned int i;
+
+    for (i = INLET_NONE; i < INLET_MAX; ++i)
+        if (strcasecmp(s, inlet_type_to_string[i]) == 0)
+            return i;
+
+    if (strcasecmp(s, "disable") == 0 || strcasecmp(s, "disabled") == 0 ||
+        strcasecmp(s, "off") == 0)
+        return INLET_NONE;
+
+    return INLET_MAX;
+}
+
+const char *inlet_type_to_str(const enum inlet_type type)
+{
+    if (type >= INLET_MAX)
+        return "invalid";
+
+    return inlet_type_to_string[type];
+}
+
+int str_to_inlet_time(const char *s, uint8_t *time)
+{
+    // we can re-use this here since it has same accuracy
+    return str_to_contactor_time(s, time);
+}
+
+int inlet_time_to_str(char *buffer, size_t size, int8_t time)
+{
+    // we can re-use this here since it has same accuracy
+    return contactor_time_to_str(buffer, size, time);
 }
 
 static const char *pin_polarity_to_string[PIN_POLARITY_MAX] = {
@@ -383,6 +450,43 @@ static void pb_dump_estops_v1(struct param_block_v1 *param_block)
         printf("  - %s\n", pin_polarity_type_to_str(param_block->estop[i]));
 }
 
+static void pb_dump_inlet_v2(struct param_block_v2 *param_block)
+{
+    char buffer[32];
+
+    if (param_block->inlet_type == INLET_NONE) {
+        printf("inlet: none\n");
+        return;
+    }
+
+    printf("inlet:\n");
+    printf("  type: %s\n", inlet_type_to_str(param_block->inlet_type));
+
+    inlet_time_to_str(buffer, sizeof(buffer), param_block->inlet_close_time);
+    printf("  close-time: %s\n", buffer);
+
+    inlet_time_to_str(buffer, sizeof(buffer), param_block->inlet_open_time);
+    printf("  open-time: %s\n", buffer);
+
+    if (param_block->inlet_type == INLET_WITH_FEEDBACK ||
+        le16toh(param_block->inlet_feedback_open_valid_min_mv) != 0 ||
+        le16toh(param_block->inlet_feedback_open_valid_max_mv) != 0 ||
+        le16toh(param_block->inlet_feedback_closed_valid_min_mv) != 0 ||
+        le16toh(param_block->inlet_feedback_closed_valid_max_mv) != 0) {
+        mv_to_str(buffer, sizeof(buffer), param_block->inlet_feedback_open_valid_min_mv);
+        printf("  feedback-open-voltage-min: %s\n", buffer);
+
+        mv_to_str(buffer, sizeof(buffer), param_block->inlet_feedback_open_valid_max_mv);
+        printf("  feedback-open-voltage-max: %s\n", buffer);
+
+        mv_to_str(buffer, sizeof(buffer), param_block->inlet_feedback_closed_valid_min_mv);
+        printf("  feedback-closed-voltage-min: %s\n", buffer);
+
+        mv_to_str(buffer, sizeof(buffer), param_block->inlet_feedback_closed_valid_max_mv);
+        printf("  feedback-closed-voltage-max: %s\n", buffer);
+    }
+}
+
 static void pb_dump_v0(struct unversioned_param_block *param_block)
 {
     char buffer[32];
@@ -462,6 +566,9 @@ void pb_dump_v2(struct param_block_v2 *param_block)
     } else {
         printf("rcm: disabled\n");
     }
+
+    pb_dump_inlet_v2(param_block);
+    printf("\n");
 }
 
 void pb_init(struct param_block_v2 *param_block)
