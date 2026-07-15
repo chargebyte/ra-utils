@@ -467,6 +467,12 @@ send_charge_control_frame:
                     case 'T':
                         cb_send_uart_action_inquiry(&uart, ACTION_ID_RCM_SELFTEST);
                         break;
+                    case 'l':
+                        cb_send_uart_action_inquiry(&uart, ACTION_ID_INLET_CLOSE);
+                        break;
+                    case 'L':
+                        cb_send_uart_action_inquiry(&uart, ACTION_ID_INLET_OPEN);
+                        break;
                     case 'z':
                         cb_proto_set_duty_cycle(&ctx, 1000);
                         cb_proto_set_pwm_active(&ctx, 1);
@@ -662,12 +668,12 @@ send_charge_control_frame:
             printf("\r\n");
             if (!cb_proto_is_mcs_mode(&ctx)) {
                 printf("== Available commands ==\r\n"
-                       "  e -- enable PWM                   E -- disable PWM\r\n"
-                       "  r -- enable PWM with 5%%           t -- enable PWM with 10%%          z -- enable PWM with 100%%\r\n"
-                       "  0 -- set PWM duty cycle to 0%%     5 -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
-                       "  - -- decrease PWM value by 1%%     + -- increase PMW value by 1%%     6 -- set PWM duty cycle to 10%%\r\n"
-                       "  1 -- toggle contactor 1           2 -- toggle contactor 2           3 -- toggle contactor 3\r\n"
-                       "  c -- (manually) send a Charge Control frame                         T -- start RCM test\r\n"
+                       "  e -- enable PWM                   E  -- disable PWM\r\n"
+                       "  r -- enable PWM with 5%%           t  -- enable PWM with 10%%          z -- enable PWM with 100%%\r\n"
+                       "  0 -- set PWM duty cycle to 0%%     5  -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
+                       "  - -- decrease PWM value by 1%%     +  -- increase PMW value by 1%%     6 -- set PWM duty cycle to 10%%\r\n"
+                       "  1/2/3 -- toggle contactor 1/2/3  l/L -- lock/unlock inlet            T -- start RCM test\r\n"
+                       "  c -- (manually) send a Charge Control frame\r\n"
                        "  s -- toggle auto sending of Charge Control frames (auto-sending: %s)\r\n"
                        "  q -- quit the program\r\n", send_charge_control ? "on" : "off");
             } else {

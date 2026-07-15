@@ -183,6 +183,11 @@ enum rcm_state cb_proto_get_rcm_state(struct safety_controller *ctx)
     return DATA_GET_BITS(ctx->charge_state, 22, 2);
 }
 
+enum inlet_state cb_proto_get_inlet_state(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 45, 3);
+}
+
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel)
 {
     return DATA_GET_BITS(ctx->pt1000, 16 * (CB_PROTO_MAX_PT1000S - 1 - channel) + 2, 14) != PT1000_TEMPERATURE_UNUSED;
@@ -517,6 +522,28 @@ const char *cb_proto_rcm_state_to_str(enum rcm_state state)
     }
 }
 
+const char *cb_proto_inlet_state_to_str(enum inlet_state state)
+{
+    switch (state) {
+    case INLET_STATE_UNDEFINED:
+        return "undefined";
+    case INLET_STATE_OPEN:
+        return "open";
+    case INLET_STATE_OPENING:
+        return "opening";
+    case INLET_STATE_CLOSED:
+        return "closed";
+    case INLET_STATE_CLOSING:
+        return "closing";
+    case INLET_STATE_ERROR:
+        return "error";
+    case INLET_STATE_NOT_CONFIGURED:
+        return "not configured";
+    default:
+        return "invalid";
+    }
+}
+
 void cb_proto_set_mcs_mode(struct safety_controller *ctx, bool mcs)
 {
     ctx->mcs = mcs;
@@ -692,6 +719,10 @@ const char *cb_proto_action_id_to_str(enum action_id action)
         return "no action";
     case ACTION_ID_RCM_SELFTEST:
         return "rcm-selftest";
+    case ACTION_ID_INLET_CLOSE:
+        return "inlet-close";
+    case ACTION_ID_INLET_OPEN:
+        return "inlet-open";
     default:
         return "undefined";
     }
