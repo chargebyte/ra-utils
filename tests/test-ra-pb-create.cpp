@@ -358,7 +358,7 @@ TEST(RaPbCreateTest, DefaultOutputUsesLatestSupportedVersion)
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
-    EXPECT_EQ(param_block.version, PB_VERSION_V2);
+    EXPECT_EQ(param_block.version, PB_VERSION_V3);
 }
 
 TEST(RaPbCreateTest, MissingInletDefaultsToNoInlet)
@@ -375,13 +375,13 @@ TEST(RaPbCreateTest, MissingInletDefaultsToNoInlet)
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
-    EXPECT_EQ(param_block.data.v2.inlet_type, INLET_NONE);
-    EXPECT_EQ(param_block.data.v2.inlet_open_time, 0);
-    EXPECT_EQ(param_block.data.v2.inlet_close_time, 0);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_min_mv), 0);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_max_mv), 0);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_min_mv), 0);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_max_mv), 0);
+    EXPECT_EQ(param_block.data.v3.inlet_type, INLET_NONE);
+    EXPECT_EQ(param_block.data.v3.inlet_open_time, 0);
+    EXPECT_EQ(param_block.data.v3.inlet_close_time, 0);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_max_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_max_mv), 0);
 }
 
 TEST(RaPbCreateTest, InletDisabledAliasesAndTypeNoneProduceIdenticalBinary)
@@ -522,13 +522,13 @@ TEST(RaPbCreateTest, InletNoneAcceptsAndStoresAdditionalFields)
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
-    EXPECT_EQ(param_block.data.v2.inlet_type, INLET_NONE);
-    EXPECT_EQ(param_block.data.v2.inlet_close_time, 10);
-    EXPECT_EQ(param_block.data.v2.inlet_open_time, 20);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_min_mv), 2200);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_max_mv), 2800);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_min_mv), 1700);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_max_mv), 2000);
+    EXPECT_EQ(param_block.data.v3.inlet_type, INLET_NONE);
+    EXPECT_EQ(param_block.data.v3.inlet_close_time, 10);
+    EXPECT_EQ(param_block.data.v3.inlet_open_time, 20);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_min_mv), 2200);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_max_mv), 2800);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_min_mv), 1700);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_max_mv), 2000);
 }
 
 TEST(RaPbCreateTest, InletWithoutFeedbackRequiresTimes)
@@ -598,13 +598,13 @@ TEST(RaPbCreateTest, InletWithoutFeedbackDefaultsThresholdsToZero)
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
-    EXPECT_EQ(param_block.data.v2.inlet_type, INLET_WITHOUT_FEEDBACK);
-    EXPECT_EQ(param_block.data.v2.inlet_close_time, 10);
-    EXPECT_EQ(param_block.data.v2.inlet_open_time, 11);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_min_mv), 0);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_max_mv), 0);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_min_mv), 0);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_max_mv), 0);
+    EXPECT_EQ(param_block.data.v3.inlet_type, INLET_WITHOUT_FEEDBACK);
+    EXPECT_EQ(param_block.data.v3.inlet_close_time, 10);
+    EXPECT_EQ(param_block.data.v3.inlet_open_time, 11);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_max_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_max_mv), 0);
 }
 
 TEST(RaPbCreateTest, InletWithFeedbackRequiresAllThresholds)
@@ -681,13 +681,13 @@ TEST(RaPbCreateTest, InletWithFeedbackStoresConfiguredValues)
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
-    EXPECT_EQ(param_block.data.v2.inlet_type, INLET_WITH_FEEDBACK);
-    EXPECT_EQ(param_block.data.v2.inlet_close_time, 10);
-    EXPECT_EQ(param_block.data.v2.inlet_open_time, 11);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_min_mv), 2200);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_open_valid_max_mv), 2800);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_min_mv), 1700);
-    EXPECT_EQ(le16toh(param_block.data.v2.inlet_feedback_closed_valid_max_mv), 2000);
+    EXPECT_EQ(param_block.data.v3.inlet_type, INLET_WITH_FEEDBACK);
+    EXPECT_EQ(param_block.data.v3.inlet_close_time, 10);
+    EXPECT_EQ(param_block.data.v3.inlet_open_time, 11);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_min_mv), 2200);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_max_mv), 2800);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_min_mv), 1700);
+    EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_max_mv), 2000);
 }
 
 TEST(RaPbCreateTest, VersionFromYamlUsesRequestedSupportedVersion)
@@ -719,7 +719,7 @@ TEST(RaPbCreateTest, VersionFromYamlFallsBackToLatestWhenYamlOmitsVersion)
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
-    EXPECT_EQ(param_block.version, PB_VERSION_V2);
+    EXPECT_EQ(param_block.version, PB_VERSION_V3);
 }
 
 TEST(RaPbCreateTest, VersionOverrideSelectsRequestedVersion)
@@ -754,6 +754,48 @@ TEST(RaPbCreateTest, VersionOverrideWinsOverYamlVersionSelection)
     EXPECT_EQ(param_block.version, PB_VERSION_V2);
 }
 
+TEST(RaPbCreateTest, InletConfigurationIsDroppedWhenWritingVersion2)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "inlet:\n"
+              "  type: with-feedback\n"
+              "  close-time: 100 ms\n"
+              "  open-time: 110 ms\n"
+              "  feedback-open-voltage-min: 2200 mV\n"
+              "  feedback-open-voltage-max: 2800 mV\n"
+              "  feedback-closed-voltage-min: 1700 mV\n"
+              "  feedback-closed-voltage-max: 2000 mV\n");
+
+    const ProcessResult result = RunCreate({"--version-override", "2"}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+    EXPECT_NE(result.stderr_output.find("dropping inlet configuration"), std::string::npos);
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.version, PB_VERSION_V2);
+}
+
 TEST(RaPbCreateTest, UnsupportedVersionOverrideFails)
 {
     TemporaryDirectory temp_dir;
@@ -762,11 +804,11 @@ TEST(RaPbCreateTest, UnsupportedVersionOverrideFails)
 
     WriteFile(input, kYamlWithoutVersion);
 
-    const ProcessResult result = RunCreate({"--version-override", "3"}, input, output);
+    const ProcessResult result = RunCreate({"--version-override", "4"}, input, output);
 
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_FAILURE);
-    EXPECT_NE(result.stderr_output.find("requested parameter block version 3 is not supported"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("requested parameter block version 4 is not supported"), std::string::npos);
 }
 
 TEST(RaPbCreateTest, UnsupportedYamlVersionFailsWhenRequested)
@@ -776,7 +818,7 @@ TEST(RaPbCreateTest, UnsupportedYamlVersionFailsWhenRequested)
     const fs::path output = temp_dir.path() / "output.bin";
 
     WriteFile(input,
-              "version: 3\n"
+              "version: 4\n"
               "\n"
               "pt1000s:\n"
               "  - disabled\n"
@@ -798,7 +840,7 @@ TEST(RaPbCreateTest, UnsupportedYamlVersionFailsWhenRequested)
 
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_FAILURE);
-    EXPECT_NE(result.stderr_output.find("requested parameter block version 3 is not supported"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("requested parameter block version 4 is not supported"), std::string::npos);
 }
 
 TEST(RaPbCreateTest, YamlFixturesCreateMatchingBinaryFixtures)

@@ -101,7 +101,7 @@ static void usage(char *p, int exitcode)
 char *filename_in = "-";
 char *filename_out = "-";
 FILE *infile, *outfile;
-struct param_block_v2 param_block;
+struct param_block_v3 param_block;
 yaml_parser_t yaml_parser;
 yaml_event_t event;
 bool debug;
@@ -118,6 +118,9 @@ static bool pb_version_from_u16(uint16_t requested_version, enum param_block_ver
     case PB_VERSION_V2:
         *version = PB_VERSION_V2;
         return true;
+    case PB_VERSION_V3:
+        *version = PB_VERSION_V3;
+        return true;
     default:
         return false;
     }
@@ -131,6 +134,8 @@ static void print_downgrade_warnings(unsigned int warnings, enum param_block_ver
         fprintf(stderr, "Warning: dropping contactor close/open times when creating unversioned parameter block.\n");
     if (warnings & PB_WARN_DROP_RCM)
         fprintf(stderr, "Warning: dropping RCM configuration when creating parameter block version %u.\n", version);
+    if (warnings & PB_WARN_DROP_INLET)
+        fprintf(stderr, "Warning: dropping inlet configuration when creating parameter block version %u.\n", version);
     if (warnings & PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC)
         fprintf(stderr, "Warning: mapping 'with-feedback-normally-closed' to legacy unversioned contactor setting.\n");
 }
@@ -303,7 +308,7 @@ static const char *param_block_state_str[PBS_MAX] = {
 int main(int argc, char *argv[])
 {
     enum param_block_state param_block_state = PBS_NONE;
-    enum param_block_version output_version = PB_VERSION_V2;
+    enum param_block_version output_version = PB_VERSION_V3;
     int rv = EXIT_FAILURE;
     int current_temperature_idx = -1;
     int current_contactor_idx = -1;
@@ -311,7 +316,6 @@ int main(int argc, char *argv[])
     bool parsing_done = false;
     uint16_t tmp_u16;
     int16_t tmp_i16;
-    bool rcm_config = false;
     bool yaml_has_version = false;
     uint16_t yaml_version = PARAMETER_BLOCK_VERSION;
     bool inlet_seen = false;
@@ -567,7 +571,7 @@ int main(int argc, char *argv[])
                 break;
             case PBS_RCM_SCALAR:
                 param_block_state = PBS_NONE;
-                if (str_to_disabled_flag(event.data.scalar.value, &rcm_config)) {
+                if (str_to_disabled_flag(event.data.scalar.value, &(bool){ false })) {
                     fprintf(stderr, "Error: Value '%s' not allowed in this context (expected a 'disabled' flag)\n",
                             event.data.scalar.value);
                     goto err_out;
@@ -628,7 +632,7 @@ int main(int argc, char *argv[])
                 }
                 break;
             case PBS_INLET_SCALAR:
-                if (str_to_disabled_flag(event.data.scalar.value, &rcm_config)) {
+                if (str_to_disabled_flag(event.data.scalar.value, &(bool){ false })) {
                     fprintf(stderr, "Error: Value '%s' not allowed in this context (expected an inlet disabled flag)\n",
                             event.data.scalar.value);
                     goto err_out;

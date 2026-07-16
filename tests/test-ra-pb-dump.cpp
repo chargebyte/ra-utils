@@ -226,12 +226,12 @@ TEST(RaPbDumpTest, DumpsNoInletAsCanonicalNone)
     const fs::path binary(RA_PB_DUMP_PATH);
     TemporaryDirectory temp_dir;
     const fs::path fixture = temp_dir.path() / "no-inlet.bin";
-    struct param_block_v2 pb = {};
+    struct param_block_v3 pb = {};
 
     ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
 
-    pb_init_v2(&pb);
-    pb_refresh_crc_v2(&pb);
+    pb_init_v3(&pb);
+    pb_refresh_crc_v3(&pb);
 
     FILE *file = std::fopen(fixture.c_str(), "wb");
     ASSERT_NE(file, nullptr) << std::strerror(errno);
@@ -250,11 +250,11 @@ TEST(RaPbDumpTest, SuppressesStoredInletValuesWhenTypeIsNone)
     const fs::path binary(RA_PB_DUMP_PATH);
     TemporaryDirectory temp_dir;
     const fs::path fixture = temp_dir.path() / "inlet-none-extra.bin";
-    struct param_block_v2 pb = {};
+    struct param_block_v3 pb = {};
 
     ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
 
-    pb_init_v2(&pb);
+    pb_init_v3(&pb);
     pb.inlet_type = INLET_NONE;
     pb.inlet_close_time = 10;
     pb.inlet_open_time = 20;
@@ -262,7 +262,7 @@ TEST(RaPbDumpTest, SuppressesStoredInletValuesWhenTypeIsNone)
     pb.inlet_feedback_open_valid_max_mv = htole16(2800);
     pb.inlet_feedback_closed_valid_min_mv = htole16(1700);
     pb.inlet_feedback_closed_valid_max_mv = htole16(2000);
-    pb_refresh_crc_v2(&pb);
+    pb_refresh_crc_v3(&pb);
 
     FILE *file = std::fopen(fixture.c_str(), "wb");
     ASSERT_NE(file, nullptr) << std::strerror(errno);
@@ -284,15 +284,15 @@ TEST(RaPbDumpTest, DumpsConfiguredInletModes)
     TemporaryDirectory temp_dir;
     const fs::path without_feedback_fixture = temp_dir.path() / "without-feedback.bin";
     const fs::path with_feedback_fixture = temp_dir.path() / "with-feedback.bin";
-    struct param_block_v2 pb = {};
+    struct param_block_v3 pb = {};
 
     ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
 
-    pb_init_v2(&pb);
+    pb_init_v3(&pb);
     pb.inlet_type = INLET_WITHOUT_FEEDBACK;
     pb.inlet_close_time = 10;
     pb.inlet_open_time = 11;
-    pb_refresh_crc_v2(&pb);
+    pb_refresh_crc_v3(&pb);
 
     FILE *file = std::fopen(without_feedback_fixture.c_str(), "wb");
     ASSERT_NE(file, nullptr) << std::strerror(errno);
@@ -308,7 +308,7 @@ TEST(RaPbDumpTest, DumpsConfiguredInletModes)
     EXPECT_NE(without_feedback_result.stdout_output.find("  open-time: 110 ms\n"), std::string::npos);
     EXPECT_EQ(without_feedback_result.stdout_output.find("feedback-open-voltage-min"), std::string::npos);
 
-    pb_init_v2(&pb);
+    pb_init_v3(&pb);
     pb.inlet_type = INLET_WITH_FEEDBACK;
     pb.inlet_close_time = 10;
     pb.inlet_open_time = 11;
@@ -316,7 +316,7 @@ TEST(RaPbDumpTest, DumpsConfiguredInletModes)
     pb.inlet_feedback_open_valid_max_mv = htole16(2800);
     pb.inlet_feedback_closed_valid_min_mv = htole16(1700);
     pb.inlet_feedback_closed_valid_max_mv = htole16(2000);
-    pb_refresh_crc_v2(&pb);
+    pb_refresh_crc_v3(&pb);
 
     file = std::fopen(with_feedback_fixture.c_str(), "wb");
     ASSERT_NE(file, nullptr) << std::strerror(errno);

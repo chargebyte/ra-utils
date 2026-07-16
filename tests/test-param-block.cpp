@@ -211,9 +211,11 @@ TEST(ParamBlockTest, InitFunctionsSetMarkersDefaultsAndValidCrc)
 {
     struct param_block_v1 pb_v1;
     struct param_block_v2 pb_v2;
+    struct param_block_v3 pb_v3;
 
     pb_init_v1(&pb_v1);
     pb_init_v2(&pb_v2);
+    pb_init_v3(&pb_v3);
 
     EXPECT_EQ(le32toh(pb_v1.sob), MARKER);
     EXPECT_EQ(le32toh(pb_v1.eob), MARKER);
@@ -228,13 +230,20 @@ TEST(ParamBlockTest, InitFunctionsSetMarkersDefaultsAndValidCrc)
     EXPECT_TRUE(pb_check_crc_v2(&pb_v2));
     for (size_t i = 0; i < sizeof(pb_v2.temperature) / sizeof(pb_v2.temperature[0]); ++i)
         EXPECT_EQ(le16toh(pb_v2.temperature[i]), CHANNEL_DISABLE_VALUE);
-    EXPECT_EQ(pb_v2.inlet_type, INLET_NONE);
-    EXPECT_EQ(pb_v2.inlet_open_time, 0);
-    EXPECT_EQ(pb_v2.inlet_close_time, 0);
-    EXPECT_EQ(le16toh(pb_v2.inlet_feedback_open_valid_min_mv), 0);
-    EXPECT_EQ(le16toh(pb_v2.inlet_feedback_open_valid_max_mv), 0);
-    EXPECT_EQ(le16toh(pb_v2.inlet_feedback_closed_valid_min_mv), 0);
-    EXPECT_EQ(le16toh(pb_v2.inlet_feedback_closed_valid_max_mv), 0);
+
+    EXPECT_EQ(le32toh(pb_v3.sob), MARKER);
+    EXPECT_EQ(le32toh(pb_v3.eob), MARKER);
+    EXPECT_EQ(pb_v3.version, 3);
+    EXPECT_TRUE(pb_check_crc_v3(&pb_v3));
+    for (size_t i = 0; i < sizeof(pb_v3.temperature) / sizeof(pb_v3.temperature[0]); ++i)
+        EXPECT_EQ(le16toh(pb_v3.temperature[i]), CHANNEL_DISABLE_VALUE);
+    EXPECT_EQ(pb_v3.inlet_type, INLET_NONE);
+    EXPECT_EQ(pb_v3.inlet_open_time, 0);
+    EXPECT_EQ(pb_v3.inlet_close_time, 0);
+    EXPECT_EQ(le16toh(pb_v3.inlet_feedback_open_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(pb_v3.inlet_feedback_open_valid_max_mv), 0);
+    EXPECT_EQ(le16toh(pb_v3.inlet_feedback_closed_valid_min_mv), 0);
+    EXPECT_EQ(le16toh(pb_v3.inlet_feedback_closed_valid_max_mv), 0);
 }
 
 TEST(ParamBlockTest, EnableHelpersReflectStoredValues)
@@ -260,28 +269,35 @@ TEST(ParamBlockTest, RefreshCrcRestoresValidityAfterMutation)
 {
     struct param_block_v1 pb_v1;
     struct param_block_v2 pb_v2;
+    struct param_block_v3 pb_v3;
 
     pb_init_v1(&pb_v1);
     pb_init_v2(&pb_v2);
+    pb_init_v3(&pb_v3);
 
     pb_v1.estop[0] = PIN_POLARITY_ACTIVE_HIGH;
     pb_v2.estop[0] = PIN_POLARITY_ACTIVE_HIGH;
+    pb_v3.estop[0] = PIN_POLARITY_ACTIVE_HIGH;
 
     EXPECT_FALSE(pb_check_crc_v1(&pb_v1));
     EXPECT_FALSE(pb_check_crc_v2(&pb_v2));
+    EXPECT_FALSE(pb_check_crc_v3(&pb_v3));
 
     pb_refresh_crc_v1(&pb_v1);
     pb_refresh_crc_v2(&pb_v2);
+    pb_refresh_crc_v3(&pb_v3);
 
     EXPECT_TRUE(pb_check_crc_v1(&pb_v1));
     EXPECT_TRUE(pb_check_crc_v2(&pb_v2));
+    EXPECT_TRUE(pb_check_crc_v3(&pb_v3));
 }
 
 TEST(ParamBlockTest, DowngradeWarningsReportEachApplicableCondition)
 {
-    struct param_block_v2 pb;
+    struct param_block_v3 pb;
 
-    pb_init_v2(&pb);
+    pb_init_v3(&pb);
+    EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_V3), 0U);
     EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_V2), 0U);
     EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_V1), 0U);
     EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_UNVERSIONED), 0U);
@@ -290,11 +306,13 @@ TEST(ParamBlockTest, DowngradeWarningsReportEachApplicableCondition)
     pb.contactor_close_time[0] = 1;
     pb.contactor_type[0] = CONTACTOR_WITH_FEEDBACK_NC;
     pb.rcm_fault_polarity = PIN_POLARITY_ACTIVE_LOW;
+    pb.inlet_type = INLET_WITH_FEEDBACK;
 
-    EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_V1), PB_WARN_DROP_RCM);
+    EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_V2), PB_WARN_DROP_INLET);
+    EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_V1), PB_WARN_DROP_RCM | PB_WARN_DROP_INLET);
     EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_UNVERSIONED),
               PB_WARN_DROP_V0_RESISTANCE_OFFSETS | PB_WARN_DROP_V0_CONTACTOR_TIMES |
-                  PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC | PB_WARN_DROP_RCM);
+                  PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC | PB_WARN_DROP_RCM | PB_WARN_DROP_INLET);
 }
 
 FILE *MakeTempFile()
@@ -311,10 +329,10 @@ void RewindOrFail(FILE *file)
     std::rewind(file);
 }
 
-TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1AndV2)
+TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1V2AndV3)
 {
-    struct param_block_v2 source;
-    pb_init_v2(&source);
+    struct param_block_v3 source;
+    pb_init_v3(&source);
     source.temperature[0] = htole16(321);
     source.temperature_resistance_offset[0] = htole16(123);
     source.contactor_type[0] = CONTACTOR_WITH_FEEDBACK_NC;
@@ -334,7 +352,7 @@ TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1AndV2)
     source.rcm_test_check_tripped_time = 4;
     source.rcm_test_check_normal_time = 5;
 
-    for (const auto version : {PB_VERSION_UNVERSIONED, PB_VERSION_V1, PB_VERSION_V2}) {
+    for (const auto version : {PB_VERSION_UNVERSIONED, PB_VERSION_V1, PB_VERSION_V2, PB_VERSION_V3}) {
         SCOPED_TRACE(version);
         FILE *file = MakeTempFile();
         ASSERT_NE(file, nullptr);
@@ -367,16 +385,27 @@ TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1AndV2)
             EXPECT_EQ(read_back.data.v2.contactor_close_time[0], 11);
             EXPECT_EQ(read_back.data.v2.contactor_open_time[0], 7);
             EXPECT_EQ(read_back.data.v2.estop[0], PIN_POLARITY_ACTIVE_HIGH);
-            EXPECT_EQ(read_back.data.v2.inlet_type, INLET_WITH_FEEDBACK);
-            EXPECT_EQ(read_back.data.v2.inlet_open_time, 9);
-            EXPECT_EQ(read_back.data.v2.inlet_close_time, 12);
-            EXPECT_EQ(le16toh(read_back.data.v2.inlet_feedback_open_valid_min_mv), 2200);
-            EXPECT_EQ(le16toh(read_back.data.v2.inlet_feedback_open_valid_max_mv), 2800);
-            EXPECT_EQ(le16toh(read_back.data.v2.inlet_feedback_closed_valid_min_mv), 1700);
-            EXPECT_EQ(le16toh(read_back.data.v2.inlet_feedback_closed_valid_max_mv), 2000);
             EXPECT_EQ(read_back.data.v2.rcm_fault_polarity, PIN_POLARITY_ACTIVE_LOW);
             EXPECT_EQ(read_back.data.v2.rcm_test_polarity, PIN_POLARITY_ACTIVE_HIGH);
             EXPECT_EQ(read_back.data.v2.rcm_test_trigger_time, 3);
+            break;
+        case PB_VERSION_V3:
+            EXPECT_EQ(le16toh(read_back.data.v3.temperature[0]), 321);
+            EXPECT_EQ(le16toh(read_back.data.v3.temperature_resistance_offset[0]), 123);
+            EXPECT_EQ(read_back.data.v3.contactor_type[0], CONTACTOR_WITH_FEEDBACK_NC);
+            EXPECT_EQ(read_back.data.v3.contactor_close_time[0], 11);
+            EXPECT_EQ(read_back.data.v3.contactor_open_time[0], 7);
+            EXPECT_EQ(read_back.data.v3.estop[0], PIN_POLARITY_ACTIVE_HIGH);
+            EXPECT_EQ(read_back.data.v3.inlet_type, INLET_WITH_FEEDBACK);
+            EXPECT_EQ(read_back.data.v3.inlet_open_time, 9);
+            EXPECT_EQ(read_back.data.v3.inlet_close_time, 12);
+            EXPECT_EQ(le16toh(read_back.data.v3.inlet_feedback_open_valid_min_mv), 2200);
+            EXPECT_EQ(le16toh(read_back.data.v3.inlet_feedback_open_valid_max_mv), 2800);
+            EXPECT_EQ(le16toh(read_back.data.v3.inlet_feedback_closed_valid_min_mv), 1700);
+            EXPECT_EQ(le16toh(read_back.data.v3.inlet_feedback_closed_valid_max_mv), 2000);
+            EXPECT_EQ(read_back.data.v3.rcm_fault_polarity, PIN_POLARITY_ACTIVE_LOW);
+            EXPECT_EQ(read_back.data.v3.rcm_test_polarity, PIN_POLARITY_ACTIVE_HIGH);
+            EXPECT_EQ(read_back.data.v3.rcm_test_trigger_time, 3);
             break;
         default:
             FAIL() << "Unexpected version";
