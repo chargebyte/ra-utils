@@ -729,20 +729,21 @@ const char *cb_proto_action_id_to_str(enum action_id action)
 }
 
 static const char *errmsg_module_strings[ERRMSG_MODULE_MAX] = {
-    "DEFAULT",
-    "APP_TASK",
-    "APP_COMM",
-    "APP_SAFETY",
-    "APP_CP_PP",
-    "APP_TEMP",
-    "APP_SYSTEM",
-    "APP_HVSWITCH",
-    "MW_ADC",
-    "MW_I2C",
-    "MW_PIN",
-    "MW_PWM",
-    "MW_UART",
-    "MW_PARAM",
+    [ERRMSG_MODULE_DEFAULT] = "DEFAULT",
+    [ERRMSG_MODULE_APP_TASK] = "APP_TASK",
+    [ERRMSG_MODULE_APP_COMM] = "APP_COMM",
+    [ERRMSG_MODULE_APP_SAFETY] = "APP_SAFETY",
+    [ERRMSG_MODULE_APP_CP_PP] = "APP_CP_PP",
+    [ERRMSG_MODULE_APP_TEMP] = "APP_TEMP",
+    [ERRMSG_MODULE_APP_SYSTEM] = "APP_SYSTEM",
+    [ERRMSG_MODULE_APP_HVSWITCH] = "APP_HVSWITCH",
+    [ERRMSG_MODULE_APP_INLET] = "APP_INLET",
+    [ERRMSG_MODULE_MW_ADC] = "MW_ADC",
+    [ERRMSG_MODULE_MW_I2C] = "MW_I2C",
+    [ERRMSG_MODULE_MW_PIN] = "MW_PIN",
+    [ERRMSG_MODULE_MW_PWM] = "MW_PWM",
+    [ERRMSG_MODULE_MW_UART] = "MW_UART",
+    [ERRMSG_MODULE_MW_PARAM] = "MW_PARAM",
 };
 
 const char *cb_proto_errmsg_module_to_str(enum errmsg_module module)
@@ -823,6 +824,17 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_HVSWITCH,
     "feedback pin is wrong while open [code_line, index]",
 );
 
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_INLET,
+    "default",
+    "Invalid feedback during initialization [feedback, -]",
+    "Feedback indicates invalid position while open [feedback, -]",
+    "Inlet did not reach closed position in time [-, -]",
+    "Feedback indicates invalid position while closed [feedback, -]",
+    "Inlet did not reach open position in time [-, -]",
+    "Invalid inlet parameter configuration [parameter, -]",
+    "Internal software error [code_line, -]",
+);
+
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_ADC,
     "default",
     "ELC initialization failed [FSP error code, -]",
@@ -862,14 +874,16 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_UART,
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PARAM,
     "default",
-    "parameter not found in memory, defaults will be used",
-    "CRC mismatch, defaults will be used ",
+    "parameter not found in memory, defaults will be used [-, -]",
+    "CRC mismatch, defaults will be used [calculated CRC, stored CRC]",
     "index out of bounds [index, [1= temp, 2=hv connector, 3=emergency in]]",
     "TMax value out of bounds [value, index]",
     "temperature sensor resistance offset out of bounds [-50 to 50 Ohm] [value, index]",
     "Version mismatch [version in parameter section | version stored in firmware]",
     "Value not allowed [value]",
     "Value not allowed [value, index]",
+    "null pointer [-, -]",
+    "invalid inlet type [value, -]",
 );
 
 static const char * const * const errmsg_reason_strings[ERRMSG_MODULE_MAX] = {
@@ -881,6 +895,7 @@ static const char * const * const errmsg_reason_strings[ERRMSG_MODULE_MAX] = {
     [ERRMSG_MODULE_APP_TEMP]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TEMP,
     [ERRMSG_MODULE_APP_SYSTEM]   = errmsg_reason_strings_ERRMSG_MODULE_APP_SYSTEM,
     [ERRMSG_MODULE_APP_HVSWITCH] = errmsg_reason_strings_ERRMSG_MODULE_APP_HVSWITCH,
+    [ERRMSG_MODULE_APP_INLET]    = errmsg_reason_strings_ERRMSG_MODULE_APP_INLET,
     [ERRMSG_MODULE_MW_ADC]       = errmsg_reason_strings_ERRMSG_MODULE_MW_ADC,
     [ERRMSG_MODULE_MW_I2C]       = errmsg_reason_strings_ERRMSG_MODULE_MW_I2C,
     [ERRMSG_MODULE_MW_PIN]       = errmsg_reason_strings_ERRMSG_MODULE_MW_PIN,
