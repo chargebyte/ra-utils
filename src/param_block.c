@@ -475,6 +475,8 @@ static void pb_dump_inlet_v3(struct param_block_v3 *param_block)
 {
     char buffer[32];
 
+    printf("\n");
+
     if (param_block->inlet_type == INLET_NONE) {
         printf("inlet: none\n");
         return;
