@@ -415,7 +415,7 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_CONTACTORS;
                 break;
             case PBS_RCM_MAPPING:
-                param_block_state = PBS_RCM_SCALAR;
+                param_block_state = PBS_NONE;
                 break;
             case PBS_INLET_MAPPING:
                 param_block_state = PBS_NONE;

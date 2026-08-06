@@ -796,6 +796,55 @@ TEST(RaPbCreateTest, InletConfigurationIsDroppedWhenWritingVersion2)
     EXPECT_EQ(param_block.version, PB_VERSION_V2);
 }
 
+TEST(RaPbCreateTest, RcmMappingCanBeFollowedByInletConfiguration)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "version: 3\n"
+              "\n"
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "rcm:\n"
+              "  fault-polarity: none\n"
+              "  test-polarity: none\n"
+              "  test-trigger-time: 810 ms\n"
+              "  test-check-tripped-time: 810 ms\n"
+              "  test-check-normal-time: 410 ms\n"
+              "\n"
+              "inlet:\n"
+              "  type: without-feedback\n"
+              "  close-time: 500 ms\n"
+              "  open-time: 500 ms\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.version, PB_VERSION_V3);
+    EXPECT_EQ(param_block.data.v3.inlet_type, INLET_WITHOUT_FEEDBACK);
+    EXPECT_EQ(param_block.data.v3.inlet_close_time, 50);
+    EXPECT_EQ(param_block.data.v3.inlet_open_time, 50);
+}
+
 TEST(RaPbCreateTest, UnsupportedVersionOverrideFails)
 {
     TemporaryDirectory temp_dir;
