@@ -10,14 +10,14 @@ install(
 install(
     FILES
         ra-update@.service
-    DESTINATION /lib/systemd/system
+    DESTINATION ${SYSTEMD_SYSTEM_UNITDIR}
 )
 
 install(
     DIRECTORY
         ra-update@ttyLP1.service.d
         ra-update@ttyLP2.service.d
-    DESTINATION /lib/systemd/system
+    DESTINATION ${SYSTEMD_SYSTEM_UNITDIR}
     FILES_MATCHING
     PATTERN "*.conf"
 )
