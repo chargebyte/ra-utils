@@ -135,7 +135,7 @@ static void print_downgrade_warnings(unsigned int warnings, enum param_block_ver
     if (warnings & PB_WARN_DROP_RCM)
         fprintf(stderr, "Warning: dropping RCM configuration when creating parameter block version %u.\n", version);
     if (warnings & PB_WARN_DROP_INLET)
-        fprintf(stderr, "Warning: dropping inlet configuration when creating parameter block version %u.\n", version);
+        fprintf(stderr, "Warning: dropping pluglock configuration when creating parameter block version %u.\n", version);
     if (warnings & PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC)
         fprintf(stderr, "Warning: mapping 'with-feedback-normally-closed' to legacy unversioned contactor setting.\n");
 }
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
         switch (event.type) {
         case YAML_SEQUENCE_START_EVENT:
             if (param_block_state == PBS_INLET_SCALAR) {
-                fprintf(stderr, "Error: invalid inlet configuration: sequences are not allowed.\n");
+                fprintf(stderr, "Error: invalid pluglock configuration: sequences are not allowed.\n");
                 goto err_out;
             }
             break;
@@ -439,7 +439,7 @@ int main(int argc, char *argv[])
                     param_block_state = PBS_ESTOPS;
                 else if (strcasecmp(event.data.scalar.value, "rcm") == 0)
                     param_block_state = PBS_RCM_SCALAR;
-                else if (strcasecmp(event.data.scalar.value, "inlet") == 0) {
+                else if (strcasecmp(event.data.scalar.value, "pluglock") == 0) {
                     param_block_state = PBS_INLET_SCALAR;
                     inlet_seen = true;
                 }
@@ -633,7 +633,7 @@ int main(int argc, char *argv[])
                 break;
             case PBS_INLET_SCALAR:
                 if (str_to_disabled_flag(event.data.scalar.value, &(bool){ false })) {
-                    fprintf(stderr, "Error: Value '%s' not allowed in this context (expected an inlet disabled flag)\n",
+                    fprintf(stderr, "Error: Value '%s' not allowed in this context (expected a pluglock disabled flag)\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -657,7 +657,7 @@ int main(int argc, char *argv[])
                 else if (strcasecmp(event.data.scalar.value, "feedback-closed-voltage-max") == 0)
                     param_block_state = PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX;
                 else {
-                    fprintf(stderr, "Error: Unknown inlet configuration key '%s'.\n",
+                    fprintf(stderr, "Error: Unknown pluglock configuration key '%s'.\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -666,7 +666,7 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_INLET_MAPPING;
                 param_block.inlet_type = str_to_inlet_type(event.data.scalar.value);
                 if (param_block.inlet_type == INLET_MAX) {
-                    fprintf(stderr, "Error: Cannot convert '%s' to an inlet type configuration.\n",
+                    fprintf(stderr, "Error: Cannot convert '%s' to a pluglock type configuration.\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -675,7 +675,7 @@ int main(int argc, char *argv[])
             case PBS_INLET_CLOSE_TIME:
                 param_block_state = PBS_INLET_MAPPING;
                 if (str_to_inlet_time(event.data.scalar.value, &param_block.inlet_close_time)) {
-                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet close time. Unit (ms) missing or wrong whitespace?\n",
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock close time. Unit (ms) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -684,7 +684,7 @@ int main(int argc, char *argv[])
             case PBS_INLET_OPEN_TIME:
                 param_block_state = PBS_INLET_MAPPING;
                 if (str_to_inlet_time(event.data.scalar.value, &param_block.inlet_open_time)) {
-                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet open time. Unit (ms) missing or wrong whitespace?\n",
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock open time. Unit (ms) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -693,7 +693,7 @@ int main(int argc, char *argv[])
             case PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN:
                 param_block_state = PBS_INLET_MAPPING;
                 if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
-                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet feedback open minimum voltage. Unit (mV) missing or wrong whitespace?\n",
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock feedback open minimum voltage. Unit (mV) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -703,7 +703,7 @@ int main(int argc, char *argv[])
             case PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX:
                 param_block_state = PBS_INLET_MAPPING;
                 if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
-                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet feedback open maximum voltage. Unit (mV) missing or wrong whitespace?\n",
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock feedback open maximum voltage. Unit (mV) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -713,7 +713,7 @@ int main(int argc, char *argv[])
             case PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN:
                 param_block_state = PBS_INLET_MAPPING;
                 if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
-                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet feedback closed minimum voltage. Unit (mV) missing or wrong whitespace?\n",
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock feedback closed minimum voltage. Unit (mV) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -723,7 +723,7 @@ int main(int argc, char *argv[])
             case PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX:
                 param_block_state = PBS_INLET_MAPPING;
                 if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
-                    fprintf(stderr, "Error: Cannot convert '%s' to a valid inlet feedback closed maximum voltage. Unit (mV) missing or wrong whitespace?\n",
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock feedback closed maximum voltage. Unit (mV) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -761,23 +761,23 @@ int main(int argc, char *argv[])
     if (current_estop_idx < CB_PROTO_MAX_ESTOPS - 1)
         fprintf(stderr, "Warning: only %d estop configuration(s) set instead of expected %d.\n", current_estop_idx + 1, CB_PROTO_MAX_ESTOPS);
     if (inlet_seen && !inlet_type_set) {
-        fprintf(stderr, "Error: invalid inlet configuration: type is required when inlet is configured as mapping.\n");
+        fprintf(stderr, "Error: invalid pluglock configuration: type is required when pluglock is configured as mapping.\n");
         goto err_out;
     }
     if (param_block.inlet_type == INLET_WITHOUT_FEEDBACK || param_block.inlet_type == INLET_WITH_FEEDBACK) {
         if (!inlet_close_time_set) {
-            fprintf(stderr, "Error: invalid inlet timing: close-time is required\n");
+            fprintf(stderr, "Error: invalid pluglock timing: close-time is required\n");
             goto err_out;
         }
         if (!inlet_open_time_set) {
-            fprintf(stderr, "Error: invalid inlet timing: open-time is required\n");
+            fprintf(stderr, "Error: invalid pluglock timing: open-time is required\n");
             goto err_out;
         }
     }
     if (param_block.inlet_type == INLET_WITH_FEEDBACK) {
         if (!inlet_feedback_open_min_set || !inlet_feedback_open_max_set ||
             !inlet_feedback_closed_min_set || !inlet_feedback_closed_max_set) {
-            fprintf(stderr, "Error: invalid inlet feedback voltages: all four feedback voltages are required for with-feedback\n");
+            fprintf(stderr, "Error: invalid pluglock feedback voltages: all four feedback voltages are required for with-feedback\n");
             goto err_out;
         }
     }

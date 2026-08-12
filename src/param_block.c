@@ -478,11 +478,11 @@ static void pb_dump_inlet_v3(struct param_block_v3 *param_block)
     printf("\n");
 
     if (param_block->inlet_type == INLET_NONE) {
-        printf("inlet: none\n");
+        printf("pluglock: none\n");
         return;
     }
 
-    printf("inlet:\n");
+    printf("pluglock:\n");
     printf("  type: %s\n", inlet_type_to_str(param_block->inlet_type));
 
     inlet_time_to_str(buffer, sizeof(buffer), param_block->inlet_close_time);

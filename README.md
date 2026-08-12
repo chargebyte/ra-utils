@@ -114,3 +114,12 @@ In a second, parallel SSH session, use for example ``candump -t A vcan0`` to gen
 a textual traffic dump.
 It is also possible to capture the CAN traffic into a pcap trace, then download this
 trace file to your PC and analyze it offline using e.g. Wireshark.
+
+## Developer Hints
+
+- The safety controller firmware uses internally the term 'inlet' for things related to the
+  controlling of a locking motor for sockets. In EVerest and in most chargebyte's documents
+  the term 'pluglock' was used traditionally on the EVSE side, too.
+  This is why the YAML configuration files name the top-level configuration key also 'pluglock'
+  and also the user-visible messages use this term, but in the source code, we kept
+  the term 'inlet'.

@@ -242,7 +242,7 @@ TEST(RaPbDumpTest, DumpsNoInletAsCanonicalNone)
 
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
-    EXPECT_NE(result.stdout_output.find("inlet: none\n"), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("pluglock: none\n"), std::string::npos);
 }
 
 TEST(RaPbDumpTest, SuppressesStoredInletValuesWhenTypeIsNone)
@@ -273,7 +273,7 @@ TEST(RaPbDumpTest, SuppressesStoredInletValuesWhenTypeIsNone)
 
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
-    EXPECT_NE(result.stdout_output.find("inlet: none\n"), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("pluglock: none\n"), std::string::npos);
     EXPECT_EQ(result.stdout_output.find("feedback-open-voltage-min"), std::string::npos);
     EXPECT_EQ(result.stdout_output.find("close-time"), std::string::npos);
 }
@@ -303,7 +303,7 @@ TEST(RaPbDumpTest, DumpsConfiguredInletModes)
 
     ASSERT_TRUE(without_feedback_result.exited);
     EXPECT_EQ(without_feedback_result.exit_code, EXIT_SUCCESS) << without_feedback_result.stderr_output;
-    EXPECT_NE(without_feedback_result.stdout_output.find("inlet:\n  type: without-feedback\n"), std::string::npos);
+    EXPECT_NE(without_feedback_result.stdout_output.find("pluglock:\n  type: without-feedback\n"), std::string::npos);
     EXPECT_NE(without_feedback_result.stdout_output.find("  close-time: 100 ms\n"), std::string::npos);
     EXPECT_NE(without_feedback_result.stdout_output.find("  open-time: 110 ms\n"), std::string::npos);
     EXPECT_EQ(without_feedback_result.stdout_output.find("feedback-open-voltage-min"), std::string::npos);
@@ -327,7 +327,7 @@ TEST(RaPbDumpTest, DumpsConfiguredInletModes)
 
     ASSERT_TRUE(with_feedback_result.exited);
     EXPECT_EQ(with_feedback_result.exit_code, EXIT_SUCCESS) << with_feedback_result.stderr_output;
-    EXPECT_NE(with_feedback_result.stdout_output.find("inlet:\n  type: with-feedback\n"), std::string::npos);
+    EXPECT_NE(with_feedback_result.stdout_output.find("pluglock:\n  type: with-feedback\n"), std::string::npos);
     EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-open-voltage-min: 2200 mV\n"), std::string::npos);
     EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-open-voltage-max: 2800 mV\n"), std::string::npos);
     EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-closed-voltage-min: 1700 mV\n"), std::string::npos);

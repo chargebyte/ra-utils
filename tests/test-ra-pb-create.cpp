@@ -259,7 +259,7 @@ const char kYamlWithoutVersionAndInletNoneScalar[] =
     "  - disabled\n"
     "  - disabled\n"
     "\n"
-    "inlet: none\n";
+    "pluglock: none\n";
 
 const char kYamlWithoutVersionAndInletDisableScalar[] =
     "pt1000s:\n"
@@ -278,7 +278,7 @@ const char kYamlWithoutVersionAndInletDisableScalar[] =
     "  - disabled\n"
     "  - disabled\n"
     "\n"
-    "inlet: disable\n";
+    "pluglock: disable\n";
 
 const char kYamlWithoutVersionAndInletDisabledScalar[] =
     "pt1000s:\n"
@@ -297,7 +297,7 @@ const char kYamlWithoutVersionAndInletDisabledScalar[] =
     "  - disabled\n"
     "  - disabled\n"
     "\n"
-    "inlet: disabled\n";
+    "pluglock: disabled\n";
 
 const char kYamlWithoutVersionAndInletTypeNone[] =
     "pt1000s:\n"
@@ -316,7 +316,7 @@ const char kYamlWithoutVersionAndInletTypeNone[] =
     "  - disabled\n"
     "  - disabled\n"
     "\n"
-    "inlet:\n"
+    "pluglock:\n"
     "  type: none\n";
 
 std::vector<fs::path> CollectBinFixtures()
@@ -442,7 +442,7 @@ TEST(RaPbCreateTest, InletSequenceIsRejected)
               "  - disabled\n"
               "  - disabled\n"
               "\n"
-              "inlet:\n"
+              "pluglock:\n"
               "  - none\n");
 
     const ProcessResult result = RunCreate({}, input, output);
@@ -475,13 +475,13 @@ TEST(RaPbCreateTest, InletScalarRejectsNonDisabledValues)
               "  - disabled\n"
               "  - disabled\n"
               "\n"
-              "inlet: without-feedback\n");
+              "pluglock: without-feedback\n");
 
     const ProcessResult result = RunCreate({}, input, output);
 
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_FAILURE);
-    EXPECT_NE(result.stderr_output.find("expected an inlet disabled flag"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("expected a pluglock disabled flag"), std::string::npos);
 }
 
 TEST(RaPbCreateTest, InletNoneAcceptsAndStoresAdditionalFields)
@@ -507,7 +507,7 @@ TEST(RaPbCreateTest, InletNoneAcceptsAndStoresAdditionalFields)
               "  - disabled\n"
               "  - disabled\n"
               "\n"
-              "inlet:\n"
+              "pluglock:\n"
               "  type: none\n"
               "  close-time: 100 ms\n"
               "  open-time: 200 ms\n"
@@ -554,14 +554,14 @@ TEST(RaPbCreateTest, InletWithoutFeedbackRequiresTimes)
               "  - disabled\n"
               "  - disabled\n"
               "\n"
-              "inlet:\n"
+              "pluglock:\n"
               "  type: without-feedback\n");
 
     const ProcessResult result = RunCreate({}, input, output);
 
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_FAILURE);
-    EXPECT_NE(result.stderr_output.find("invalid inlet timing"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("invalid pluglock timing"), std::string::npos);
 }
 
 TEST(RaPbCreateTest, InletWithoutFeedbackDefaultsThresholdsToZero)
@@ -587,7 +587,7 @@ TEST(RaPbCreateTest, InletWithoutFeedbackDefaultsThresholdsToZero)
               "  - disabled\n"
               "  - disabled\n"
               "\n"
-              "inlet:\n"
+              "pluglock:\n"
               "  type: without-feedback\n"
               "  close-time: 100 ms\n"
               "  open-time: 110 ms\n");
@@ -630,7 +630,7 @@ TEST(RaPbCreateTest, InletWithFeedbackRequiresAllThresholds)
               "  - disabled\n"
               "  - disabled\n"
               "\n"
-              "inlet:\n"
+              "pluglock:\n"
               "  type: with-feedback\n"
               "  close-time: 100 ms\n"
               "  open-time: 110 ms\n"
@@ -666,7 +666,7 @@ TEST(RaPbCreateTest, InletWithFeedbackStoresConfiguredValues)
               "  - disabled\n"
               "  - disabled\n"
               "\n"
-              "inlet:\n"
+              "pluglock:\n"
               "  type: with-feedback\n"
               "  close-time: 100 ms\n"
               "  open-time: 110 ms\n"
@@ -777,7 +777,7 @@ TEST(RaPbCreateTest, InletConfigurationIsDroppedWhenWritingVersion2)
               "  - disabled\n"
               "  - disabled\n"
               "\n"
-              "inlet:\n"
+              "pluglock:\n"
               "  type: with-feedback\n"
               "  close-time: 100 ms\n"
               "  open-time: 110 ms\n"
@@ -790,7 +790,7 @@ TEST(RaPbCreateTest, InletConfigurationIsDroppedWhenWritingVersion2)
 
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
-    EXPECT_NE(result.stderr_output.find("dropping inlet configuration"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("dropping pluglock configuration"), std::string::npos);
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
     EXPECT_EQ(param_block.version, PB_VERSION_V2);
@@ -828,7 +828,7 @@ TEST(RaPbCreateTest, RcmMappingCanBeFollowedByInletConfiguration)
               "  test-check-tripped-time: 810 ms\n"
               "  test-check-normal-time: 410 ms\n"
               "\n"
-              "inlet:\n"
+              "pluglock:\n"
               "  type: without-feedback\n"
               "  close-time: 500 ms\n"
               "  open-time: 500 ms\n");
