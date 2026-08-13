@@ -254,6 +254,7 @@ enum param_block_state {
     PBS_CONTACTOR_TYPE,
     PBS_CONTACTOR_CLOSE_TIME,
     PBS_CONTACTOR_OPEN_TIME,
+    PBS_CONTACTOR_HOLD_DUTY_CYCLE,
     PBS_ESTOPS,
     PBS_RCM_SCALAR,
     PBS_RCM_MAPPING,
@@ -286,6 +287,7 @@ static const char *param_block_state_str[PBS_MAX] = {
     "PBS_CONTACTOR_TYPE",
     "PBS_CONTACTOR_CLOSE_TIME",
     "PBS_CONTACTOR_OPEN_TIME",
+    "PBS_CONTACTOR_HOLD_DUTY_CYCLE",
     "PBS_ESTOPS",
     "PBS_RCM_SCALAR",
     "PBS_RCM_MAPPING",
@@ -504,6 +506,8 @@ int main(int argc, char *argv[])
                     param_block_state = PBS_CONTACTOR_CLOSE_TIME;
                 else if (strcasecmp(event.data.scalar.value, "open-time") == 0)
                     param_block_state = PBS_CONTACTOR_OPEN_TIME;
+                else if (strcasecmp(event.data.scalar.value, "hold-duty-cycle") == 0)
+                    param_block_state = PBS_CONTACTOR_HOLD_DUTY_CYCLE;
                 break;
             case PBS_CONTACTORS:
                 current_contactor_idx++;
@@ -513,9 +517,9 @@ int main(int argc, char *argv[])
                             current_contactor_idx + 1, event.data.scalar.value);
                     break;
                 }
-                param_block.contactor_type[current_contactor_idx] =
+                param_block.contactor[current_contactor_idx].type =
                     str_to_contactor_type(event.data.scalar.value);
-                if (param_block.contactor_type[current_contactor_idx] == CONTACTOR_MAX) {
+                if (param_block.contactor[current_contactor_idx].type == CONTACTOR_MAX) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a contactor configuration.\n",
                             event.data.scalar.value);
                     goto err_out;
@@ -525,9 +529,9 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_CONTACTOR;
                 if (current_contactor_idx > CB_PROTO_MAX_CONTACTORS - 1)
                     break;
-                param_block.contactor_type[current_contactor_idx] =
+                param_block.contactor[current_contactor_idx].type =
                     str_to_contactor_type(event.data.scalar.value);
-                if (param_block.contactor_type[current_contactor_idx] == CONTACTOR_MAX) {
+                if (param_block.contactor[current_contactor_idx].type == CONTACTOR_MAX) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a contactor type configuration.\n",
                             event.data.scalar.value);
                     goto err_out;
@@ -537,7 +541,7 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_CONTACTOR;
                 if (current_contactor_idx > CB_PROTO_MAX_CONTACTORS - 1)
                     break;
-                if (str_to_contactor_time(event.data.scalar.value, &param_block.contactor_close_time[current_contactor_idx])) {
+                if (str_to_contactor_time(event.data.scalar.value, &param_block.contactor[current_contactor_idx].close_time)) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a valid contactor close time. Unit (ms) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
@@ -547,8 +551,18 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_CONTACTOR;
                 if (current_contactor_idx > CB_PROTO_MAX_CONTACTORS - 1)
                     break;
-                if (str_to_contactor_time(event.data.scalar.value, &param_block.contactor_open_time[current_contactor_idx])) {
+                if (str_to_contactor_time(event.data.scalar.value, &param_block.contactor[current_contactor_idx].open_time)) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a valid contactor open time. Unit (ms) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_CONTACTOR_HOLD_DUTY_CYCLE:
+                param_block_state = PBS_CONTACTOR;
+                if (current_contactor_idx > CB_PROTO_MAX_CONTACTORS - 1)
+                    break;
+                if (str_to_contactor_hold_duty_cycle(event.data.scalar.value, &param_block.contactor[current_contactor_idx].hold_duty_cycle)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid contactor hold duty cycle. Unit (%%) missing, invalid, or out of range?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }

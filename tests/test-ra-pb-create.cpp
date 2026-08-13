@@ -361,6 +361,116 @@ TEST(RaPbCreateTest, DefaultOutputUsesLatestSupportedVersion)
     EXPECT_EQ(param_block.version, PB_VERSION_V3);
 }
 
+TEST(RaPbCreateTest, ContactorsStoreExplicitHoldDutyCycleInVersion3)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - type: without-feedback\n"
+              "    close-time: 100 ms\n"
+              "    open-time: 200 ms\n"
+              "    hold-duty-cycle: 55 %\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.version, PB_VERSION_V3);
+    EXPECT_EQ(param_block.data.v3.contactor[0].type, CONTACTOR_WITHOUT_FEEDBACK);
+    EXPECT_EQ(param_block.data.v3.contactor[0].close_time, 10);
+    EXPECT_EQ(param_block.data.v3.contactor[0].open_time, 20);
+    EXPECT_EQ(param_block.data.v3.contactor[0].hold_duty_cycle, 55);
+}
+
+TEST(RaPbCreateTest, ContactorsDefaultHoldDutyCycleToHundredPercent)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - type: without-feedback\n"
+              "    close-time: 100 ms\n"
+              "    open-time: 200 ms\n"
+              "  - with-feedback-normally-open\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.data.v3.contactor[0].hold_duty_cycle, 100);
+    EXPECT_EQ(param_block.data.v3.contactor[1].type, CONTACTOR_WITH_FEEDBACK_NO);
+    EXPECT_EQ(param_block.data.v3.contactor[1].close_time, 0);
+    EXPECT_EQ(param_block.data.v3.contactor[1].open_time, 0);
+    EXPECT_EQ(param_block.data.v3.contactor[1].hold_duty_cycle, 100);
+}
+
+TEST(RaPbCreateTest, ContactorHoldDutyCycleRequiresPercentAndValidRange)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - type: without-feedback\n"
+              "    close-time: 100 ms\n"
+              "    open-time: 200 ms\n"
+              "    hold-duty-cycle: 101 %\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_FAILURE);
+    EXPECT_NE(result.stderr_output.find("valid contactor hold duty cycle"), std::string::npos);
+}
+
 TEST(RaPbCreateTest, MissingInletDefaultsToNoInlet)
 {
     TemporaryDirectory temp_dir;

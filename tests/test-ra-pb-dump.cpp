@@ -334,6 +334,37 @@ TEST(RaPbDumpTest, DumpsConfiguredInletModes)
     EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-closed-voltage-max: 2000 mV\n"), std::string::npos);
 }
 
+TEST(RaPbDumpTest, DumpsVersion3ContactorHoldDutyCycle)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    TemporaryDirectory temp_dir;
+    const fs::path fixture = temp_dir.path() / "contactors-v3.bin";
+    struct param_block_v3 pb = {};
+
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    pb_init_v3(&pb);
+    pb.contactor[0].type = CONTACTOR_WITHOUT_FEEDBACK;
+    pb.contactor[0].close_time = 10;
+    pb.contactor[0].open_time = 11;
+    pb.contactor[0].hold_duty_cycle = 55;
+    pb_refresh_crc_v3(&pb);
+
+    FILE *file = std::fopen(fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult result = RunDump(binary, fixture);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+    EXPECT_NE(result.stdout_output.find("contactors:\n  - type: without-feedback\n"), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("    close-time: 100 ms\n"), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("    open-time: 110 ms\n"), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("    hold-duty-cycle: 55 %\n"), std::string::npos);
+}
+
 TEST(RaPbDumpTest, HelpPrintsUsageAndExitsSuccessfully)
 {
     const fs::path binary(RA_PB_DUMP_PATH);

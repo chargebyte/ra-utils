@@ -64,6 +64,13 @@ struct param_block_v2 {
     uint8_t crc;
 } __attribute__((packed));
 
+struct contactor_config {
+    uint8_t type;
+    uint8_t close_time; // close time for HV contactor in multiples of 10ms
+    uint8_t open_time; // open time for HV contactor in multiples of 10ms
+    uint8_t hold_duty_cycle; // hold duty cycle in percent
+} __attribute__((packed));
+
 struct param_block_v3 {
     uint32_t sob;
 
@@ -72,9 +79,7 @@ struct param_block_v3 {
     int16_t temperature[CB_PROTO_MAX_PT1000S];
     int16_t temperature_resistance_offset[CB_PROTO_MAX_PT1000S]; // offset for temperature sensor resistance in 10mOhm
 
-    uint8_t contactor_type[CB_PROTO_MAX_CONTACTORS];
-    uint8_t contactor_close_time[CB_PROTO_MAX_CONTACTORS]; // close time for HV contactor in multiples of 10ms
-    uint8_t contactor_open_time[CB_PROTO_MAX_CONTACTORS]; // open time for HV contactor in multiples of 10ms
+    struct contactor_config contactor[CB_PROTO_MAX_CONTACTORS];
 
     uint8_t estop[CB_PROTO_MAX_ESTOPS];  // 0 = disabled, 1 = active-low, 2 = active-high
 
@@ -162,6 +167,8 @@ const char *contactor_type_to_str(const enum contactor_type type);
 
 int str_to_contactor_time(const char *s, uint8_t *time);
 int contactor_time_to_str(char *buffer, size_t size, int8_t time);
+int str_to_contactor_hold_duty_cycle(const char *s, uint8_t *duty_cycle);
+int contactor_hold_duty_cycle_to_str(char *buffer, size_t size, uint8_t duty_cycle);
 
 enum inlet_type str_to_inlet_type(const char *s);
 const char *inlet_type_to_str(const enum inlet_type type);

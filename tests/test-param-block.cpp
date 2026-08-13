@@ -167,6 +167,33 @@ TEST(ParamBlockTest, TimeParsingRejectsInvalidSuffix)
     EXPECT_EQ(str_to_rcm_time("foo", &time), -1);
 }
 
+TEST(ParamBlockTest, ContactorHoldDutyCycleParsingSupportsPercentValues)
+{
+    uint8_t duty_cycle = 0;
+    char buffer[32];
+
+    EXPECT_EQ(str_to_contactor_hold_duty_cycle("50%", &duty_cycle), 0);
+    EXPECT_EQ(duty_cycle, 50);
+
+    EXPECT_EQ(str_to_contactor_hold_duty_cycle("100 %", &duty_cycle), 0);
+    EXPECT_EQ(duty_cycle, 100);
+    EXPECT_STREQ((contactor_hold_duty_cycle_to_str(buffer, sizeof(buffer), duty_cycle), buffer), "100 %");
+}
+
+TEST(ParamBlockTest, ContactorHoldDutyCycleParsingRejectsInvalidValues)
+{
+    uint8_t duty_cycle = 0;
+
+    errno = 0;
+    EXPECT_EQ(str_to_contactor_hold_duty_cycle("50", &duty_cycle), -1);
+    errno = 0;
+    EXPECT_EQ(str_to_contactor_hold_duty_cycle("-1 %", &duty_cycle), -1);
+    errno = 0;
+    EXPECT_EQ(str_to_contactor_hold_duty_cycle("101 %", &duty_cycle), -1);
+    errno = 0;
+    EXPECT_EQ(str_to_contactor_hold_duty_cycle("12.5 %", &duty_cycle), -1);
+}
+
 TEST(ParamBlockTest, MillivoltParsingConvertsAndClamps)
 {
     uint16_t mv = 0;
@@ -237,6 +264,8 @@ TEST(ParamBlockTest, InitFunctionsSetMarkersDefaultsAndValidCrc)
     EXPECT_TRUE(pb_check_crc_v3(&pb_v3));
     for (size_t i = 0; i < sizeof(pb_v3.temperature) / sizeof(pb_v3.temperature[0]); ++i)
         EXPECT_EQ(le16toh(pb_v3.temperature[i]), CHANNEL_DISABLE_VALUE);
+    for (size_t i = 0; i < sizeof(pb_v3.contactor) / sizeof(pb_v3.contactor[0]); ++i)
+        EXPECT_EQ(pb_v3.contactor[i].hold_duty_cycle, 100);
     EXPECT_EQ(pb_v3.inlet_type, INLET_NONE);
     EXPECT_EQ(pb_v3.inlet_open_time, 0);
     EXPECT_EQ(pb_v3.inlet_close_time, 0);
@@ -303,8 +332,8 @@ TEST(ParamBlockTest, DowngradeWarningsReportEachApplicableCondition)
     EXPECT_EQ(pb_get_downgrade_warnings(&pb, PB_VERSION_UNVERSIONED), 0U);
 
     pb.temperature_resistance_offset[0] = htole16(1);
-    pb.contactor_close_time[0] = 1;
-    pb.contactor_type[0] = CONTACTOR_WITH_FEEDBACK_NC;
+    pb.contactor[0].close_time = 1;
+    pb.contactor[0].type = CONTACTOR_WITH_FEEDBACK_NC;
     pb.rcm_fault_polarity = PIN_POLARITY_ACTIVE_LOW;
     pb.inlet_type = INLET_WITH_FEEDBACK;
 
@@ -335,9 +364,10 @@ TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1V2AndV3)
     pb_init_v3(&source);
     source.temperature[0] = htole16(321);
     source.temperature_resistance_offset[0] = htole16(123);
-    source.contactor_type[0] = CONTACTOR_WITH_FEEDBACK_NC;
-    source.contactor_close_time[0] = 11;
-    source.contactor_open_time[0] = 7;
+    source.contactor[0].type = CONTACTOR_WITH_FEEDBACK_NC;
+    source.contactor[0].close_time = 11;
+    source.contactor[0].open_time = 7;
+    source.contactor[0].hold_duty_cycle = 55;
     source.estop[0] = PIN_POLARITY_ACTIVE_HIGH;
     source.inlet_type = INLET_WITH_FEEDBACK;
     source.inlet_open_time = 9;
@@ -392,9 +422,10 @@ TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1V2AndV3)
         case PB_VERSION_V3:
             EXPECT_EQ(le16toh(read_back.data.v3.temperature[0]), 321);
             EXPECT_EQ(le16toh(read_back.data.v3.temperature_resistance_offset[0]), 123);
-            EXPECT_EQ(read_back.data.v3.contactor_type[0], CONTACTOR_WITH_FEEDBACK_NC);
-            EXPECT_EQ(read_back.data.v3.contactor_close_time[0], 11);
-            EXPECT_EQ(read_back.data.v3.contactor_open_time[0], 7);
+            EXPECT_EQ(read_back.data.v3.contactor[0].type, CONTACTOR_WITH_FEEDBACK_NC);
+            EXPECT_EQ(read_back.data.v3.contactor[0].close_time, 11);
+            EXPECT_EQ(read_back.data.v3.contactor[0].open_time, 7);
+            EXPECT_EQ(read_back.data.v3.contactor[0].hold_duty_cycle, 55);
             EXPECT_EQ(read_back.data.v3.estop[0], PIN_POLARITY_ACTIVE_HIGH);
             EXPECT_EQ(read_back.data.v3.inlet_type, INLET_WITH_FEEDBACK);
             EXPECT_EQ(read_back.data.v3.inlet_open_time, 9);
