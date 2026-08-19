@@ -832,6 +832,7 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_INLET,
     "Feedback indicates invalid position while closed [feedback, -]",
     "Inlet did not reach open position in time [-, -]",
     "Invalid inlet parameter configuration [parameter, -]",
+    "Motor driver is signaling a fault [-, -]",
     "Internal software error [code_line, -]",
 );
 
