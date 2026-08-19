@@ -581,6 +581,11 @@ static void pb_dump_inlet_v3(struct param_block_v3 *param_block)
     }
 }
 
+static void pb_dump_motor_driver_fault_v3(struct param_block_v3 *param_block)
+{
+    printf("motor-driver-fault: %s\n", pin_polarity_type_to_str(param_block->inlet_motor_driver_fault));
+}
+
 static void pb_dump_v0(struct unversioned_param_block *param_block)
 {
     char buffer[32];
@@ -707,6 +712,8 @@ static void pb_dump_v3(struct param_block_v3 *param_block)
 {
     pb_dump_rcm_v3(param_block);
     pb_dump_inlet_v3(param_block);
+    printf("\n");
+    pb_dump_motor_driver_fault_v3(param_block);
 }
 
 void pb_init(struct param_block_v3 *param_block)

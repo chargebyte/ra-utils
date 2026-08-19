@@ -624,7 +624,9 @@ TEST(RaPbCreateTest, InletNoneAcceptsAndStoresAdditionalFields)
               "  feedback-open-voltage-min: 2200 mV\n"
               "  feedback-open-voltage-max: 2800 mV\n"
               "  feedback-closed-voltage-min: 1700 mV\n"
-              "  feedback-closed-voltage-max: 2000 mV\n");
+              "  feedback-closed-voltage-max: 2000 mV\n"
+              "\n"
+              "motor-driver-fault: active-high\n");
 
     const ProcessResult result = RunCreate({}, input, output);
 
@@ -635,6 +637,7 @@ TEST(RaPbCreateTest, InletNoneAcceptsAndStoresAdditionalFields)
     EXPECT_EQ(param_block.data.v3.inlet_type, INLET_NONE);
     EXPECT_EQ(param_block.data.v3.inlet_close_time, 10);
     EXPECT_EQ(param_block.data.v3.inlet_open_time, 20);
+    EXPECT_EQ(param_block.data.v3.inlet_motor_driver_fault, PIN_POLARITY_ACTIVE_HIGH);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_min_mv), 2200);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_max_mv), 2800);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_min_mv), 1700);
@@ -711,6 +714,7 @@ TEST(RaPbCreateTest, InletWithoutFeedbackDefaultsThresholdsToZero)
     EXPECT_EQ(param_block.data.v3.inlet_type, INLET_WITHOUT_FEEDBACK);
     EXPECT_EQ(param_block.data.v3.inlet_close_time, 10);
     EXPECT_EQ(param_block.data.v3.inlet_open_time, 11);
+    EXPECT_EQ(param_block.data.v3.inlet_motor_driver_fault, PIN_POLARITY_NONE);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_min_mv), 0);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_max_mv), 0);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_min_mv), 0);
@@ -783,7 +787,9 @@ TEST(RaPbCreateTest, InletWithFeedbackStoresConfiguredValues)
               "  feedback-open-voltage-min: 2200 mV\n"
               "  feedback-open-voltage-max: 2800 mV\n"
               "  feedback-closed-voltage-min: 1700 mV\n"
-              "  feedback-closed-voltage-max: 2000 mV\n");
+              "  feedback-closed-voltage-max: 2000 mV\n"
+              "\n"
+              "motor-driver-fault: active-low\n");
 
     const ProcessResult result = RunCreate({}, input, output);
 
@@ -794,10 +800,48 @@ TEST(RaPbCreateTest, InletWithFeedbackStoresConfiguredValues)
     EXPECT_EQ(param_block.data.v3.inlet_type, INLET_WITH_FEEDBACK);
     EXPECT_EQ(param_block.data.v3.inlet_close_time, 10);
     EXPECT_EQ(param_block.data.v3.inlet_open_time, 11);
+    EXPECT_EQ(param_block.data.v3.inlet_motor_driver_fault, PIN_POLARITY_ACTIVE_LOW);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_min_mv), 2200);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_open_valid_max_mv), 2800);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_min_mv), 1700);
     EXPECT_EQ(le16toh(param_block.data.v3.inlet_feedback_closed_valid_max_mv), 2000);
+}
+
+TEST(RaPbCreateTest, MissingInletMotorDriverFaultDefaultsToDisabled)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              "pt1000s:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "contactors:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "estops:\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "  - disabled\n"
+              "\n"
+              "pluglock:\n"
+              "  type: without-feedback\n"
+              "  close-time: 100 ms\n"
+              "  open-time: 110 ms\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+
+    const struct param_block param_block = ReadParamBlockOrFail(output);
+    EXPECT_EQ(param_block.data.v3.inlet_motor_driver_fault, PIN_POLARITY_NONE);
 }
 
 TEST(RaPbCreateTest, VersionFromYamlUsesRequestedSupportedVersion)

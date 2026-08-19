@@ -96,6 +96,7 @@ struct param_block_v3 {
     uint16_t inlet_feedback_open_valid_max_mv;
     uint16_t inlet_feedback_closed_valid_min_mv;
     uint16_t inlet_feedback_closed_valid_max_mv;
+    uint8_t inlet_motor_driver_fault; // 0 = disabled, 1 = active-low, 2 = active-high
 
     uint32_t eob;
     uint8_t crc;

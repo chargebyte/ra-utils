@@ -272,6 +272,7 @@ enum param_block_state {
     PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX,
     PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN,
     PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX,
+    PBS_MOTOR_DRIVER_FAULT,
     PBS_MAX,
 };
 
@@ -305,6 +306,7 @@ static const char *param_block_state_str[PBS_MAX] = {
     "PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX",
     "PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN",
     "PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX",
+    "PBS_MOTOR_DRIVER_FAULT",
 };
 
 int main(int argc, char *argv[])
@@ -441,6 +443,8 @@ int main(int argc, char *argv[])
                     param_block_state = PBS_ESTOPS;
                 else if (strcasecmp(event.data.scalar.value, "rcm") == 0)
                     param_block_state = PBS_RCM_SCALAR;
+                else if (strcasecmp(event.data.scalar.value, "motor-driver-fault") == 0)
+                    param_block_state = PBS_MOTOR_DRIVER_FAULT;
                 else if (strcasecmp(event.data.scalar.value, "pluglock") == 0) {
                     param_block_state = PBS_INLET_SCALAR;
                     inlet_seen = true;
@@ -743,6 +747,15 @@ int main(int argc, char *argv[])
                 }
                 param_block.inlet_feedback_closed_valid_max_mv = tmp_u16;
                 inlet_feedback_closed_max_set = true;
+                break;
+            case PBS_MOTOR_DRIVER_FAULT:
+                param_block_state = PBS_NONE;
+                param_block.inlet_motor_driver_fault = str_to_pin_polarity_type(event.data.scalar.value);
+                if (param_block.inlet_motor_driver_fault == PIN_POLARITY_MAX) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a motor driver fault configuration.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
                 break;
             }
             break;

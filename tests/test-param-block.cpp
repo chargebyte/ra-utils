@@ -269,6 +269,7 @@ TEST(ParamBlockTest, InitFunctionsSetMarkersDefaultsAndValidCrc)
     EXPECT_EQ(pb_v3.inlet_type, INLET_NONE);
     EXPECT_EQ(pb_v3.inlet_open_time, 0);
     EXPECT_EQ(pb_v3.inlet_close_time, 0);
+    EXPECT_EQ(pb_v3.inlet_motor_driver_fault, PIN_POLARITY_NONE);
     EXPECT_EQ(le16toh(pb_v3.inlet_feedback_open_valid_min_mv), 0);
     EXPECT_EQ(le16toh(pb_v3.inlet_feedback_open_valid_max_mv), 0);
     EXPECT_EQ(le16toh(pb_v3.inlet_feedback_closed_valid_min_mv), 0);
@@ -372,6 +373,7 @@ TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1V2AndV3)
     source.inlet_type = INLET_WITH_FEEDBACK;
     source.inlet_open_time = 9;
     source.inlet_close_time = 12;
+    source.inlet_motor_driver_fault = PIN_POLARITY_ACTIVE_LOW;
     source.inlet_feedback_open_valid_min_mv = htole16(2200);
     source.inlet_feedback_open_valid_max_mv = htole16(2800);
     source.inlet_feedback_closed_valid_min_mv = htole16(1700);
@@ -430,6 +432,7 @@ TEST(ParamBlockTest, ReadWriteRoundTripSupportsUnversionedV1V2AndV3)
             EXPECT_EQ(read_back.data.v3.inlet_type, INLET_WITH_FEEDBACK);
             EXPECT_EQ(read_back.data.v3.inlet_open_time, 9);
             EXPECT_EQ(read_back.data.v3.inlet_close_time, 12);
+            EXPECT_EQ(read_back.data.v3.inlet_motor_driver_fault, PIN_POLARITY_ACTIVE_LOW);
             EXPECT_EQ(le16toh(read_back.data.v3.inlet_feedback_open_valid_min_mv), 2200);
             EXPECT_EQ(le16toh(read_back.data.v3.inlet_feedback_open_valid_max_mv), 2800);
             EXPECT_EQ(le16toh(read_back.data.v3.inlet_feedback_closed_valid_min_mv), 1700);

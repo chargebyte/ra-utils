@@ -334,6 +334,52 @@ TEST(RaPbDumpTest, DumpsConfiguredInletModes)
     EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-closed-voltage-max: 2000 mV\n"), std::string::npos);
 }
 
+TEST(RaPbDumpTest, DumpsTopLevelMotorDriverFaultDefaultAndConfiguredPolarity)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    TemporaryDirectory temp_dir;
+    const fs::path disabled_fixture = temp_dir.path() / "pluglock-motor-driver-fault-disabled.bin";
+    const fs::path active_low_fixture = temp_dir.path() / "pluglock-motor-driver-fault-active-low.bin";
+    struct param_block_v3 pb = {};
+
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    pb_init_v3(&pb);
+    pb.inlet_type = INLET_WITHOUT_FEEDBACK;
+    pb.inlet_close_time = 10;
+    pb.inlet_open_time = 11;
+    pb_refresh_crc_v3(&pb);
+
+    FILE *file = std::fopen(disabled_fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult disabled_result = RunDump(binary, disabled_fixture);
+
+    ASSERT_TRUE(disabled_result.exited);
+    EXPECT_EQ(disabled_result.exit_code, EXIT_SUCCESS) << disabled_result.stderr_output;
+    EXPECT_NE(disabled_result.stdout_output.find("\nmotor-driver-fault: disabled\n"), std::string::npos);
+
+    pb_init_v3(&pb);
+    pb.inlet_type = INLET_WITHOUT_FEEDBACK;
+    pb.inlet_close_time = 10;
+    pb.inlet_open_time = 11;
+    pb.inlet_motor_driver_fault = PIN_POLARITY_ACTIVE_LOW;
+    pb_refresh_crc_v3(&pb);
+
+    file = std::fopen(active_low_fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult active_low_result = RunDump(binary, active_low_fixture);
+
+    ASSERT_TRUE(active_low_result.exited);
+    EXPECT_EQ(active_low_result.exit_code, EXIT_SUCCESS) << active_low_result.stderr_output;
+    EXPECT_NE(active_low_result.stdout_output.find("\nmotor-driver-fault: active-low\n"), std::string::npos);
+}
+
 TEST(RaPbDumpTest, DumpsVersion3ContactorHoldDutyCycle)
 {
     const fs::path binary(RA_PB_DUMP_PATH);
