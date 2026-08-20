@@ -732,10 +732,10 @@ static const char *errmsg_module_strings[ERRMSG_MODULE_MAX] = {
     [ERRMSG_MODULE_DEFAULT] = "DEFAULT",
     [ERRMSG_MODULE_APP_TASK] = "APP_TASK",
     [ERRMSG_MODULE_APP_COMM] = "APP_COMM",
-    [ERRMSG_MODULE_APP_SAFETY] = "APP_SAFETY",
-    [ERRMSG_MODULE_APP_CP_PP] = "APP_CP_PP",
-    [ERRMSG_MODULE_APP_TEMP] = "APP_TEMP",
     [ERRMSG_MODULE_APP_SYSTEM] = "APP_SYSTEM",
+    [ERRMSG_MODULE_APP_CP_PP] = "APP_CP_PP",
+    [ERRMSG_MODULE_APP_CE_ID] = "APP_CE_ID",
+    [ERRMSG_MODULE_APP_TEMP] = "APP_TEMP",
     [ERRMSG_MODULE_APP_HVSWITCH] = "APP_HVSWITCH",
     [ERRMSG_MODULE_APP_INLET] = "APP_INLET",
     [ERRMSG_MODULE_MW_ADC] = "MW_ADC",
@@ -771,33 +771,6 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_COMM,
     "safety message timeouted [message id, last timestamp]",
 );
 
-DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SAFETY,
-    "default",
-    "safety state mismatch [active safety fault, inverted safety fault]",
-    "CP safety fault [CP pos voltage, CP neg voltage]",
-    "Detected State C, while ID was not connected [-, -]",
-    "Voltage mismatch at CE  [voltage mv, -]",
-    "Voltage mismatch at ID  [voltage mv, -]",
-);
-
-DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CP_PP,
-    "default",
-    "[CP pos voltage, CP neg voltage]",
-    "[PP voltage, -]",
-);
-
-DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_TEMP,
-    "default",
-    "short to battery [raw current, index]",
-    "short to ground [raw current, index:4 | raw voltage:12]",
-    "open load [raw current, index:4 | raw voltage:12]",
-    "temperature over limit [raw temp, index]",
-    "temperature under limit [raw temp, index]",
-    "resistance too high [resistance/10000, index]",
-    "resistance negative [abs(resistance), index]",
-    "invalid evaluation state [state, -]",
-);
-
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SYSTEM,
     "default",
     "watchdog error [watchdog state, -]",
@@ -813,6 +786,31 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SYSTEM,
     "voltage test error [-, -]",
     "temperature error [-, -]",
     "other test failed [-, -]",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CP_PP,
+    "default",
+    "[CP pos voltage, CP neg voltage]",
+    "[PP voltage, -]",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CE_ID,
+    "default",
+    "Detected State C, while ID was not connected [-, -]",
+    "Voltage mismatch at CE  [voltage mv, -]",
+    "Voltage mismatch at ID  [voltage mv, -]",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_TEMP,
+    "default",
+    "short to battery [raw current, index]",
+    "short to ground [raw current, index:4 | raw voltage:12]",
+    "open load [raw current, index:4 | raw voltage:12]",
+    "temperature over limit [raw temp, index]",
+    "temperature under limit [raw temp, index]",
+    "resistance too high [resistance/10000, index]",
+    "resistance negative [abs(resistance), index]",
+    "invalid evaluation state [state, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_HVSWITCH,
@@ -891,10 +889,10 @@ static const char * const * const errmsg_reason_strings[ERRMSG_MODULE_MAX] = {
     [ERRMSG_MODULE_DEFAULT]      = errmsg_reason_strings_ERRMSG_MODULE_DEFAULT,
     [ERRMSG_MODULE_APP_TASK]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TASK,
     [ERRMSG_MODULE_APP_COMM]     = errmsg_reason_strings_ERRMSG_MODULE_APP_COMM,
-    [ERRMSG_MODULE_APP_SAFETY]   = errmsg_reason_strings_ERRMSG_MODULE_APP_SAFETY,
-    [ERRMSG_MODULE_APP_CP_PP]    = errmsg_reason_strings_ERRMSG_MODULE_APP_CP_PP,
-    [ERRMSG_MODULE_APP_TEMP]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TEMP,
     [ERRMSG_MODULE_APP_SYSTEM]   = errmsg_reason_strings_ERRMSG_MODULE_APP_SYSTEM,
+    [ERRMSG_MODULE_APP_CP_PP]    = errmsg_reason_strings_ERRMSG_MODULE_APP_CP_PP,
+    [ERRMSG_MODULE_APP_CE_ID]    = errmsg_reason_strings_ERRMSG_MODULE_APP_CE_ID,
+    [ERRMSG_MODULE_APP_TEMP]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TEMP,
     [ERRMSG_MODULE_APP_HVSWITCH] = errmsg_reason_strings_ERRMSG_MODULE_APP_HVSWITCH,
     [ERRMSG_MODULE_APP_INLET]    = errmsg_reason_strings_ERRMSG_MODULE_APP_INLET,
     [ERRMSG_MODULE_MW_ADC]       = errmsg_reason_strings_ERRMSG_MODULE_MW_ADC,
