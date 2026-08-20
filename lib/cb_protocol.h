@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "cb_uart.h"
 
@@ -334,6 +335,11 @@ unsigned int cb_proto_errmsg_get_additional_data_1(struct safety_controller *ctx
 unsigned int cb_proto_errmsg_get_additional_data_2(struct safety_controller *ctx);
 const char *cb_proto_errmsg_module_to_str(enum errmsg_module module);
 const char *cb_proto_errmsg_reason_to_str(enum errmsg_module module, unsigned int reason);
+int cb_proto_errmsg_additional_data_to_str(char *buffer, size_t size, enum errmsg_module module,
+                                           unsigned int reason, unsigned int additional_data_1,
+                                           unsigned int additional_data_2);
+int cb_proto_errmsg_to_str(char *buffer, size_t size, enum errmsg_module module, unsigned int reason,
+                           unsigned int additional_data_1, unsigned int additional_data_2);
 
 /* possible firmware platform types */
 enum fw_platform_type {

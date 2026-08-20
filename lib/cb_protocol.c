@@ -920,6 +920,262 @@ const char *cb_proto_errmsg_reason_to_str(enum errmsg_module module, unsigned in
     return "unknown";
 }
 
+static int errmsg_append_field(char *buffer, size_t size, bool *first, const char *label, const char *value)
+{
+    int rv;
+    size_t offset;
+
+    offset = strlen(buffer);
+    rv = snprintf(buffer + offset, size > offset ? size - offset : 0, "%s%s=%s",
+                  *first ? "" : ", ", label, value);
+    if (rv < 0)
+        return rv;
+
+    *first = false;
+    return rv;
+}
+
+static int errmsg_append_u32(char *buffer, size_t size, bool *first, const char *label, unsigned int value)
+{
+    char value_buffer[32];
+
+    snprintf(value_buffer, sizeof(value_buffer), "%u", value);
+    return errmsg_append_field(buffer, size, first, label, value_buffer);
+}
+
+static int errmsg_append_mv(char *buffer, size_t size, bool *first, const char *label, unsigned int value)
+{
+    char value_buffer[32];
+
+    snprintf(value_buffer, sizeof(value_buffer), "%u mV", value);
+    return errmsg_append_field(buffer, size, first, label, value_buffer);
+}
+
+static int errmsg_append_com(char *buffer, size_t size, bool *first, const char *label, unsigned int value)
+{
+    char value_buffer[64];
+    const char *com_str = cb_uart_com_to_str(value);
+
+    if (strcmp(com_str, "UNKNOWN") == 0)
+        snprintf(value_buffer, sizeof(value_buffer), "0x%02x", value & 0xff);
+    else
+        snprintf(value_buffer, sizeof(value_buffer), "%s/0x%02x", com_str, value & 0xff);
+
+    return errmsg_append_field(buffer, size, first, label, value_buffer);
+}
+
+static size_t cb_proto_errmsg_reason_text_len(const char *reason_str)
+{
+    const char *last_hint;
+    size_t len;
+
+    len = strlen(reason_str);
+    if (len == 0 || reason_str[len - 1] != ']')
+        return len;
+
+    last_hint = strrchr(reason_str, '[');
+    if (!last_hint || last_hint == reason_str || last_hint[-1] != ' ')
+        return len;
+
+    while (last_hint > reason_str && last_hint[-1] == ' ')
+        last_hint--;
+
+    return last_hint - reason_str;
+}
+
+int cb_proto_errmsg_additional_data_to_str(char *buffer, size_t size, enum errmsg_module module,
+                                           unsigned int reason, unsigned int additional_data_1,
+                                           unsigned int additional_data_2)
+{
+    bool first = true;
+
+    if (size == 0)
+        return 0;
+
+    buffer[0] = '\0';
+
+    switch (module) {
+    case ERRMSG_MODULE_APP_TASK:
+        if (reason == 1)
+            return errmsg_append_u32(buffer, size, &first, "task id", additional_data_1);
+        break;
+    case ERRMSG_MODULE_APP_COMM:
+        if (reason == 1) {
+            errmsg_append_com(buffer, size, &first, "message id", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "last timestamp", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_APP_SYSTEM:
+        if (reason == 1)
+            return errmsg_append_u32(buffer, size, &first, "watchdog state", additional_data_1);
+        if (reason == 3) {
+            errmsg_append_u32(buffer, size, &first, "calculated CRC", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "stored CRC", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_APP_CP_PP:
+        if (reason == 1) {
+            errmsg_append_mv(buffer, size, &first, "CP pos voltage", additional_data_1);
+            return errmsg_append_mv(buffer, size, &first, "CP neg voltage", additional_data_2);
+        }
+        if (reason == 2)
+            return errmsg_append_mv(buffer, size, &first, "PP voltage", additional_data_1);
+        break;
+    case ERRMSG_MODULE_APP_CE_ID:
+        if (reason == 2 || reason == 3)
+            return errmsg_append_mv(buffer, size, &first, "voltage", additional_data_1);
+        break;
+    case ERRMSG_MODULE_APP_TEMP:
+        switch (reason) {
+        case 1:
+            errmsg_append_u32(buffer, size, &first, "raw current", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 2:
+        case 3:
+            errmsg_append_u32(buffer, size, &first, "raw current", additional_data_1);
+            errmsg_append_u32(buffer, size, &first, "index", additional_data_2 & 0xf);
+            return errmsg_append_u32(buffer, size, &first, "raw voltage", additional_data_2 >> 4);
+        case 4:
+        case 5:
+            errmsg_append_u32(buffer, size, &first, "raw temp", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 6:
+            errmsg_append_u32(buffer, size, &first, "resistance/10000", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 7:
+            errmsg_append_u32(buffer, size, &first, "abs(resistance)", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 8:
+            return errmsg_append_u32(buffer, size, &first, "state", additional_data_1);
+        }
+        break;
+    case ERRMSG_MODULE_APP_HVSWITCH:
+        switch (reason) {
+        case 1:
+        case 3:
+            errmsg_append_u32(buffer, size, &first, "feedback", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 2:
+        case 4:
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 5:
+            errmsg_append_u32(buffer, size, &first, "code_line", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_APP_INLET:
+        switch (reason) {
+        case 1:
+        case 2:
+        case 4:
+            return errmsg_append_u32(buffer, size, &first, "feedback", additional_data_1);
+        case 6:
+            return errmsg_append_u32(buffer, size, &first, "parameter", additional_data_1);
+        case 8:
+            return errmsg_append_u32(buffer, size, &first, "code_line", additional_data_1);
+        }
+        break;
+    case ERRMSG_MODULE_MW_ADC:
+        switch (reason) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_1);
+        case 8:
+            errmsg_append_u32(buffer, size, &first, "group", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_2);
+        case 9:
+            errmsg_append_u32(buffer, size, &first, "value", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "average_size", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_MW_PWM:
+        switch (reason) {
+        case 1:
+        case 2:
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_1);
+        case 3:
+            errmsg_append_u32(buffer, size, &first, "dutycycle", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_MW_UART:
+        switch (reason) {
+        case 1:
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_1);
+        case 2:
+        case 3:
+            errmsg_append_com(buffer, size, &first, "packet type", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "buffer index", additional_data_2);
+        case 4:
+            errmsg_append_com(buffer, size, &first, "packet type", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_MW_PARAM:
+        switch (reason) {
+        case 2:
+            errmsg_append_u32(buffer, size, &first, "calculated CRC", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "stored CRC", additional_data_2);
+        case 3:
+            errmsg_append_u32(buffer, size, &first, "index", additional_data_1);
+            switch (additional_data_2) {
+            case 1:
+                return errmsg_append_field(buffer, size, &first, "type", "temp");
+            case 2:
+                return errmsg_append_field(buffer, size, &first, "type", "hv connector");
+            case 3:
+                return errmsg_append_field(buffer, size, &first, "type", "emergency in");
+            default:
+                return errmsg_append_u32(buffer, size, &first, "type", additional_data_2);
+            }
+        case 4:
+        case 5:
+        case 8:
+            errmsg_append_u32(buffer, size, &first, "value", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 6:
+            errmsg_append_u32(buffer, size, &first, "version in parameter section", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "version stored in firmware", additional_data_2);
+        case 7:
+            return errmsg_append_u32(buffer, size, &first, "value", additional_data_1);
+        case 10:
+            return errmsg_append_u32(buffer, size, &first, "value", additional_data_1);
+        }
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int cb_proto_errmsg_to_str(char *buffer, size_t size, enum errmsg_module module, unsigned int reason,
+                           unsigned int additional_data_1, unsigned int additional_data_2)
+{
+    char additional_data_buffer[160];
+    const char *reason_str = cb_proto_errmsg_reason_to_str(module, reason);
+    size_t base_len = cb_proto_errmsg_reason_text_len(reason_str);
+
+    if (size == 0)
+        return 0;
+
+    if (strcmp(reason_str, "unknown") == 0)
+        return snprintf(buffer, size, "%s", reason_str);
+
+    cb_proto_errmsg_additional_data_to_str(additional_data_buffer, sizeof(additional_data_buffer), module, reason,
+                                           additional_data_1, additional_data_2);
+
+    if (additional_data_buffer[0] == '\0')
+        return snprintf(buffer, size, "%.*s", (int)base_len, reason_str);
+
+    return snprintf(buffer, size, "%.*s (%s)", (int)base_len, reason_str, additional_data_buffer);
+}
+
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type)
 {
     switch (type) {
@@ -1085,18 +1341,24 @@ void cb_proto_dump(struct safety_controller *ctx)
     printfnl("");
     printfnl("== Latest Error Message ==");
     if (ctx->error_message) {
+        char reason_buffer[256];
         enum errmsg_module module = cb_proto_errmsg_get_module(ctx);
         unsigned int reason = cb_proto_errmsg_get_reason(ctx);
+        unsigned int additional_data_1 = cb_proto_errmsg_get_additional_data_1(ctx);
+        unsigned int additional_data_2 = cb_proto_errmsg_get_additional_data_2(ctx);
+
+        cb_proto_errmsg_to_str(reason_buffer, sizeof(reason_buffer), module, reason,
+                               additional_data_1, additional_data_2);
 
         printfnl("Active: %-8s Module: %-15s (%u) Reason: %s (%u)",
                  cb_proto_errmsg_is_active(ctx) ? "yes" : "no",
                  cb_proto_errmsg_module_to_str(module),
                  module,
-                 cb_proto_errmsg_reason_to_str(module, reason),
+                 reason_buffer,
                  reason);
         printfnl("Additional Data: 0x%04x 0x%04x",
-                 cb_proto_errmsg_get_additional_data_1(ctx),
-                 cb_proto_errmsg_get_additional_data_2(ctx));
+                 additional_data_1,
+                 additional_data_2);
     } else {
         printfnl("None");
     }
