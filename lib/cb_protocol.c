@@ -1088,10 +1088,12 @@ void cb_proto_dump(struct safety_controller *ctx)
         enum errmsg_module module = cb_proto_errmsg_get_module(ctx);
         unsigned int reason = cb_proto_errmsg_get_reason(ctx);
 
-        printfnl("Active: %-8s Module: %-15s Reason: %s",
+        printfnl("Active: %-8s Module: %-15s (%u) Reason: %s (%u)",
                  cb_proto_errmsg_is_active(ctx) ? "yes" : "no",
                  cb_proto_errmsg_module_to_str(module),
-                 cb_proto_errmsg_reason_to_str(module, reason));
+                 module,
+                 cb_proto_errmsg_reason_to_str(module, reason),
+                 reason);
         printfnl("Additional Data: 0x%04x 0x%04x",
                  cb_proto_errmsg_get_additional_data_1(ctx),
                  cb_proto_errmsg_get_additional_data_2(ctx));
