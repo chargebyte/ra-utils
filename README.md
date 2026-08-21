@@ -115,6 +115,17 @@ a textual traffic dump.
 It is also possible to capture the CAN traffic into a pcap trace, then download this
 trace file to your PC and analyze it offline using e.g. Wireshark.
 
+`ra-utils` also provides `ra-candump` for a protocol-aware live dump of this mirrored traffic:
+
+    ra-candump vcan0
+
+This prints the raw CAN frame in a candump-like format followed by a decoded summary on the same line,
+for example CP/PP state, PT1000 temperatures, firmware information, or parsed error messages.
+
+If only changes should be shown, use compact mode:
+
+    ra-candump -C vcan0
+
 ## Developer Hints
 
 - The safety controller firmware uses internally the term 'inlet' for things related to the

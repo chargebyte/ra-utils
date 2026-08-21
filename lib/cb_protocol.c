@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -1174,6 +1175,249 @@ int cb_proto_errmsg_to_str(char *buffer, size_t size, enum errmsg_module module,
         return snprintf(buffer, size, "%.*s", (int)base_len, reason_str);
 
     return snprintf(buffer, size, "%.*s (%s)", (int)base_len, reason_str, additional_data_buffer);
+}
+
+static int append_text(char *buffer, size_t size, size_t *offset, const char *format, ...)
+{
+    va_list args;
+    char *dst;
+    size_t remaining;
+    int rv;
+
+    if (size == 0)
+        return 0;
+
+    dst = buffer + (*offset < size ? *offset : size - 1);
+    remaining = size > *offset ? size - *offset : 1;
+
+    va_start(args, format);
+    rv = vsnprintf(dst, remaining, format, args);
+    va_end(args);
+
+    if (rv < 0)
+        return rv;
+
+    *offset += rv;
+    return rv;
+}
+
+static int append_separator(char *buffer, size_t size, size_t *offset, bool *first)
+{
+    if (*first) {
+        *first = false;
+        return 0;
+    }
+
+    return append_text(buffer, size, offset, "; ");
+}
+
+static int append_pt1000_summary(char *buffer, size_t size, size_t *offset, struct safety_controller *ctx)
+{
+    bool first = true;
+    unsigned int i;
+
+    for (i = 0; i < CB_PROTO_MAX_PT1000S; ++i) {
+        int rv;
+
+        rv = append_separator(buffer, size, offset, &first);
+        if (rv < 0)
+            return rv;
+
+        if (!cb_proto_pt1000_is_active(ctx, i)) {
+            rv = append_text(buffer, size, offset, "unused");
+        } else {
+            rv = append_text(buffer, size, offset, "%.1f °C", cb_proto_pt1000_get_temp(ctx, i));
+            if (rv < 0)
+                return rv;
+
+            if (cb_proto_pt1000_get_errors(ctx, i)) {
+                rv = append_text(buffer, size, offset, " (flags=0x%x)", cb_proto_pt1000_get_errors(ctx, i));
+            }
+        }
+
+        if (rv < 0)
+            return rv;
+    }
+
+    return 0;
+}
+
+int cb_proto_frame_to_str(char *buffer, size_t size, enum cb_uart_com com, uint64_t data)
+{
+    struct safety_controller ctx = { 0 };
+    size_t offset = 0;
+    uint8_t target_com;
+    uint8_t action;
+    int rv;
+    unsigned int i;
+
+    if (size == 0)
+        return 0;
+
+    buffer[0] = '\0';
+
+    switch (com) {
+    case COM_CHARGE_STATE:
+        ctx.charge_state = data;
+        rv = append_text(buffer, size, &offset, "%s: PWM=%s/%u.%u%%; CP=%s",
+                         cb_uart_com_to_str(com),
+                         cb_proto_get_actual_pwm_active(&ctx) ? "on" : "off",
+                         cb_proto_get_actual_duty_cycle(&ctx) / 10,
+                         cb_proto_get_actual_duty_cycle(&ctx) % 10,
+                         cb_proto_cp_state_to_str(cb_proto_get_cp_state(&ctx)));
+        if (rv < 0)
+            return rv;
+
+        if (cb_proto_get_cp_errors(&ctx))
+            rv = append_text(buffer, size, &offset, " (flags=0x%x)", cb_proto_get_cp_errors(&ctx));
+        if (rv < 0)
+            return rv;
+
+        rv = append_text(buffer, size, &offset, "; PP=%s; HV-ready=%s; RCM=%s; pluglock=%s; safe-state=%s (%s)",
+                         cb_proto_pp_state_to_str(cb_proto_get_pp_state(&ctx)),
+                         cb_proto_get_hv_ready(&ctx) ? "yes" : "no",
+                         cb_proto_rcm_state_to_str(cb_proto_get_rcm_state(&ctx)),
+                         cb_proto_inlet_state_to_str(cb_proto_get_inlet_state(&ctx)),
+                         cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(&ctx)),
+                         cb_proto_safestate_reason_to_str(cb_proto_get_safestate_reason(&ctx)));
+        if (rv < 0)
+            return rv;
+
+        for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+            rv = append_text(buffer, size, &offset, "; C%u=%s", i + 1,
+                             cb_proto_contactor_state_to_str(cb_proto_contactorN_get_actual_state(&ctx, i)));
+            if (rv < 0)
+                return rv;
+        }
+
+        for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
+            rv = append_text(buffer, size, &offset, "; ESTOP%u=%s", i + 1,
+                             cb_proto_estop_state_to_str(cb_proto_estopN_get_state(&ctx, i)));
+            if (rv < 0)
+                return rv;
+        }
+
+        return (int)offset;
+    case COM_CHARGE_CONTROL:
+        ctx.charge_control = data;
+        rv = append_text(buffer, size, &offset, "%s: PWM=%s/%u.%u%%",
+                         cb_uart_com_to_str(com),
+                         cb_proto_get_target_pwm_active(&ctx) ? "on" : "off",
+                         cb_proto_get_target_duty_cycle(&ctx) / 10,
+                         cb_proto_get_target_duty_cycle(&ctx) % 10);
+        if (rv < 0)
+            return rv;
+
+        for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+            rv = append_text(buffer, size, &offset, "; C%u-target=%s", i + 1,
+                             cb_proto_contactorN_get_target_state(&ctx, i) ? "closed" : "open");
+            if (rv < 0)
+                return rv;
+        }
+
+        return (int)offset;
+    case COM_CHARGE_STATE_2:
+        cb_proto_set_mcs_mode(&ctx, true);
+        ctx.charge_state = data;
+        return snprintf(buffer, size, "%s: CE=%s; ID=%s; safe-state=%s (%s)",
+                        cb_uart_com_to_str(com),
+                        cb_proto_ce_state_to_str(cb_proto_get_ce_state(&ctx)),
+                        cb_proto_id_state_to_str(cb_proto_get_id_state(&ctx)),
+                        cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(&ctx)),
+                        cb_proto_estop_reason_to_str(cb_proto_get_estop_reason(&ctx)));
+    case COM_CHARGE_CONTROL_2:
+        ctx.charge_control = data;
+        return snprintf(buffer, size, "%s: CCS-ready=%s",
+                        cb_uart_com_to_str(com),
+                        cb_proto_ccs_ready_to_str(cb_proto_get_target_ccs_ready(&ctx)));
+    case COM_PT1000_STATE:
+        ctx.pt1000 = data;
+        rv = append_text(buffer, size, &offset, "%s: ", cb_uart_com_to_str(com));
+        if (rv < 0)
+            return rv;
+        rv = append_pt1000_summary(buffer, size, &offset, &ctx);
+        if (rv < 0)
+            return rv;
+        return (int)offset;
+    case COM_FW_VERSION:
+        ctx.fw_version = data;
+        cb_proto_set_fw_version_str(&ctx);
+        return snprintf(buffer, size, "%s: version=%s; platform=%s; app=%s; parameter-block-version=%u",
+                        cb_uart_com_to_str(com),
+                        ctx.fw_version_str,
+                        cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&ctx)),
+                        cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&ctx)),
+                        cb_proto_fw_get_param_version(&ctx));
+    case COM_GIT_HASH:
+        ctx.git_hash = data;
+        cb_proto_set_git_hash_str(&ctx);
+        return snprintf(buffer, size, "%s: %s", cb_uart_com_to_str(com), ctx.git_hash_str);
+    case COM_PARTNUMBER_1:
+    case COM_PARTNUMBER_2: {
+        union {
+            uint64_t value;
+            char bytes[8];
+        } part;
+        char text[9];
+
+        part.value = htobe64(data);
+        memcpy(text, part.bytes, sizeof(part.bytes));
+        text[sizeof(part.bytes)] = '\0';
+
+        for (i = 0; i < sizeof(part.bytes); ++i) {
+            if ((unsigned char)text[i] < 0x20 || (unsigned char)text[i] > 0x7e)
+                text[i] = '.';
+        }
+
+        return snprintf(buffer, size, "%s: part-segment=\"%s\"", cb_uart_com_to_str(com), text);
+    }
+    case COM_CHIPINFO:
+        ctx.chipinfo = data;
+        return snprintf(buffer, size, "%s: mcu-version=%u",
+                        cb_uart_com_to_str(com),
+                        cb_proto_get_mcu_version(&ctx));
+    case COM_ERROR_MESSAGE: {
+        enum errmsg_module module;
+        unsigned int reason;
+        unsigned int additional_data_1;
+        unsigned int additional_data_2;
+        char reason_buffer[256];
+
+        ctx.error_message = data;
+        module = cb_proto_errmsg_get_module(&ctx);
+        reason = cb_proto_errmsg_get_reason(&ctx);
+        additional_data_1 = cb_proto_errmsg_get_additional_data_1(&ctx);
+        additional_data_2 = cb_proto_errmsg_get_additional_data_2(&ctx);
+        cb_proto_errmsg_to_str(reason_buffer, sizeof(reason_buffer), module, reason,
+                               additional_data_1, additional_data_2);
+
+        return snprintf(buffer, size, "%s: active=%s; module=%s; reason=%s",
+                        cb_uart_com_to_str(com),
+                        cb_proto_errmsg_is_active(&ctx) ? "yes" : "no",
+                        cb_proto_errmsg_module_to_str(module),
+                        reason_buffer);
+    }
+    case COM_ACTION:
+        ctx.action_ack = data;
+        return snprintf(buffer, size, "%s: confirmed-action=%s",
+                        cb_uart_com_to_str(com),
+                        cb_proto_action_id_to_str(cb_proto_get_confirmed_action(&ctx)));
+    case COM_INQUIRY:
+        target_com = (data >> 56) & 0xff;
+        if (target_com == COM_ACTION) {
+            action = (data >> 48) & 0xff;
+            return snprintf(buffer, size, "%s: target=%s; action=%s",
+                            cb_uart_com_to_str(com),
+                            cb_uart_com_to_str(target_com),
+                            cb_proto_action_id_to_str(action));
+        }
+
+        return snprintf(buffer, size, "%s: target=%s",
+                        cb_uart_com_to_str(com),
+                        cb_uart_com_to_str(target_com));
+    default:
+        return snprintf(buffer, size, "%s: no semantic decoder available", cb_uart_com_to_str(com));
+    }
 }
 
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type)

@@ -340,6 +340,7 @@ int cb_proto_errmsg_additional_data_to_str(char *buffer, size_t size, enum errms
                                            unsigned int additional_data_2);
 int cb_proto_errmsg_to_str(char *buffer, size_t size, enum errmsg_module module, unsigned int reason,
                            unsigned int additional_data_1, unsigned int additional_data_2);
+int cb_proto_frame_to_str(char *buffer, size_t size, enum cb_uart_com com, uint64_t data);
 
 /* possible firmware platform types */
 enum fw_platform_type {
