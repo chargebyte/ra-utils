@@ -54,7 +54,7 @@ target_link_libraries(ra-candump
         ra-utils
 )
 
-install(TARGETS ra-candump DESTINATION bin)
+install(TARGETS ra-candump DESTINATION sbin)
 
 add_executable(ra-pb-dump
     ra-pb-dump.c
