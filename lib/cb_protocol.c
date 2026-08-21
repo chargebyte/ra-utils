@@ -783,7 +783,7 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SYSTEM,
     "clock test error [-, -]",
     "clock stop error [-, -]",
     "ROM test error [-, -]",
-    "ADC test error [-, -]",
+    "ADC test error [ADC value, diagnostic status (1=0V, 2=VREF/2, 3=VREF)]",
     "voltage test error [-, -]",
     "temperature error [-, -]",
     "other test failed [-, -]",
@@ -1012,6 +1012,27 @@ int cb_proto_errmsg_additional_data_to_str(char *buffer, size_t size, enum errms
         if (reason == 3) {
             errmsg_append_u32(buffer, size, &first, "calculated CRC", additional_data_1);
             return errmsg_append_u32(buffer, size, &first, "stored CRC", additional_data_2);
+        }
+        if (reason == 10) {
+            const char *diagnostic_status;
+
+            errmsg_append_u32(buffer, size, &first, "ADC value", additional_data_1);
+
+            switch (additional_data_2) {
+            case 1:
+                diagnostic_status = "0V";
+                break;
+            case 2:
+                diagnostic_status = "VREF/2";
+                break;
+            case 3:
+                diagnostic_status = "VREF";
+                break;
+            default:
+                return errmsg_append_u32(buffer, size, &first, "diagnostic status", additional_data_2);
+            }
+
+            return errmsg_append_field(buffer, size, &first, "diagnostic status", diagnostic_status);
         }
         break;
     case ERRMSG_MODULE_APP_CP_PP:
