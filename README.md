@@ -324,6 +324,13 @@ version: 3
 
 ...
 
+contactors:
+  - type: with-feedback
+    ...
+    hold-duty-cycle: 50 %
+
+...
+
 pluglock:
   type: with-feedback
   close-time: 100 ms
