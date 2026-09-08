@@ -341,7 +341,36 @@ TEST(RaPbCreateTest, HelpPrintsNewOptions)
     EXPECT_EQ(result.exit_code, EXIT_SUCCESS);
     EXPECT_NE(result.stderr_output.find("--version-from-yaml"), std::string::npos);
     EXPECT_NE(result.stderr_output.find("--version-override"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("--wrong-crc"), std::string::npos);
     EXPECT_EQ(result.stderr_output.find("--version-as-requested"), std::string::npos);
+}
+
+TEST(RaPbCreateTest, WrongCrcOptionsStoreFixedInvalidCrc)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path short_output = temp_dir.path() / "short.bin";
+    const fs::path long_output = temp_dir.path() / "long.bin";
+
+    WriteFile(input, kYamlWithoutVersion);
+
+    const ProcessResult short_result = RunCreate({"-W"}, input, short_output);
+    const ProcessResult long_result = RunCreate({"--wrong-crc", "--version-override", "1"}, input, long_output);
+
+    ASSERT_TRUE(short_result.exited);
+    EXPECT_EQ(short_result.exit_code, EXIT_SUCCESS) << short_result.stderr_output;
+    ASSERT_TRUE(long_result.exited);
+    EXPECT_EQ(long_result.exit_code, EXIT_SUCCESS) << long_result.stderr_output;
+
+    const std::string short_binary = ReadFile(short_output);
+    const std::string long_binary = ReadFile(long_output);
+    ASSERT_FALSE(short_binary.empty());
+    ASSERT_FALSE(long_binary.empty());
+    EXPECT_EQ(static_cast<unsigned char>(short_binary.back()), 0xa5);
+    EXPECT_EQ(static_cast<unsigned char>(long_binary.back()), 0xa5);
+
+    EXPECT_NE(RunDump(short_output).stderr_output.find("CRC is wrong"), std::string::npos);
+    EXPECT_NE(RunDump(long_output).stderr_output.find("CRC is wrong"), std::string::npos);
 }
 
 TEST(RaPbCreateTest, DefaultOutputUsesLatestSupportedVersion)

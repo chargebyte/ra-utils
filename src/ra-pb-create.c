@@ -12,6 +12,7 @@
  *         -Y, --version-from-yaml
  *                                 create the parameter block version requested in YAML instead of latest
  *         -O, --version-override  create the given parameter block version instead of latest
+ *         -W, --wrong-crc         override the valid CRC with the fixed value 0xa5
  *         -D, --debug             print debug output to stderr
  *         -V, --version           print version and exit
  *         -h, --help              print this usage and exit
@@ -43,6 +44,7 @@ static const struct option long_options[] = {
     { "outfile",            required_argument,      0,      'o' },
     { "version-from-yaml",  no_argument,            0,      'Y' },
     { "version-override",   required_argument,      0,      'O' },
+    { "wrong-crc",          no_argument,            0,      'W' },
 
     { "debug",              no_argument,            0,      'D' },
 
@@ -51,7 +53,7 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "i:o:YO:DVh";
+static const char *short_options = "i:o:YO:WDVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
@@ -59,6 +61,7 @@ static const char *long_options_descs[] = {
     "use the given filename for output (default: stdout)",
     "create the parameter block version requested in YAML instead of latest",
     "create the given parameter block version instead of latest",
+    "override the valid CRC with the fixed value 0xa5",
 
     "print debug output to stderr",
 
@@ -108,6 +111,7 @@ bool debug;
 bool version_from_yaml;
 bool version_override_set;
 uint16_t version_override;
+bool wrong_crc;
 
 static bool pb_version_from_u16(uint16_t requested_version, enum param_block_version *version)
 {
@@ -169,6 +173,9 @@ void parse_cli(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             version_override_set = true;
+            break;
+        case 'W':
+            wrong_crc = true;
             break;
 
         case 'D':
@@ -330,6 +337,7 @@ int main(int argc, char *argv[])
     bool inlet_feedback_open_max_set = false;
     bool inlet_feedback_closed_min_set = false;
     bool inlet_feedback_closed_max_set = false;
+    int write_result;
 
     /* handle command line options */
     parse_cli(argc, argv);
@@ -846,7 +854,12 @@ int main(int argc, char *argv[])
 
     print_downgrade_warnings(pb_get_downgrade_warnings(&param_block, output_version), output_version);
 
-    if (pb_write(&param_block, output_version, outfile)) {
+    if (wrong_crc)
+        write_result = pb_write_crc_override(&param_block, output_version, outfile, 0xa5);
+    else
+        write_result = pb_write(&param_block, output_version, outfile);
+
+    if (write_result) {
         fprintf(stderr, "Error while writing to '%s': %m\n", filename_out);
         goto err_out;
     } else {

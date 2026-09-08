@@ -218,3 +218,5 @@ unsigned int pb_get_downgrade_warnings(struct param_block_v3 *param_block, enum 
 /* returns 0 on success, -1 on generic error, or one of the PB_READ_... values above */
 int pb_read(FILE *f, struct param_block *param_block);
 int pb_write(struct param_block_v3 *param_block, enum param_block_version version, FILE *f);
+int pb_write_crc_override(struct param_block_v3 *param_block, enum param_block_version version, FILE *f,
+                          uint8_t crc);
