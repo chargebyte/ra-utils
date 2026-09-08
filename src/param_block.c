@@ -881,7 +881,8 @@ int pb_read(FILE *f, struct param_block *param_block)
     return 0;
 }
 
-int pb_write(struct param_block_v3 *param_block, enum param_block_version version, FILE *f)
+static int pb_write_internal(struct param_block_v3 *param_block, enum param_block_version version, FILE *f,
+                             bool override_crc, uint8_t crc)
 {
     if (version == PB_VERSION_UNVERSIONED) {
         struct unversioned_param_block pb_v0 = {};
@@ -901,6 +902,8 @@ int pb_write(struct param_block_v3 *param_block, enum param_block_version versio
                 pb_v0.contactor[i] = CONTACTOR_WITH_FEEDBACK_NO;
 
         pb_refresh_crc_unversioned(&pb_v0);
+        if (override_crc)
+            pb_v0.crc = crc;
 
         if (fwrite(&pb_v0, sizeof(pb_v0), 1, f) != 1)
             return -1;
@@ -923,6 +926,8 @@ int pb_write(struct param_block_v3 *param_block, enum param_block_version versio
             pb_v1.contactor_open_time[i] = param_block->contactor[i].open_time;
         }
         pb_refresh_crc_v1(&pb_v1);
+        if (override_crc)
+            pb_v1.crc = crc;
 
         if (fwrite(&pb_v1, sizeof(pb_v1), 1, f) != 1)
             return -1;
@@ -950,6 +955,8 @@ int pb_write(struct param_block_v3 *param_block, enum param_block_version versio
             pb_v2.contactor_open_time[i] = param_block->contactor[i].open_time;
         }
         pb_refresh_crc_v2(&pb_v2);
+        if (override_crc)
+            pb_v2.crc = crc;
 
         if (fwrite(&pb_v2, sizeof(pb_v2), 1, f) != 1)
             return -1;
@@ -959,9 +966,22 @@ int pb_write(struct param_block_v3 *param_block, enum param_block_version versio
 
     param_block->version = PB_VERSION_V3;
     pb_refresh_crc_v3(param_block);
+    if (override_crc)
+        param_block->crc = crc;
 
     if (fwrite(param_block, sizeof(*param_block), 1, f) != 1)
         return -1;
 
     return 0;
+}
+
+int pb_write(struct param_block_v3 *param_block, enum param_block_version version, FILE *f)
+{
+    return pb_write_internal(param_block, version, f, false, 0);
+}
+
+int pb_write_crc_override(struct param_block_v3 *param_block, enum param_block_version version, FILE *f,
+                          uint8_t crc)
+{
+    return pb_write_internal(param_block, version, f, true, crc);
 }
