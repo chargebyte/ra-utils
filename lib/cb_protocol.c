@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -181,6 +182,11 @@ bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx)
 enum rcm_state cb_proto_get_rcm_state(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_state, 22, 2);
+}
+
+enum inlet_state cb_proto_get_inlet_state(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 45, 3);
 }
 
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel)
@@ -517,6 +523,28 @@ const char *cb_proto_rcm_state_to_str(enum rcm_state state)
     }
 }
 
+const char *cb_proto_inlet_state_to_str(enum inlet_state state)
+{
+    switch (state) {
+    case INLET_STATE_UNDEFINED:
+        return "undefined";
+    case INLET_STATE_OPEN:
+        return "open";
+    case INLET_STATE_OPENING:
+        return "opening";
+    case INLET_STATE_CLOSED:
+        return "closed";
+    case INLET_STATE_CLOSING:
+        return "closing";
+    case INLET_STATE_ERROR:
+        return "error";
+    case INLET_STATE_NOT_CONFIGURED:
+        return "not configured";
+    default:
+        return "invalid";
+    }
+}
+
 void cb_proto_set_mcs_mode(struct safety_controller *ctx, bool mcs)
 {
     ctx->mcs = mcs;
@@ -692,26 +720,31 @@ const char *cb_proto_action_id_to_str(enum action_id action)
         return "no action";
     case ACTION_ID_RCM_SELFTEST:
         return "rcm-selftest";
+    case ACTION_ID_INLET_CLOSE:
+        return "inlet-close";
+    case ACTION_ID_INLET_OPEN:
+        return "inlet-open";
     default:
         return "undefined";
     }
 }
 
 static const char *errmsg_module_strings[ERRMSG_MODULE_MAX] = {
-    "DEFAULT",
-    "APP_TASK",
-    "APP_COMM",
-    "APP_SAFETY",
-    "APP_CP_PP",
-    "APP_TEMP",
-    "APP_SYSTEM",
-    "APP_HVSWITCH",
-    "MW_ADC",
-    "MW_I2C",
-    "MW_PIN",
-    "MW_PWM",
-    "MW_UART",
-    "MW_PARAM",
+    [ERRMSG_MODULE_DEFAULT] = "DEFAULT",
+    [ERRMSG_MODULE_APP_TASK] = "APP_TASK",
+    [ERRMSG_MODULE_APP_COMM] = "APP_COMM",
+    [ERRMSG_MODULE_APP_SYSTEM] = "APP_SYSTEM",
+    [ERRMSG_MODULE_APP_CP_PP] = "APP_CP_PP",
+    [ERRMSG_MODULE_APP_CE_ID] = "APP_CE_ID",
+    [ERRMSG_MODULE_APP_TEMP] = "APP_TEMP",
+    [ERRMSG_MODULE_APP_HVSWITCH] = "APP_HVSWITCH",
+    [ERRMSG_MODULE_APP_INLET] = "APP_INLET",
+    [ERRMSG_MODULE_MW_ADC] = "MW_ADC",
+    [ERRMSG_MODULE_MW_I2C] = "MW_I2C",
+    [ERRMSG_MODULE_MW_PIN] = "MW_PIN",
+    [ERRMSG_MODULE_MW_PWM] = "MW_PWM",
+    [ERRMSG_MODULE_MW_UART] = "MW_UART",
+    [ERRMSG_MODULE_MW_PARAM] = "MW_PARAM",
 };
 
 const char *cb_proto_errmsg_module_to_str(enum errmsg_module module)
@@ -739,19 +772,34 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_COMM,
     "safety message timeouted [message id, last timestamp]",
 );
 
-DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SAFETY,
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SYSTEM,
     "default",
-    "safety state mismatch [active safety fault, inverted safety fault]",
-    "CP safety fault [CP pos voltage, CP neg voltage]",
-    "Detected State C, while ID was not connected [-, -]",
-    "Voltage mismatch at CE  [voltage mv, -]",
-    "Voltage mismatch at ID  [voltage mv, -]",
+    "watchdog error [watchdog state, -]",
+    "application initial selftests failed [-, -]",
+    "application CRC mismatch [calculated CRC, stored CRC]",
+    "application initial ADC test error [-, -]",
+    "CPU test error [-, -]",
+    "RAM test error [-, -]",
+    "clock test error [-, -]",
+    "clock stop error [-, -]",
+    "ROM test error [-, -]",
+    "ADC test error [ADC value, diagnostic status (1=0V, 2=VREF/2, 3=VREF)]",
+    "voltage test error [-, -]",
+    "temperature error [-, -]",
+    "other test failed [-, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CP_PP,
     "default",
     "[CP pos voltage, CP neg voltage]",
     "[PP voltage, -]",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_CE_ID,
+    "default",
+    "Detected State C, while ID was not connected [-, -]",
+    "Voltage mismatch at CE  [voltage mv, -]",
+    "Voltage mismatch at ID  [voltage mv, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_TEMP,
@@ -766,23 +814,6 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_TEMP,
     "invalid evaluation state [state, -]",
 );
 
-DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_SYSTEM,
-    "default",
-    "watchdog error [watchdog state, -]",
-    "application initial selftests failed [-, -]",
-    "application CRC mismatch [calculated CRC, stored CRC]",
-    "application initial ADC test error [-, -]",
-    "CPU test error [-, -]",
-    "RAM test error [-, -]",
-    "clock test error [-, -]",
-    "clock stop error [-, -]",
-    "ROM test error [-, -]",
-    "ADC test error [-, -]",
-    "voltage test error [-, -]",
-    "temperature error [-, -]",
-    "other test failed [-, -]",
-);
-
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_HVSWITCH,
     "default",
     "feedback pin is wrong while open [feedback, index]",
@@ -790,6 +821,18 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_HVSWITCH,
     "feedback pin is wrong while close [feedback, index]",
     "feedback pin didn't indicate open in time [- , index]",
     "feedback pin is wrong while open [code_line, index]",
+);
+
+DEFINE_REASON_STRINGS(ERRMSG_MODULE_APP_INLET,
+    "default",
+    "Invalid feedback during initialization [feedback, -]",
+    "Feedback indicates invalid position while open [feedback, -]",
+    "Inlet did not reach closed position in time [-, -]",
+    "Feedback indicates invalid position while closed [feedback, -]",
+    "Inlet did not reach open position in time [-, -]",
+    "Invalid inlet parameter configuration [parameter, -]",
+    "Motor driver is signaling a fault [-, -]",
+    "Internal software error [code_line, -]",
 );
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_ADC,
@@ -831,25 +874,28 @@ DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_UART,
 
 DEFINE_REASON_STRINGS(ERRMSG_MODULE_MW_PARAM,
     "default",
-    "parameter not found in memory, defaults will be used",
-    "CRC mismatch, defaults will be used ",
+    "parameter not found in memory, defaults will be used [-, -]",
+    "CRC mismatch, defaults will be used [calculated CRC, stored CRC]",
     "index out of bounds [index, [1= temp, 2=hv connector, 3=emergency in]]",
     "TMax value out of bounds [value, index]",
     "temperature sensor resistance offset out of bounds [-50 to 50 Ohm] [value, index]",
     "Version mismatch [version in parameter section | version stored in firmware]",
     "Value not allowed [value]",
     "Value not allowed [value, index]",
+    "null pointer [-, -]",
+    "invalid inlet type [value, -]",
 );
 
 static const char * const * const errmsg_reason_strings[ERRMSG_MODULE_MAX] = {
     [ERRMSG_MODULE_DEFAULT]      = errmsg_reason_strings_ERRMSG_MODULE_DEFAULT,
     [ERRMSG_MODULE_APP_TASK]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TASK,
     [ERRMSG_MODULE_APP_COMM]     = errmsg_reason_strings_ERRMSG_MODULE_APP_COMM,
-    [ERRMSG_MODULE_APP_SAFETY]   = errmsg_reason_strings_ERRMSG_MODULE_APP_SAFETY,
-    [ERRMSG_MODULE_APP_CP_PP]    = errmsg_reason_strings_ERRMSG_MODULE_APP_CP_PP,
-    [ERRMSG_MODULE_APP_TEMP]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TEMP,
     [ERRMSG_MODULE_APP_SYSTEM]   = errmsg_reason_strings_ERRMSG_MODULE_APP_SYSTEM,
+    [ERRMSG_MODULE_APP_CP_PP]    = errmsg_reason_strings_ERRMSG_MODULE_APP_CP_PP,
+    [ERRMSG_MODULE_APP_CE_ID]    = errmsg_reason_strings_ERRMSG_MODULE_APP_CE_ID,
+    [ERRMSG_MODULE_APP_TEMP]     = errmsg_reason_strings_ERRMSG_MODULE_APP_TEMP,
     [ERRMSG_MODULE_APP_HVSWITCH] = errmsg_reason_strings_ERRMSG_MODULE_APP_HVSWITCH,
+    [ERRMSG_MODULE_APP_INLET]    = errmsg_reason_strings_ERRMSG_MODULE_APP_INLET,
     [ERRMSG_MODULE_MW_ADC]       = errmsg_reason_strings_ERRMSG_MODULE_MW_ADC,
     [ERRMSG_MODULE_MW_I2C]       = errmsg_reason_strings_ERRMSG_MODULE_MW_I2C,
     [ERRMSG_MODULE_MW_PIN]       = errmsg_reason_strings_ERRMSG_MODULE_MW_PIN,
@@ -873,6 +919,526 @@ const char *cb_proto_errmsg_reason_to_str(enum errmsg_module module, unsigned in
     }
 
     return "unknown";
+}
+
+static int errmsg_append_field(char *buffer, size_t size, bool *first, const char *label, const char *value)
+{
+    int rv;
+    size_t offset;
+
+    offset = strlen(buffer);
+    rv = snprintf(buffer + offset, size > offset ? size - offset : 0, "%s%s=%s",
+                  *first ? "" : ", ", label, value);
+    if (rv < 0)
+        return rv;
+
+    *first = false;
+    return rv;
+}
+
+static int errmsg_append_u32(char *buffer, size_t size, bool *first, const char *label, unsigned int value)
+{
+    char value_buffer[32];
+
+    snprintf(value_buffer, sizeof(value_buffer), "%u", value);
+    return errmsg_append_field(buffer, size, first, label, value_buffer);
+}
+
+static int errmsg_append_mv(char *buffer, size_t size, bool *first, const char *label, unsigned int value)
+{
+    char value_buffer[32];
+
+    snprintf(value_buffer, sizeof(value_buffer), "%u mV", value);
+    return errmsg_append_field(buffer, size, first, label, value_buffer);
+}
+
+static int errmsg_append_com(char *buffer, size_t size, bool *first, const char *label, unsigned int value)
+{
+    char value_buffer[64];
+    const char *com_str = cb_uart_com_to_str(value);
+
+    if (strcmp(com_str, "UNKNOWN") == 0)
+        snprintf(value_buffer, sizeof(value_buffer), "0x%02x", value & 0xff);
+    else
+        snprintf(value_buffer, sizeof(value_buffer), "%s/0x%02x", com_str, value & 0xff);
+
+    return errmsg_append_field(buffer, size, first, label, value_buffer);
+}
+
+static size_t cb_proto_errmsg_reason_text_len(const char *reason_str)
+{
+    const char *last_hint;
+    size_t len;
+
+    len = strlen(reason_str);
+    if (len == 0 || reason_str[len - 1] != ']')
+        return len;
+
+    last_hint = strrchr(reason_str, '[');
+    if (!last_hint || last_hint == reason_str || last_hint[-1] != ' ')
+        return len;
+
+    while (last_hint > reason_str && last_hint[-1] == ' ')
+        last_hint--;
+
+    return last_hint - reason_str;
+}
+
+int cb_proto_errmsg_additional_data_to_str(char *buffer, size_t size, enum errmsg_module module,
+                                           unsigned int reason, unsigned int additional_data_1,
+                                           unsigned int additional_data_2)
+{
+    bool first = true;
+
+    if (size == 0)
+        return 0;
+
+    buffer[0] = '\0';
+
+    switch (module) {
+    case ERRMSG_MODULE_APP_TASK:
+        if (reason == 1)
+            return errmsg_append_u32(buffer, size, &first, "task id", additional_data_1);
+        break;
+    case ERRMSG_MODULE_APP_COMM:
+        if (reason == 1) {
+            errmsg_append_com(buffer, size, &first, "message id", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "last timestamp", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_APP_SYSTEM:
+        if (reason == 1)
+            return errmsg_append_u32(buffer, size, &first, "watchdog state", additional_data_1);
+        if (reason == 3) {
+            errmsg_append_u32(buffer, size, &first, "calculated CRC", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "stored CRC", additional_data_2);
+        }
+        if (reason == 10) {
+            const char *diagnostic_status;
+
+            errmsg_append_u32(buffer, size, &first, "ADC value", additional_data_1);
+
+            switch (additional_data_2) {
+            case 1:
+                diagnostic_status = "0V";
+                break;
+            case 2:
+                diagnostic_status = "VREF/2";
+                break;
+            case 3:
+                diagnostic_status = "VREF";
+                break;
+            default:
+                return errmsg_append_u32(buffer, size, &first, "diagnostic status", additional_data_2);
+            }
+
+            return errmsg_append_field(buffer, size, &first, "diagnostic status", diagnostic_status);
+        }
+        break;
+    case ERRMSG_MODULE_APP_CP_PP:
+        if (reason == 1) {
+            errmsg_append_mv(buffer, size, &first, "CP pos voltage", additional_data_1);
+            return errmsg_append_mv(buffer, size, &first, "CP neg voltage", additional_data_2);
+        }
+        if (reason == 2)
+            return errmsg_append_mv(buffer, size, &first, "PP voltage", additional_data_1);
+        break;
+    case ERRMSG_MODULE_APP_CE_ID:
+        if (reason == 2 || reason == 3)
+            return errmsg_append_mv(buffer, size, &first, "voltage", additional_data_1);
+        break;
+    case ERRMSG_MODULE_APP_TEMP:
+        switch (reason) {
+        case 1:
+            errmsg_append_u32(buffer, size, &first, "raw current", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 2:
+        case 3:
+            errmsg_append_u32(buffer, size, &first, "raw current", additional_data_1);
+            errmsg_append_u32(buffer, size, &first, "index", additional_data_2 & 0xf);
+            return errmsg_append_u32(buffer, size, &first, "raw voltage", additional_data_2 >> 4);
+        case 4:
+        case 5:
+            errmsg_append_u32(buffer, size, &first, "raw temp", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 6:
+            errmsg_append_u32(buffer, size, &first, "resistance/10000", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 7:
+            errmsg_append_u32(buffer, size, &first, "abs(resistance)", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 8:
+            return errmsg_append_u32(buffer, size, &first, "state", additional_data_1);
+        }
+        break;
+    case ERRMSG_MODULE_APP_HVSWITCH:
+        switch (reason) {
+        case 1:
+        case 3:
+            errmsg_append_u32(buffer, size, &first, "feedback", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 2:
+        case 4:
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 5:
+            errmsg_append_u32(buffer, size, &first, "code_line", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_APP_INLET:
+        switch (reason) {
+        case 1:
+        case 2:
+        case 4:
+            return errmsg_append_u32(buffer, size, &first, "feedback", additional_data_1);
+        case 6:
+            return errmsg_append_u32(buffer, size, &first, "parameter", additional_data_1);
+        case 8:
+            return errmsg_append_u32(buffer, size, &first, "code_line", additional_data_1);
+        }
+        break;
+    case ERRMSG_MODULE_MW_ADC:
+        switch (reason) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_1);
+        case 8:
+            errmsg_append_u32(buffer, size, &first, "group", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_2);
+        case 9:
+            errmsg_append_u32(buffer, size, &first, "value", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "average_size", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_MW_PWM:
+        switch (reason) {
+        case 1:
+        case 2:
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_1);
+        case 3:
+            errmsg_append_u32(buffer, size, &first, "dutycycle", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_MW_UART:
+        switch (reason) {
+        case 1:
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_1);
+        case 2:
+        case 3:
+            errmsg_append_com(buffer, size, &first, "packet type", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "buffer index", additional_data_2);
+        case 4:
+            errmsg_append_com(buffer, size, &first, "packet type", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "FSP error code", additional_data_2);
+        }
+        break;
+    case ERRMSG_MODULE_MW_PARAM:
+        switch (reason) {
+        case 2:
+            errmsg_append_u32(buffer, size, &first, "calculated CRC", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "stored CRC", additional_data_2);
+        case 3:
+            errmsg_append_u32(buffer, size, &first, "index", additional_data_1);
+            switch (additional_data_2) {
+            case 1:
+                return errmsg_append_field(buffer, size, &first, "type", "temp");
+            case 2:
+                return errmsg_append_field(buffer, size, &first, "type", "hv connector");
+            case 3:
+                return errmsg_append_field(buffer, size, &first, "type", "emergency in");
+            default:
+                return errmsg_append_u32(buffer, size, &first, "type", additional_data_2);
+            }
+        case 4:
+        case 5:
+        case 8:
+            errmsg_append_u32(buffer, size, &first, "value", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "index", additional_data_2);
+        case 6:
+            errmsg_append_u32(buffer, size, &first, "version in parameter section", additional_data_1);
+            return errmsg_append_u32(buffer, size, &first, "version stored in firmware", additional_data_2);
+        case 7:
+            return errmsg_append_u32(buffer, size, &first, "value", additional_data_1);
+        case 10:
+            return errmsg_append_u32(buffer, size, &first, "value", additional_data_1);
+        }
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int cb_proto_errmsg_to_str(char *buffer, size_t size, enum errmsg_module module, unsigned int reason,
+                           unsigned int additional_data_1, unsigned int additional_data_2)
+{
+    char additional_data_buffer[160];
+    const char *reason_str = cb_proto_errmsg_reason_to_str(module, reason);
+    size_t base_len = cb_proto_errmsg_reason_text_len(reason_str);
+
+    if (size == 0)
+        return 0;
+
+    if (strcmp(reason_str, "unknown") == 0)
+        return snprintf(buffer, size, "%s", reason_str);
+
+    cb_proto_errmsg_additional_data_to_str(additional_data_buffer, sizeof(additional_data_buffer), module, reason,
+                                           additional_data_1, additional_data_2);
+
+    if (additional_data_buffer[0] == '\0')
+        return snprintf(buffer, size, "%.*s", (int)base_len, reason_str);
+
+    return snprintf(buffer, size, "%.*s (%s)", (int)base_len, reason_str, additional_data_buffer);
+}
+
+static int append_text(char *buffer, size_t size, size_t *offset, const char *format, ...)
+{
+    va_list args;
+    char *dst;
+    size_t remaining;
+    int rv;
+
+    if (size == 0)
+        return 0;
+
+    dst = buffer + (*offset < size ? *offset : size - 1);
+    remaining = size > *offset ? size - *offset : 1;
+
+    va_start(args, format);
+    rv = vsnprintf(dst, remaining, format, args);
+    va_end(args);
+
+    if (rv < 0)
+        return rv;
+
+    *offset += rv;
+    return rv;
+}
+
+static int append_separator(char *buffer, size_t size, size_t *offset, bool *first)
+{
+    if (*first) {
+        *first = false;
+        return 0;
+    }
+
+    return append_text(buffer, size, offset, "; ");
+}
+
+static int append_pt1000_summary(char *buffer, size_t size, size_t *offset, struct safety_controller *ctx)
+{
+    bool first = true;
+    unsigned int i;
+
+    for (i = 0; i < CB_PROTO_MAX_PT1000S; ++i) {
+        int rv;
+
+        rv = append_separator(buffer, size, offset, &first);
+        if (rv < 0)
+            return rv;
+
+        if (!cb_proto_pt1000_is_active(ctx, i)) {
+            rv = append_text(buffer, size, offset, "unused");
+        } else {
+            rv = append_text(buffer, size, offset, "%.1f °C", cb_proto_pt1000_get_temp(ctx, i));
+            if (rv < 0)
+                return rv;
+
+            if (cb_proto_pt1000_get_errors(ctx, i)) {
+                rv = append_text(buffer, size, offset, " (flags=0x%x)", cb_proto_pt1000_get_errors(ctx, i));
+            }
+        }
+
+        if (rv < 0)
+            return rv;
+    }
+
+    return 0;
+}
+
+int cb_proto_frame_to_str(char *buffer, size_t size, enum cb_uart_com com, uint64_t data)
+{
+    struct safety_controller ctx = { 0 };
+    size_t offset = 0;
+    uint8_t target_com;
+    uint8_t action;
+    int rv;
+    unsigned int i;
+
+    if (size == 0)
+        return 0;
+
+    buffer[0] = '\0';
+
+    switch (com) {
+    case COM_CHARGE_STATE:
+        ctx.charge_state = data;
+        rv = append_text(buffer, size, &offset, "%s: PWM=%s/%u.%u%%; CP=%s",
+                         cb_uart_com_to_str(com),
+                         cb_proto_get_actual_pwm_active(&ctx) ? "on" : "off",
+                         cb_proto_get_actual_duty_cycle(&ctx) / 10,
+                         cb_proto_get_actual_duty_cycle(&ctx) % 10,
+                         cb_proto_cp_state_to_str(cb_proto_get_cp_state(&ctx)));
+        if (rv < 0)
+            return rv;
+
+        if (cb_proto_get_cp_errors(&ctx))
+            rv = append_text(buffer, size, &offset, " (flags=0x%x)", cb_proto_get_cp_errors(&ctx));
+        if (rv < 0)
+            return rv;
+
+        rv = append_text(buffer, size, &offset, "; PP=%s; HV-ready=%s; RCM=%s; pluglock=%s; safe-state=%s (%s)",
+                         cb_proto_pp_state_to_str(cb_proto_get_pp_state(&ctx)),
+                         cb_proto_get_hv_ready(&ctx) ? "yes" : "no",
+                         cb_proto_rcm_state_to_str(cb_proto_get_rcm_state(&ctx)),
+                         cb_proto_inlet_state_to_str(cb_proto_get_inlet_state(&ctx)),
+                         cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(&ctx)),
+                         cb_proto_safestate_reason_to_str(cb_proto_get_safestate_reason(&ctx)));
+        if (rv < 0)
+            return rv;
+
+        for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+            rv = append_text(buffer, size, &offset, "; C%u=%s", i + 1,
+                             cb_proto_contactor_state_to_str(cb_proto_contactorN_get_actual_state(&ctx, i)));
+            if (rv < 0)
+                return rv;
+        }
+
+        for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
+            rv = append_text(buffer, size, &offset, "; ESTOP%u=%s", i + 1,
+                             cb_proto_estop_state_to_str(cb_proto_estopN_get_state(&ctx, i)));
+            if (rv < 0)
+                return rv;
+        }
+
+        return (int)offset;
+    case COM_CHARGE_CONTROL:
+        ctx.charge_control = data;
+        rv = append_text(buffer, size, &offset, "%s: PWM=%s/%u.%u%%",
+                         cb_uart_com_to_str(com),
+                         cb_proto_get_target_pwm_active(&ctx) ? "on" : "off",
+                         cb_proto_get_target_duty_cycle(&ctx) / 10,
+                         cb_proto_get_target_duty_cycle(&ctx) % 10);
+        if (rv < 0)
+            return rv;
+
+        for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+            rv = append_text(buffer, size, &offset, "; C%u-target=%s", i + 1,
+                             cb_proto_contactorN_get_target_state(&ctx, i) ? "closed" : "open");
+            if (rv < 0)
+                return rv;
+        }
+
+        return (int)offset;
+    case COM_CHARGE_STATE_2:
+        cb_proto_set_mcs_mode(&ctx, true);
+        ctx.charge_state = data;
+        return snprintf(buffer, size, "%s: CE=%s; ID=%s; safe-state=%s (%s)",
+                        cb_uart_com_to_str(com),
+                        cb_proto_ce_state_to_str(cb_proto_get_ce_state(&ctx)),
+                        cb_proto_id_state_to_str(cb_proto_get_id_state(&ctx)),
+                        cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(&ctx)),
+                        cb_proto_estop_reason_to_str(cb_proto_get_estop_reason(&ctx)));
+    case COM_CHARGE_CONTROL_2:
+        ctx.charge_control = data;
+        return snprintf(buffer, size, "%s: CCS-ready=%s",
+                        cb_uart_com_to_str(com),
+                        cb_proto_ccs_ready_to_str(cb_proto_get_target_ccs_ready(&ctx)));
+    case COM_PT1000_STATE:
+        ctx.pt1000 = data;
+        rv = append_text(buffer, size, &offset, "%s: ", cb_uart_com_to_str(com));
+        if (rv < 0)
+            return rv;
+        rv = append_pt1000_summary(buffer, size, &offset, &ctx);
+        if (rv < 0)
+            return rv;
+        return (int)offset;
+    case COM_FW_VERSION:
+        ctx.fw_version = data;
+        cb_proto_set_fw_version_str(&ctx);
+        return snprintf(buffer, size, "%s: version=%s; platform=%s; app=%s; parameter-block-version=%u",
+                        cb_uart_com_to_str(com),
+                        ctx.fw_version_str,
+                        cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&ctx)),
+                        cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&ctx)),
+                        cb_proto_fw_get_param_version(&ctx));
+    case COM_GIT_HASH:
+        ctx.git_hash = data;
+        cb_proto_set_git_hash_str(&ctx);
+        return snprintf(buffer, size, "%s: %s", cb_uart_com_to_str(com), ctx.git_hash_str);
+    case COM_PARTNUMBER_1:
+    case COM_PARTNUMBER_2: {
+        union {
+            uint64_t value;
+            char bytes[8];
+        } part;
+        char text[9];
+
+        part.value = htobe64(data);
+        memcpy(text, part.bytes, sizeof(part.bytes));
+        text[sizeof(part.bytes)] = '\0';
+
+        for (i = 0; i < sizeof(part.bytes); ++i) {
+            if ((unsigned char)text[i] < 0x20 || (unsigned char)text[i] > 0x7e)
+                text[i] = '.';
+        }
+
+        return snprintf(buffer, size, "%s: part-segment=\"%s\"", cb_uart_com_to_str(com), text);
+    }
+    case COM_CHIPINFO:
+        ctx.chipinfo = data;
+        return snprintf(buffer, size, "%s: mcu-version=%u",
+                        cb_uart_com_to_str(com),
+                        cb_proto_get_mcu_version(&ctx));
+    case COM_ERROR_MESSAGE: {
+        enum errmsg_module module;
+        unsigned int reason;
+        unsigned int additional_data_1;
+        unsigned int additional_data_2;
+        char reason_buffer[256];
+
+        ctx.error_message = data;
+        module = cb_proto_errmsg_get_module(&ctx);
+        reason = cb_proto_errmsg_get_reason(&ctx);
+        additional_data_1 = cb_proto_errmsg_get_additional_data_1(&ctx);
+        additional_data_2 = cb_proto_errmsg_get_additional_data_2(&ctx);
+        cb_proto_errmsg_to_str(reason_buffer, sizeof(reason_buffer), module, reason,
+                               additional_data_1, additional_data_2);
+
+        return snprintf(buffer, size, "%s: active=%s; module=%s; reason=%s",
+                        cb_uart_com_to_str(com),
+                        cb_proto_errmsg_is_active(&ctx) ? "yes" : "no",
+                        cb_proto_errmsg_module_to_str(module),
+                        reason_buffer);
+    }
+    case COM_ACTION:
+        ctx.action_ack = data;
+        return snprintf(buffer, size, "%s: confirmed-action=%s",
+                        cb_uart_com_to_str(com),
+                        cb_proto_action_id_to_str(cb_proto_get_confirmed_action(&ctx)));
+    case COM_INQUIRY:
+        target_com = (data >> 56) & 0xff;
+        if (target_com == COM_ACTION) {
+            action = (data >> 48) & 0xff;
+            return snprintf(buffer, size, "%s: target=%s; action=%s",
+                            cb_uart_com_to_str(com),
+                            cb_uart_com_to_str(target_com),
+                            cb_proto_action_id_to_str(action));
+        }
+
+        return snprintf(buffer, size, "%s: target=%s",
+                        cb_uart_com_to_str(com),
+                        cb_uart_com_to_str(target_com));
+    default:
+        return snprintf(buffer, size, "%s: no semantic decoder available", cb_uart_com_to_str(com));
+    }
 }
 
 const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type)
@@ -951,14 +1517,17 @@ void cb_proto_dump(struct safety_controller *ctx)
     unsigned int i;
 
     if (!ctx->mcs) {
-        printfnl("== Various ==");
-        printfnl("Control Pilot:   %s (%s%s%s%s)", cb_proto_cp_state_to_str(cb_proto_get_cp_state(ctx)),
+        char buffer[64];
+
+        snprintf(buffer, sizeof(buffer), "%s (%s%s%s%s)", cb_proto_cp_state_to_str(cb_proto_get_cp_state(ctx)),
                  cb_proto_get_cp_errors(ctx) ? "" : "-no flags set-",
                  (cb_proto_get_cp_errors(ctx) & CP_DIODE_FAULT) ? "diode fault" : "",
                  THIS_BIT_AND_ANY_OF_THE_LOWER(cb_proto_get_cp_errors(ctx), CP_DIODE_FAULT) ? "," : "",
                  (cb_proto_get_cp_errors(ctx) & CP_SHORT_CIRCUIT) ? "short circuit" : "");
 
-        printfnl("Proximity Pilot: %s", cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
+        printfnl("== Various ==");
+        printfnl("Control Pilot: %-37s Proximity Pilot: %s", buffer,
+                  cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
 
         printf("Emergency Stop Tripped:");
         for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
@@ -966,9 +1535,11 @@ void cb_proto_dump(struct safety_controller *ctx)
         }
         printfnl("");
 
-        printfnl("HV Ready: %u                    RCM State: %s",
-                 cb_proto_get_hv_ready(ctx),
-                 cb_proto_rcm_state_to_str(cb_proto_get_rcm_state(ctx)));
+        printfnl("HV Ready: %-20s RCM State: %-21s Inlet State: %s",
+                 cb_proto_get_hv_ready(ctx) ? "yes" : "no",
+                 cb_proto_rcm_state_to_str(cb_proto_get_rcm_state(ctx)),
+                 cb_proto_inlet_state_to_str(cb_proto_get_inlet_state(ctx)));
+
         printfnl("Safe State Active: %-11s Reason: %s",
                  cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)),
                  cb_proto_safestate_reason_to_str(cb_proto_get_safestate_reason(ctx)));
@@ -1035,16 +1606,24 @@ void cb_proto_dump(struct safety_controller *ctx)
     printfnl("");
     printfnl("== Latest Error Message ==");
     if (ctx->error_message) {
+        char reason_buffer[256];
         enum errmsg_module module = cb_proto_errmsg_get_module(ctx);
         unsigned int reason = cb_proto_errmsg_get_reason(ctx);
+        unsigned int additional_data_1 = cb_proto_errmsg_get_additional_data_1(ctx);
+        unsigned int additional_data_2 = cb_proto_errmsg_get_additional_data_2(ctx);
 
-        printfnl("Active: %-8s Module: %-15s Reason: %s",
+        cb_proto_errmsg_to_str(reason_buffer, sizeof(reason_buffer), module, reason,
+                               additional_data_1, additional_data_2);
+
+        printfnl("Active: %-8s Module: %-15s (%u) Reason: %s (%u)",
                  cb_proto_errmsg_is_active(ctx) ? "yes" : "no",
                  cb_proto_errmsg_module_to_str(module),
-                 cb_proto_errmsg_reason_to_str(module, reason));
+                 module,
+                 reason_buffer,
+                 reason);
         printfnl("Additional Data: 0x%04x 0x%04x",
-                 cb_proto_errmsg_get_additional_data_1(ctx),
-                 cb_proto_errmsg_get_additional_data_2(ctx));
+                 additional_data_1,
+                 additional_data_2);
     } else {
         printfnl("None");
     }

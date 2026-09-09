@@ -189,6 +189,57 @@ int contactor_time_to_str(char *buffer, size_t size, int8_t time)
     return snprintf(buffer, size, "%u ms", time * 10);
 }
 
+int str_to_contactor_hold_duty_cycle(const char *s, uint8_t *duty_cycle)
+{
+    char *endptr;
+    long val;
+
+    errno = 0;
+    val = strtol(s, &endptr, 10);
+
+    if (errno != 0 || endptr == s ||
+        !(strcmp(endptr, "%") == 0 || strcmp(endptr, " %") == 0))
+        return -1;
+
+    if (val < 0 || val > 100)
+        return -1;
+
+    *duty_cycle = (uint8_t)val;
+
+    return 0;
+}
+
+int contactor_hold_duty_cycle_to_str(char *buffer, size_t size, uint8_t duty_cycle)
+{
+    return snprintf(buffer, size, "%u %%", duty_cycle);
+}
+
+int str_to_mv(const char *s, uint16_t *mv)
+{
+    char *endptr;
+    unsigned long val;
+
+    errno = 0;
+    val = strtoul(s, &endptr, 10);
+
+    if (errno != 0 || endptr == s ||
+        !(strcmp(endptr, "mV") == 0 || strcmp(endptr, " mV") == 0))
+       return -1;
+
+    // clamp to max ADC range
+    if (val > 3300)
+        val = 3300;
+
+    *mv = htole16((uint16_t)val);
+
+    return 0;
+}
+
+int mv_to_str(char *buffer, size_t size, uint16_t mv)
+{
+    return snprintf(buffer, size, "%" PRIu16 " mV", le16toh(mv));
+}
+
 int str_to_rcm_time(const char *s, uint8_t *time)
 {
     char *endptr;
@@ -215,6 +266,47 @@ int str_to_rcm_time(const char *s, uint8_t *time)
 int rcm_time_to_str(char *buffer, size_t size, int8_t time)
 {
     return snprintf(buffer, size, "%u ms", time * 20);
+}
+
+static const char *inlet_type_to_string[INLET_MAX] = {
+    "none",
+    "without-feedback",
+    "with-feedback",
+};
+
+enum inlet_type str_to_inlet_type(const char *s)
+{
+    unsigned int i;
+
+    for (i = INLET_NONE; i < INLET_MAX; ++i)
+        if (strcasecmp(s, inlet_type_to_string[i]) == 0)
+            return i;
+
+    if (strcasecmp(s, "disable") == 0 || strcasecmp(s, "disabled") == 0 ||
+        strcasecmp(s, "off") == 0)
+        return INLET_NONE;
+
+    return INLET_MAX;
+}
+
+const char *inlet_type_to_str(const enum inlet_type type)
+{
+    if (type >= INLET_MAX)
+        return "invalid";
+
+    return inlet_type_to_string[type];
+}
+
+int str_to_inlet_time(const char *s, uint8_t *time)
+{
+    // we can re-use this here since it has same accuracy
+    return str_to_contactor_time(s, time);
+}
+
+int inlet_time_to_str(char *buffer, size_t size, int8_t time)
+{
+    // we can re-use this here since it has same accuracy
+    return contactor_time_to_str(buffer, size, time);
 }
 
 static const char *pin_polarity_to_string[PIN_POLARITY_MAX] = {
@@ -275,10 +367,32 @@ bool pb_is_contactor_enabled(struct param_block_v1 *param_block, unsigned char n
     return param_block->contactor_type[n] != CONTACTOR_NONE;
 }
 
+static bool pb_is_contactor_enabled_v3(struct param_block_v3 *param_block, unsigned char n)
+{
+    return param_block->contactor[n].type != CONTACTOR_NONE;
+}
+
 bool pb_is_rcm_enabled(struct param_block_v2 *param_block)
 {
     return param_block->rcm_fault_polarity != PIN_POLARITY_NONE &&
            param_block->rcm_test_polarity != PIN_POLARITY_NONE;
+}
+
+static bool pb_is_rcm_enabled_v3(struct param_block_v3 *param_block)
+{
+    return param_block->rcm_fault_polarity != PIN_POLARITY_NONE &&
+           param_block->rcm_test_polarity != PIN_POLARITY_NONE;
+}
+
+static bool pb_has_inlet_config(struct param_block_v3 *param_block)
+{
+    return param_block->inlet_type != INLET_NONE ||
+           param_block->inlet_open_time != 0 ||
+           param_block->inlet_close_time != 0 ||
+           le16toh(param_block->inlet_feedback_open_valid_min_mv) != 0 ||
+           le16toh(param_block->inlet_feedback_open_valid_max_mv) != 0 ||
+           le16toh(param_block->inlet_feedback_closed_valid_min_mv) != 0 ||
+           le16toh(param_block->inlet_feedback_closed_valid_max_mv) != 0;
 }
 
 void pb_refresh_crc_v1(struct param_block_v1 *param_block)
@@ -287,6 +401,11 @@ void pb_refresh_crc_v1(struct param_block_v1 *param_block)
 }
 
 void pb_refresh_crc_v2(struct param_block_v2 *param_block)
+{
+    param_block->crc = crc8((uint8_t *)param_block, sizeof(*param_block) - 1);
+}
+
+void pb_refresh_crc_v3(struct param_block_v3 *param_block)
 {
     param_block->crc = crc8((uint8_t *)param_block, sizeof(*param_block) - 1);
 }
@@ -307,6 +426,11 @@ bool pb_check_crc_v1(struct param_block_v1 *param_block)
 }
 
 bool pb_check_crc_v2(struct param_block_v2 *param_block)
+{
+    return param_block->crc == crc8((uint8_t *)param_block, sizeof(*param_block) - 1);
+}
+
+bool pb_check_crc_v3(struct param_block_v3 *param_block)
 {
     return param_block->crc == crc8((uint8_t *)param_block, sizeof(*param_block) - 1);
 }
@@ -374,6 +498,32 @@ static void pb_dump_contactors_v1(struct param_block_v1 *param_block)
     printf("\n");
 }
 
+static void pb_dump_contactors_v3(struct param_block_v3 *param_block)
+{
+    char buffer[32];
+    int i;
+
+    printf("contactors:\n");
+    for (i = 0; i < ARRAY_SIZE(param_block->contactor); i++) {
+        if (pb_is_contactor_enabled_v3(param_block, i)) {
+            printf("  - type: %s\n", contactor_type_to_str(param_block->contactor[i].type));
+
+            contactor_time_to_str(buffer, sizeof(buffer), param_block->contactor[i].close_time);
+            printf("    close-time: %s\n", buffer);
+
+            contactor_time_to_str(buffer, sizeof(buffer), param_block->contactor[i].open_time);
+            printf("    open-time: %s\n", buffer);
+
+            contactor_hold_duty_cycle_to_str(buffer, sizeof(buffer), param_block->contactor[i].hold_duty_cycle);
+            printf("    hold-duty-cycle: %s\n", buffer);
+        } else {
+            printf("  - %s\n", contactor_type_to_str(param_block->contactor[i].type));
+        }
+    }
+
+    printf("\n");
+}
+
 static void pb_dump_estops_v1(struct param_block_v1 *param_block)
 {
     int i;
@@ -381,6 +531,59 @@ static void pb_dump_estops_v1(struct param_block_v1 *param_block)
     printf("estops:\n");
     for (i = 0; i < ARRAY_SIZE(param_block->estop); i++)
         printf("  - %s\n", pin_polarity_type_to_str(param_block->estop[i]));
+}
+
+static void pb_dump_estops_v3(struct param_block_v3 *param_block)
+{
+    int i;
+
+    printf("estops:\n");
+    for (i = 0; i < ARRAY_SIZE(param_block->estop); i++)
+        printf("  - %s\n", pin_polarity_type_to_str(param_block->estop[i]));
+}
+
+static void pb_dump_inlet_v3(struct param_block_v3 *param_block)
+{
+    char buffer[32];
+
+    printf("\n");
+
+    if (param_block->inlet_type == INLET_NONE) {
+        printf("pluglock: none\n");
+        return;
+    }
+
+    printf("pluglock:\n");
+    printf("  type: %s\n", inlet_type_to_str(param_block->inlet_type));
+
+    inlet_time_to_str(buffer, sizeof(buffer), param_block->inlet_close_time);
+    printf("  close-time: %s\n", buffer);
+
+    inlet_time_to_str(buffer, sizeof(buffer), param_block->inlet_open_time);
+    printf("  open-time: %s\n", buffer);
+
+    if (param_block->inlet_type == INLET_WITH_FEEDBACK ||
+        le16toh(param_block->inlet_feedback_open_valid_min_mv) != 0 ||
+        le16toh(param_block->inlet_feedback_open_valid_max_mv) != 0 ||
+        le16toh(param_block->inlet_feedback_closed_valid_min_mv) != 0 ||
+        le16toh(param_block->inlet_feedback_closed_valid_max_mv) != 0) {
+        mv_to_str(buffer, sizeof(buffer), param_block->inlet_feedback_open_valid_min_mv);
+        printf("  feedback-open-voltage-min: %s\n", buffer);
+
+        mv_to_str(buffer, sizeof(buffer), param_block->inlet_feedback_open_valid_max_mv);
+        printf("  feedback-open-voltage-max: %s\n", buffer);
+
+        mv_to_str(buffer, sizeof(buffer), param_block->inlet_feedback_closed_valid_min_mv);
+        printf("  feedback-closed-voltage-min: %s\n", buffer);
+
+        mv_to_str(buffer, sizeof(buffer), param_block->inlet_feedback_closed_valid_max_mv);
+        printf("  feedback-closed-voltage-max: %s\n", buffer);
+    }
+}
+
+static void pb_dump_motor_driver_fault_v3(struct param_block_v3 *param_block)
+{
+    printf("motor-driver-fault: %s\n", pin_polarity_type_to_str(param_block->inlet_motor_driver_fault));
 }
 
 static void pb_dump_v0(struct unversioned_param_block *param_block)
@@ -442,6 +645,25 @@ void pb_init_v2(struct param_block_v2 *param_block)
     pb_refresh_crc_v2(param_block);
 }
 
+void pb_init_v3(struct param_block_v3 *param_block)
+{
+    int i;
+
+    memset(param_block, 0, sizeof(*param_block));
+
+    param_block->sob = htole32(MARKER);
+    param_block->eob = htole32(MARKER);
+
+    param_block->version = 3;
+
+    for (i = 0; i < ARRAY_SIZE(param_block->temperature); i++)
+        param_block->temperature[i] = htole16(CHANNEL_DISABLE_VALUE);
+    for (i = 0; i < ARRAY_SIZE(param_block->contactor); i++)
+        param_block->contactor[i].hold_duty_cycle = 100;
+
+    pb_refresh_crc_v3(param_block);
+}
+
 void pb_dump_v2(struct param_block_v2 *param_block)
 {
     char buffer[32];
@@ -464,9 +686,39 @@ void pb_dump_v2(struct param_block_v2 *param_block)
     }
 }
 
-void pb_init(struct param_block_v2 *param_block)
+static void pb_dump_rcm_v3(struct param_block_v3 *param_block)
 {
-    pb_init_v2(param_block);
+    char buffer[32];
+
+    if (pb_is_rcm_enabled_v3(param_block)) {
+        printf("rcm:\n");
+        printf("  fault-polarity: %s\n", pin_polarity_type_to_str(param_block->rcm_fault_polarity));
+        printf("  test-polarity: %s\n", pin_polarity_type_to_str(param_block->rcm_test_polarity));
+
+        rcm_time_to_str(buffer, sizeof(buffer), param_block->rcm_test_trigger_time);
+        printf("  test-trigger-time: %s\n", buffer);
+
+        rcm_time_to_str(buffer, sizeof(buffer), param_block->rcm_test_check_tripped_time);
+        printf("  test-check-tripped-time: %s\n", buffer);
+
+        rcm_time_to_str(buffer, sizeof(buffer), param_block->rcm_test_check_normal_time);
+        printf("  test-check-normal-time: %s\n", buffer);
+    } else {
+        printf("rcm: disabled\n");
+    }
+}
+
+static void pb_dump_v3(struct param_block_v3 *param_block)
+{
+    pb_dump_rcm_v3(param_block);
+    pb_dump_inlet_v3(param_block);
+    printf("\n");
+    pb_dump_motor_driver_fault_v3(param_block);
+}
+
+void pb_init(struct param_block_v3 *param_block)
+{
+    pb_init_v3(param_block);
 }
 
 void pb_dump(struct param_block *param_block)
@@ -486,18 +738,29 @@ void pb_dump(struct param_block *param_block)
         pb_dump_estops_v1((struct param_block_v1 *)&param_block->data.v2);
         printf("\n");
         pb_dump_v2(&param_block->data.v2);
+        printf("\n");
+        break;
+    case PB_VERSION_V3:
+        printf("version: %u\n", param_block->data.v3.version);
+        printf("\n");
+        pb_dump_temperatures_v1((struct param_block_v1 *)&param_block->data.v3, true);
+        pb_dump_contactors_v3(&param_block->data.v3);
+        pb_dump_estops_v3(&param_block->data.v3);
+        printf("\n");
+        pb_dump_v3(&param_block->data.v3);
+        printf("\n");
         break;
     default:
         break;
     }
 }
 
-unsigned int pb_get_downgrade_warnings(struct param_block_v2 *param_block, enum param_block_version version)
+unsigned int pb_get_downgrade_warnings(struct param_block_v3 *param_block, enum param_block_version version)
 {
     unsigned int warnings = 0;
     unsigned int i;
 
-    if (version == PB_VERSION_V2)
+    if (version == PB_VERSION_V3)
         return 0;
 
     if (version == PB_VERSION_UNVERSIONED) {
@@ -508,22 +771,25 @@ unsigned int pb_get_downgrade_warnings(struct param_block_v2 *param_block, enum 
             }
         }
 
-        for (i = 0; i < ARRAY_SIZE(param_block->contactor_type); i++) {
-            if (param_block->contactor_close_time[i] != 0 || param_block->contactor_open_time[i] != 0) {
+        for (i = 0; i < ARRAY_SIZE(param_block->contactor); i++) {
+            if (param_block->contactor[i].close_time != 0 || param_block->contactor[i].open_time != 0) {
                 warnings |= PB_WARN_DROP_V0_CONTACTOR_TIMES;
                 break;
             }
         }
 
-        for (i = 0; i < ARRAY_SIZE(param_block->contactor_type); i++) {
-            if (param_block->contactor_type[i] == CONTACTOR_WITH_FEEDBACK_NC) {
+        for (i = 0; i < ARRAY_SIZE(param_block->contactor); i++) {
+            if (param_block->contactor[i].type == CONTACTOR_WITH_FEEDBACK_NC) {
                 warnings |= PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC;
                 break;
             }
         }
     }
 
-    if (version != PB_VERSION_V2 &&
+    if (version < PB_VERSION_V3 && pb_has_inlet_config(param_block))
+        warnings |= PB_WARN_DROP_INLET;
+
+    if (version < PB_VERSION_V2 &&
         (param_block->rcm_fault_polarity != PIN_POLARITY_NONE ||
          param_block->rcm_test_polarity != PIN_POLARITY_NONE ||
          param_block->rcm_test_trigger_time != 0 ||
@@ -538,6 +804,7 @@ int pb_read(FILE *f, struct param_block *param_block)
 {
     struct unversioned_param_block pb_unversioned;
     struct param_block_v1 pb_v1 = {};
+    struct param_block_v2 pb_v2 = {};
 
     /* try to read older, smaller parameter block first */
     if (fread(&pb_unversioned, sizeof(pb_unversioned), 1, f) != 1)
@@ -580,26 +847,42 @@ int pb_read(FILE *f, struct param_block *param_block)
         return 0;
     }
 
-    /* looks not like an older parameter block, try to append the (missing) data */
-    param_block->version = PB_VERSION_V2;
-    memcpy(&param_block->data.v2, &pb_v1, sizeof(pb_v1));
+    /* looks not like an older parameter block, try to append the (missing) data for v2 */
+    memcpy(&pb_v2, &pb_v1, sizeof(pb_v1));
 
-    if (fread((char *)&param_block->data.v2 + sizeof(pb_v1),
-              sizeof(param_block->data.v2) - sizeof(pb_v1), 1, f) != 1)
+    if (fread((char *)&pb_v2 + sizeof(pb_v1),
+              sizeof(pb_v2) - sizeof(pb_v1), 1, f) != 1)
         return -1;
 
-    /* now check the second magic value */
-    if (param_block->data.v2.eob != htole32(MARKER))
+    if (pb_v2.eob == htole32(MARKER) && pb_v2.version == 2) {
+        param_block->version = PB_VERSION_V2;
+        memcpy(&param_block->data.v2, &pb_v2, sizeof(pb_v2));
+
+        if (!pb_check_crc_v2(&pb_v2))
+            return PB_READ_ERROR_CRC;
+
+        return 0;
+    }
+
+    /* looks not like v2, try to append the (missing) data for v3 */
+    param_block->version = PB_VERSION_V3;
+    memcpy(&param_block->data.v3, &pb_v2, sizeof(pb_v2));
+
+    if (fread((char *)&param_block->data.v3 + sizeof(pb_v2),
+              sizeof(param_block->data.v3) - sizeof(pb_v2), 1, f) != 1)
+        return -1;
+
+    if (param_block->data.v3.eob != htole32(MARKER) || param_block->data.v3.version != 3)
         return PB_READ_ERROR_MAGIC;
 
-    /* check CRC */
-    if (!pb_check_crc_v2(&param_block->data.v2))
+    if (!pb_check_crc_v3(&param_block->data.v3))
         return PB_READ_ERROR_CRC;
 
     return 0;
 }
 
-int pb_write(struct param_block_v2 *param_block, enum param_block_version version, FILE *f)
+static int pb_write_internal(struct param_block_v3 *param_block, enum param_block_version version, FILE *f,
+                             bool override_crc, uint8_t crc)
 {
     if (version == PB_VERSION_UNVERSIONED) {
         struct unversioned_param_block pb_v0 = {};
@@ -609,14 +892,18 @@ int pb_write(struct param_block_v2 *param_block, enum param_block_version versio
         pb_v0.eob = htole32(MARKER);
 
         memcpy(pb_v0.temperature, param_block->temperature, sizeof(pb_v0.temperature));
-        memcpy(pb_v0.contactor, param_block->contactor_type, sizeof(pb_v0.contactor));
         memcpy(pb_v0.estop, param_block->estop, sizeof(pb_v0.estop));
+
+        for (i = 0; i < ARRAY_SIZE(pb_v0.contactor); i++)
+            pb_v0.contactor[i] = param_block->contactor[i].type;
 
         for (i = 0; i < ARRAY_SIZE(pb_v0.contactor); i++)
             if (pb_v0.contactor[i] == CONTACTOR_WITH_FEEDBACK_NC)
                 pb_v0.contactor[i] = CONTACTOR_WITH_FEEDBACK_NO;
 
         pb_refresh_crc_unversioned(&pb_v0);
+        if (override_crc)
+            pb_v0.crc = crc;
 
         if (fwrite(&pb_v0, sizeof(pb_v0), 1, f) != 1)
             return -1;
@@ -626,11 +913,21 @@ int pb_write(struct param_block_v2 *param_block, enum param_block_version versio
 
     if (version == PB_VERSION_V1) {
         struct param_block_v1 pb_v1;
+        unsigned int i;
 
         pb_init_v1(&pb_v1);
-        memcpy(&pb_v1.temperature, &param_block->temperature,
-               offsetof(struct param_block_v1, eob) - offsetof(struct param_block_v1, temperature));
+        memcpy(pb_v1.temperature, param_block->temperature, sizeof(pb_v1.temperature));
+        memcpy(pb_v1.temperature_resistance_offset, param_block->temperature_resistance_offset,
+               sizeof(pb_v1.temperature_resistance_offset));
+        memcpy(pb_v1.estop, param_block->estop, sizeof(pb_v1.estop));
+        for (i = 0; i < ARRAY_SIZE(pb_v1.contactor_type); i++) {
+            pb_v1.contactor_type[i] = param_block->contactor[i].type;
+            pb_v1.contactor_close_time[i] = param_block->contactor[i].close_time;
+            pb_v1.contactor_open_time[i] = param_block->contactor[i].open_time;
+        }
         pb_refresh_crc_v1(&pb_v1);
+        if (override_crc)
+            pb_v1.crc = crc;
 
         if (fwrite(&pb_v1, sizeof(pb_v1), 1, f) != 1)
             return -1;
@@ -638,11 +935,53 @@ int pb_write(struct param_block_v2 *param_block, enum param_block_version versio
         return 0;
     }
 
-    param_block->version = PB_VERSION_V2;
-    pb_refresh_crc_v2(param_block);
+    if (version == PB_VERSION_V2) {
+        struct param_block_v2 pb_v2;
+        unsigned int i;
+
+        pb_init_v2(&pb_v2);
+        memcpy(pb_v2.temperature, param_block->temperature, sizeof(pb_v2.temperature));
+        memcpy(pb_v2.temperature_resistance_offset, param_block->temperature_resistance_offset,
+               sizeof(pb_v2.temperature_resistance_offset));
+        memcpy(pb_v2.estop, param_block->estop, sizeof(pb_v2.estop));
+        pb_v2.rcm_fault_polarity = param_block->rcm_fault_polarity;
+        pb_v2.rcm_test_polarity = param_block->rcm_test_polarity;
+        pb_v2.rcm_test_trigger_time = param_block->rcm_test_trigger_time;
+        pb_v2.rcm_test_check_tripped_time = param_block->rcm_test_check_tripped_time;
+        pb_v2.rcm_test_check_normal_time = param_block->rcm_test_check_normal_time;
+        for (i = 0; i < ARRAY_SIZE(pb_v2.contactor_type); i++) {
+            pb_v2.contactor_type[i] = param_block->contactor[i].type;
+            pb_v2.contactor_close_time[i] = param_block->contactor[i].close_time;
+            pb_v2.contactor_open_time[i] = param_block->contactor[i].open_time;
+        }
+        pb_refresh_crc_v2(&pb_v2);
+        if (override_crc)
+            pb_v2.crc = crc;
+
+        if (fwrite(&pb_v2, sizeof(pb_v2), 1, f) != 1)
+            return -1;
+
+        return 0;
+    }
+
+    param_block->version = PB_VERSION_V3;
+    pb_refresh_crc_v3(param_block);
+    if (override_crc)
+        param_block->crc = crc;
 
     if (fwrite(param_block, sizeof(*param_block), 1, f) != 1)
         return -1;
 
     return 0;
+}
+
+int pb_write(struct param_block_v3 *param_block, enum param_block_version version, FILE *f)
+{
+    return pb_write_internal(param_block, version, f, false, 0);
+}
+
+int pb_write_crc_override(struct param_block_v3 *param_block, enum param_block_version version, FILE *f,
+                          uint8_t crc)
+{
+    return pb_write_internal(param_block, version, f, true, crc);
 }

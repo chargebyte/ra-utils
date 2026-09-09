@@ -18,6 +18,10 @@
 #include <string>
 #include <vector>
 
+extern "C" {
+#include "param_block.h"
+}
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -154,6 +158,35 @@ ProcessResult RunDump(const fs::path &binary, const fs::path &fixture)
     return RunProcess({binary.string(), fixture.string()});
 }
 
+class TemporaryDirectory {
+public:
+    TemporaryDirectory()
+    {
+        char path_template[] = "/tmp/ra-pb-dump-test-XXXXXX";
+        const char *created = mkdtemp(path_template);
+
+        EXPECT_NE(created, nullptr) << std::strerror(errno);
+        if (created)
+            path_ = created;
+    }
+
+    ~TemporaryDirectory()
+    {
+        if (!path_.empty()) {
+            std::error_code ec;
+            fs::remove_all(path_, ec);
+        }
+    }
+
+    const fs::path &path() const
+    {
+        return path_;
+    }
+
+private:
+    fs::path path_;
+};
+
 TEST(RaPbDumpTest, FixturesMatchExpectedYaml)
 {
     const fs::path fixture_dir(RA_PB_DUMP_FIXTURE_DIR);
@@ -186,6 +219,196 @@ TEST(RaPbDumpTest, FixturesMatchExpectedYaml)
         EXPECT_EQ(StripTrailingNewlines(result.stdout_output), StripTrailingNewlines(expected_output))
             << result.stderr_output;
     }
+}
+
+TEST(RaPbDumpTest, DumpsNoInletAsCanonicalNone)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    TemporaryDirectory temp_dir;
+    const fs::path fixture = temp_dir.path() / "no-inlet.bin";
+    struct param_block_v3 pb = {};
+
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    pb_init_v3(&pb);
+    pb_refresh_crc_v3(&pb);
+
+    FILE *file = std::fopen(fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult result = RunDump(binary, fixture);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+    EXPECT_NE(result.stdout_output.find("pluglock: none\n"), std::string::npos);
+}
+
+TEST(RaPbDumpTest, SuppressesStoredInletValuesWhenTypeIsNone)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    TemporaryDirectory temp_dir;
+    const fs::path fixture = temp_dir.path() / "inlet-none-extra.bin";
+    struct param_block_v3 pb = {};
+
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    pb_init_v3(&pb);
+    pb.inlet_type = INLET_NONE;
+    pb.inlet_close_time = 10;
+    pb.inlet_open_time = 20;
+    pb.inlet_feedback_open_valid_min_mv = htole16(2200);
+    pb.inlet_feedback_open_valid_max_mv = htole16(2800);
+    pb.inlet_feedback_closed_valid_min_mv = htole16(1700);
+    pb.inlet_feedback_closed_valid_max_mv = htole16(2000);
+    pb_refresh_crc_v3(&pb);
+
+    FILE *file = std::fopen(fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult result = RunDump(binary, fixture);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+    EXPECT_NE(result.stdout_output.find("pluglock: none\n"), std::string::npos);
+    EXPECT_EQ(result.stdout_output.find("feedback-open-voltage-min"), std::string::npos);
+    EXPECT_EQ(result.stdout_output.find("close-time"), std::string::npos);
+}
+
+TEST(RaPbDumpTest, DumpsConfiguredInletModes)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    TemporaryDirectory temp_dir;
+    const fs::path without_feedback_fixture = temp_dir.path() / "without-feedback.bin";
+    const fs::path with_feedback_fixture = temp_dir.path() / "with-feedback.bin";
+    struct param_block_v3 pb = {};
+
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    pb_init_v3(&pb);
+    pb.inlet_type = INLET_WITHOUT_FEEDBACK;
+    pb.inlet_close_time = 10;
+    pb.inlet_open_time = 11;
+    pb_refresh_crc_v3(&pb);
+
+    FILE *file = std::fopen(without_feedback_fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult without_feedback_result = RunDump(binary, without_feedback_fixture);
+
+    ASSERT_TRUE(without_feedback_result.exited);
+    EXPECT_EQ(without_feedback_result.exit_code, EXIT_SUCCESS) << without_feedback_result.stderr_output;
+    EXPECT_NE(without_feedback_result.stdout_output.find("pluglock:\n  type: without-feedback\n"), std::string::npos);
+    EXPECT_NE(without_feedback_result.stdout_output.find("  close-time: 100 ms\n"), std::string::npos);
+    EXPECT_NE(without_feedback_result.stdout_output.find("  open-time: 110 ms\n"), std::string::npos);
+    EXPECT_EQ(without_feedback_result.stdout_output.find("feedback-open-voltage-min"), std::string::npos);
+
+    pb_init_v3(&pb);
+    pb.inlet_type = INLET_WITH_FEEDBACK;
+    pb.inlet_close_time = 10;
+    pb.inlet_open_time = 11;
+    pb.inlet_feedback_open_valid_min_mv = htole16(2200);
+    pb.inlet_feedback_open_valid_max_mv = htole16(2800);
+    pb.inlet_feedback_closed_valid_min_mv = htole16(1700);
+    pb.inlet_feedback_closed_valid_max_mv = htole16(2000);
+    pb_refresh_crc_v3(&pb);
+
+    file = std::fopen(with_feedback_fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult with_feedback_result = RunDump(binary, with_feedback_fixture);
+
+    ASSERT_TRUE(with_feedback_result.exited);
+    EXPECT_EQ(with_feedback_result.exit_code, EXIT_SUCCESS) << with_feedback_result.stderr_output;
+    EXPECT_NE(with_feedback_result.stdout_output.find("pluglock:\n  type: with-feedback\n"), std::string::npos);
+    EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-open-voltage-min: 2200 mV\n"), std::string::npos);
+    EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-open-voltage-max: 2800 mV\n"), std::string::npos);
+    EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-closed-voltage-min: 1700 mV\n"), std::string::npos);
+    EXPECT_NE(with_feedback_result.stdout_output.find("  feedback-closed-voltage-max: 2000 mV\n"), std::string::npos);
+}
+
+TEST(RaPbDumpTest, DumpsTopLevelMotorDriverFaultDefaultAndConfiguredPolarity)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    TemporaryDirectory temp_dir;
+    const fs::path disabled_fixture = temp_dir.path() / "pluglock-motor-driver-fault-disabled.bin";
+    const fs::path active_low_fixture = temp_dir.path() / "pluglock-motor-driver-fault-active-low.bin";
+    struct param_block_v3 pb = {};
+
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    pb_init_v3(&pb);
+    pb.inlet_type = INLET_WITHOUT_FEEDBACK;
+    pb.inlet_close_time = 10;
+    pb.inlet_open_time = 11;
+    pb_refresh_crc_v3(&pb);
+
+    FILE *file = std::fopen(disabled_fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult disabled_result = RunDump(binary, disabled_fixture);
+
+    ASSERT_TRUE(disabled_result.exited);
+    EXPECT_EQ(disabled_result.exit_code, EXIT_SUCCESS) << disabled_result.stderr_output;
+    EXPECT_NE(disabled_result.stdout_output.find("\nmotor-driver-fault: disabled\n"), std::string::npos);
+
+    pb_init_v3(&pb);
+    pb.inlet_type = INLET_WITHOUT_FEEDBACK;
+    pb.inlet_close_time = 10;
+    pb.inlet_open_time = 11;
+    pb.inlet_motor_driver_fault = PIN_POLARITY_ACTIVE_LOW;
+    pb_refresh_crc_v3(&pb);
+
+    file = std::fopen(active_low_fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult active_low_result = RunDump(binary, active_low_fixture);
+
+    ASSERT_TRUE(active_low_result.exited);
+    EXPECT_EQ(active_low_result.exit_code, EXIT_SUCCESS) << active_low_result.stderr_output;
+    EXPECT_NE(active_low_result.stdout_output.find("\nmotor-driver-fault: active-low\n"), std::string::npos);
+}
+
+TEST(RaPbDumpTest, DumpsVersion3ContactorHoldDutyCycle)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    TemporaryDirectory temp_dir;
+    const fs::path fixture = temp_dir.path() / "contactors-v3.bin";
+    struct param_block_v3 pb = {};
+
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    pb_init_v3(&pb);
+    pb.contactor[0].type = CONTACTOR_WITHOUT_FEEDBACK;
+    pb.contactor[0].close_time = 10;
+    pb.contactor[0].open_time = 11;
+    pb.contactor[0].hold_duty_cycle = 55;
+    pb_refresh_crc_v3(&pb);
+
+    FILE *file = std::fopen(fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult result = RunDump(binary, fixture);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+    EXPECT_NE(result.stdout_output.find("contactors:\n  - type: without-feedback\n"), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("    close-time: 100 ms\n"), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("    open-time: 110 ms\n"), std::string::npos);
+    EXPECT_NE(result.stdout_output.find("    hold-duty-cycle: 55 %\n"), std::string::npos);
 }
 
 TEST(RaPbDumpTest, HelpPrintsUsageAndExitsSuccessfully)

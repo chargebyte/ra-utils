@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "cb_uart.h"
 
@@ -88,6 +89,18 @@ enum rcm_state {
     RCM_STATE_SELFTEST = 0x2,
     RCM_STATE_ERROR = 0x3,
     RCM_STATE_MAX,
+};
+
+/* possible inlet states */
+enum inlet_state {
+    INLET_STATE_UNDEFINED = 0x0,
+    INLET_STATE_OPEN = 0x1,
+    INLET_STATE_OPENING = 0x2,
+    INLET_STATE_CLOSED = 0x3,
+    INLET_STATE_CLOSING = 0x4,
+    INLET_STATE_ERROR = 0x5,
+    INLET_STATE_NOT_CONFIGURED = 0x7,
+    INLET_STATE_MAX,
 };
 
 /* possible SafeStateActive states in Charge State 1/2 frames */
@@ -185,20 +198,21 @@ enum cs2_estop_reason {
 /* error message frame related stuff */
 enum errmsg_module {
     ERRMSG_MODULE_DEFAULT = 0,
-    ERRMSG_MODULE_APP_TASK,
-    ERRMSG_MODULE_APP_COMM,
-    ERRMSG_MODULE_APP_SAFETY,
-    ERRMSG_MODULE_APP_CP_PP,
-    ERRMSG_MODULE_APP_TEMP,
-    ERRMSG_MODULE_APP_SYSTEM,
-    ERRMSG_MODULE_APP_HVSWITCH,
-    ERRMSG_MODULE_MW_ADC,
-    ERRMSG_MODULE_MW_I2C,
-    ERRMSG_MODULE_MW_PIN,
-    ERRMSG_MODULE_MW_PWM,
-    ERRMSG_MODULE_MW_UART,
-    ERRMSG_MODULE_MW_PARAM,
-    ERRMSG_MODULE_MAX,
+    ERRMSG_MODULE_APP_TASK = 1,
+    ERRMSG_MODULE_APP_COMM = 2,
+    ERRMSG_MODULE_APP_SYSTEM = 3,
+    ERRMSG_MODULE_APP_CP_PP = 4,
+    ERRMSG_MODULE_APP_CE_ID = 5,
+    ERRMSG_MODULE_APP_TEMP = 6,
+    ERRMSG_MODULE_APP_HVSWITCH = 7,
+    ERRMSG_MODULE_APP_INLET = 8,
+    ERRMSG_MODULE_MW_ADC = 9,
+    ERRMSG_MODULE_MW_I2C = 10,
+    ERRMSG_MODULE_MW_PIN = 11,
+    ERRMSG_MODULE_MW_PWM = 12,
+    ERRMSG_MODULE_MW_UART = 13,
+    ERRMSG_MODULE_MW_PARAM = 14,
+    ERRMSG_MODULE_MAX = 15,
 };
 
 /* error message frame */
@@ -292,6 +306,7 @@ bool cb_proto_estopN_is_tripped(struct safety_controller *ctx, unsigned int esto
 bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx);
 
 enum rcm_state cb_proto_get_rcm_state(struct safety_controller *ctx);
+enum inlet_state cb_proto_get_inlet_state(struct safety_controller *ctx);
 
 bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel);
 double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int channel);
@@ -320,6 +335,12 @@ unsigned int cb_proto_errmsg_get_additional_data_1(struct safety_controller *ctx
 unsigned int cb_proto_errmsg_get_additional_data_2(struct safety_controller *ctx);
 const char *cb_proto_errmsg_module_to_str(enum errmsg_module module);
 const char *cb_proto_errmsg_reason_to_str(enum errmsg_module module, unsigned int reason);
+int cb_proto_errmsg_additional_data_to_str(char *buffer, size_t size, enum errmsg_module module,
+                                           unsigned int reason, unsigned int additional_data_1,
+                                           unsigned int additional_data_2);
+int cb_proto_errmsg_to_str(char *buffer, size_t size, enum errmsg_module module, unsigned int reason,
+                           unsigned int additional_data_1, unsigned int additional_data_2);
+int cb_proto_frame_to_str(char *buffer, size_t size, enum cb_uart_com com, uint64_t data);
 
 /* possible firmware platform types */
 enum fw_platform_type {
@@ -351,6 +372,8 @@ void cb_proto_set_partnumber_str(struct safety_controller *ctx);
 enum action_id {
     ACTION_ID_NO_ACTION = 0x0,
     ACTION_ID_RCM_SELFTEST = 0x1,
+    ACTION_ID_INLET_CLOSE = 0x2,
+    ACTION_ID_INLET_OPEN = 0x3,
     ACTION_ID_MAX,
 };
 
@@ -363,6 +386,7 @@ const char *cb_proto_contactor_state_to_str(enum contactor_state state);
 const char *cb_proto_estop_state_to_str(enum estop_state state);
 
 const char *cb_proto_rcm_state_to_str(enum rcm_state state);
+const char *cb_proto_inlet_state_to_str(enum inlet_state state);
 
 const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason);
 

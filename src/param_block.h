@@ -64,10 +64,49 @@ struct param_block_v2 {
     uint8_t crc;
 } __attribute__((packed));
 
+struct contactor_config {
+    uint8_t type;
+    uint8_t close_time; // close time for HV contactor in multiples of 10ms
+    uint8_t open_time; // open time for HV contactor in multiples of 10ms
+    uint8_t hold_duty_cycle; // hold duty cycle in percent
+} __attribute__((packed));
+
+struct param_block_v3 {
+    uint32_t sob;
+
+    uint16_t version;
+
+    int16_t temperature[CB_PROTO_MAX_PT1000S];
+    int16_t temperature_resistance_offset[CB_PROTO_MAX_PT1000S]; // offset for temperature sensor resistance in 10mOhm
+
+    struct contactor_config contactor[CB_PROTO_MAX_CONTACTORS];
+
+    uint8_t estop[CB_PROTO_MAX_ESTOPS];  // 0 = disabled, 1 = active-low, 2 = active-high
+
+    uint8_t rcm_fault_polarity; // 0 = disabled, 1 = active-low, 2 = active-high
+    uint8_t rcm_test_polarity; // 0 = disabled, 1 = active-low, 2 = active-high
+    uint8_t rcm_test_trigger_time; // time to hold the test trigger output in multiples of 20ms
+    uint8_t rcm_test_check_tripped_time; // time to check feedback pin for TRIPPPED after test start, in multiples of 20ms
+    uint8_t rcm_test_check_normal_time; // time to check feedback pin for NORMAL after trigger was released, in multiples of 20ms
+
+    uint8_t inlet_type;
+    uint8_t inlet_open_time; // time for inlet open in multiples of 10ms
+    uint8_t inlet_close_time; // time for inlet close in multiples of 10ms
+    uint16_t inlet_feedback_open_valid_min_mv;
+    uint16_t inlet_feedback_open_valid_max_mv;
+    uint16_t inlet_feedback_closed_valid_min_mv;
+    uint16_t inlet_feedback_closed_valid_max_mv;
+    uint8_t inlet_motor_driver_fault; // 0 = disabled, 1 = active-low, 2 = active-high
+
+    uint32_t eob;
+    uint8_t crc;
+} __attribute__((packed));
+
 enum param_block_version {
     PB_VERSION_UNVERSIONED = 0,
     PB_VERSION_V1,
     PB_VERSION_V2,
+    PB_VERSION_V3,
     PB_VERSION_MAX
 };
 
@@ -80,6 +119,7 @@ struct param_block {
         struct unversioned_param_block v0;
         struct param_block_v1 v1;
         struct param_block_v2 v2;
+        struct param_block_v3 v3;
     } data;
 };
 
@@ -88,6 +128,7 @@ enum pb_downgrade_warning {
     PB_WARN_DROP_V0_CONTACTOR_TIMES = 1U << 1,
     PB_WARN_DROP_RCM = 1U << 2,
     PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC = 1U << 3,
+    PB_WARN_DROP_INLET = 1U << 4,
 };
 
 
@@ -97,6 +138,13 @@ enum contactor_type {
     CONTACTOR_WITH_FEEDBACK_NO,
     CONTACTOR_WITH_FEEDBACK_NC,
     CONTACTOR_MAX,
+};
+
+enum inlet_type {
+    INLET_NONE = 0,
+    INLET_WITHOUT_FEEDBACK,
+    INLET_WITH_FEEDBACK,
+    INLET_MAX,
 };
 
 enum pin_polarity_type {
@@ -120,6 +168,17 @@ const char *contactor_type_to_str(const enum contactor_type type);
 
 int str_to_contactor_time(const char *s, uint8_t *time);
 int contactor_time_to_str(char *buffer, size_t size, int8_t time);
+int str_to_contactor_hold_duty_cycle(const char *s, uint8_t *duty_cycle);
+int contactor_hold_duty_cycle_to_str(char *buffer, size_t size, uint8_t duty_cycle);
+
+enum inlet_type str_to_inlet_type(const char *s);
+const char *inlet_type_to_str(const enum inlet_type type);
+
+int str_to_inlet_time(const char *s, uint8_t *time);
+int inlet_time_to_str(char *buffer, size_t size, int8_t time);
+
+int str_to_mv(const char *s, uint16_t *mv);
+int mv_to_str(char *buffer, size_t size, uint16_t mv);
 
 int str_to_rcm_time(const char *s, uint8_t *time);
 int rcm_time_to_str(char *buffer, size_t size, int8_t time);
@@ -136,17 +195,20 @@ bool pb_is_rcm_enabled(struct param_block_v2 *param_block);
 
 void pb_refresh_crc_v1(struct param_block_v1 *param_block);
 void pb_refresh_crc_v2(struct param_block_v2 *param_block);
+void pb_refresh_crc_v3(struct param_block_v3 *param_block);
 
 /* returns true if the CRC is correct */
 bool pb_check_crc_v1(struct param_block_v1 *param_block);
 bool pb_check_crc_v2(struct param_block_v2 *param_block);
+bool pb_check_crc_v3(struct param_block_v3 *param_block);
 
 void pb_init_v1(struct param_block_v1 *param_block);
 void pb_init_v2(struct param_block_v2 *param_block);
+void pb_init_v3(struct param_block_v3 *param_block);
 
-void pb_init(struct param_block_v2 *param_block);
+void pb_init(struct param_block_v3 *param_block);
 void pb_dump(struct param_block *param_block);
-unsigned int pb_get_downgrade_warnings(struct param_block_v2 *param_block, enum param_block_version version);
+unsigned int pb_get_downgrade_warnings(struct param_block_v3 *param_block, enum param_block_version version);
 
 /* error return values for pb_read */
 #define PB_READ_SUCCESS     0
@@ -155,4 +217,6 @@ unsigned int pb_get_downgrade_warnings(struct param_block_v2 *param_block, enum 
 
 /* returns 0 on success, -1 on generic error, or one of the PB_READ_... values above */
 int pb_read(FILE *f, struct param_block *param_block);
-int pb_write(struct param_block_v2 *param_block, enum param_block_version version, FILE *f);
+int pb_write(struct param_block_v3 *param_block, enum param_block_version version, FILE *f);
+int pb_write_crc_override(struct param_block_v3 *param_block, enum param_block_version version, FILE *f,
+                          uint8_t crc);

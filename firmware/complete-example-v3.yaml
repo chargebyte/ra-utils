@@ -1,0 +1,48 @@
+version: 3
+
+pt1000s:
+  - abort-temperature: 75.0 °C
+    resistance-offset: 0.500 Ω
+  - abort-temperature: 80.0 °C
+    resistance-offset: 1.000 Ω
+  - abort-temperature: 85.0 °C
+    resistance-offset: 1.500 Ω
+  - abort-temperature: 90.0 °C
+    resistance-offset: 2.000 Ω
+
+contactors:
+  - type: without-feedback
+    close-time: 50 ms
+    open-time: 60 ms
+    hold-duty-cycle: 50 %
+  - type: with-feedback-normally-open
+    close-time: 100 ms
+    open-time: 110 ms
+    hold-duty-cycle: 100 %
+  - type: with-feedback-normally-closed
+    close-time: 120 ms
+    open-time: 130 ms
+    hold-duty-cycle: 50 %
+
+estops:
+  - active-low
+  - active-high
+  - disabled
+
+rcm:
+  fault-polarity: active-low
+  test-polarity: active-high
+  test-trigger-time: 60 ms
+  test-check-tripped-time: 80 ms
+  test-check-normal-time: 100 ms
+
+pluglock:
+  type: with-feedback
+  close-time: 100 ms
+  open-time: 110 ms
+  feedback-open-voltage-min: 2200 mV
+  feedback-open-voltage-max: 2800 mV
+  feedback-closed-voltage-min: 1700 mV
+  feedback-closed-voltage-max: 2000 mV
+
+motor-driver-fault: disabled

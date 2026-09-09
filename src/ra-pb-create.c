@@ -12,6 +12,7 @@
  *         -Y, --version-from-yaml
  *                                 create the parameter block version requested in YAML instead of latest
  *         -O, --version-override  create the given parameter block version instead of latest
+ *         -W, --wrong-crc         override the valid CRC with the fixed value 0xa5
  *         -D, --debug             print debug output to stderr
  *         -V, --version           print version and exit
  *         -h, --help              print this usage and exit
@@ -43,6 +44,7 @@ static const struct option long_options[] = {
     { "outfile",            required_argument,      0,      'o' },
     { "version-from-yaml",  no_argument,            0,      'Y' },
     { "version-override",   required_argument,      0,      'O' },
+    { "wrong-crc",          no_argument,            0,      'W' },
 
     { "debug",              no_argument,            0,      'D' },
 
@@ -51,7 +53,7 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "i:o:YO:DVh";
+static const char *short_options = "i:o:YO:WDVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
@@ -59,6 +61,7 @@ static const char *long_options_descs[] = {
     "use the given filename for output (default: stdout)",
     "create the parameter block version requested in YAML instead of latest",
     "create the given parameter block version instead of latest",
+    "override the valid CRC with the fixed value 0xa5",
 
     "print debug output to stderr",
 
@@ -101,13 +104,14 @@ static void usage(char *p, int exitcode)
 char *filename_in = "-";
 char *filename_out = "-";
 FILE *infile, *outfile;
-struct param_block_v2 param_block;
+struct param_block_v3 param_block;
 yaml_parser_t yaml_parser;
 yaml_event_t event;
 bool debug;
 bool version_from_yaml;
 bool version_override_set;
 uint16_t version_override;
+bool wrong_crc;
 
 static bool pb_version_from_u16(uint16_t requested_version, enum param_block_version *version)
 {
@@ -117,6 +121,9 @@ static bool pb_version_from_u16(uint16_t requested_version, enum param_block_ver
         return true;
     case PB_VERSION_V2:
         *version = PB_VERSION_V2;
+        return true;
+    case PB_VERSION_V3:
+        *version = PB_VERSION_V3;
         return true;
     default:
         return false;
@@ -131,6 +138,8 @@ static void print_downgrade_warnings(unsigned int warnings, enum param_block_ver
         fprintf(stderr, "Warning: dropping contactor close/open times when creating unversioned parameter block.\n");
     if (warnings & PB_WARN_DROP_RCM)
         fprintf(stderr, "Warning: dropping RCM configuration when creating parameter block version %u.\n", version);
+    if (warnings & PB_WARN_DROP_INLET)
+        fprintf(stderr, "Warning: dropping pluglock configuration when creating parameter block version %u.\n", version);
     if (warnings & PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC)
         fprintf(stderr, "Warning: mapping 'with-feedback-normally-closed' to legacy unversioned contactor setting.\n");
 }
@@ -164,6 +173,9 @@ void parse_cli(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             version_override_set = true;
+            break;
+        case 'W':
+            wrong_crc = true;
             break;
 
         case 'D':
@@ -249,6 +261,7 @@ enum param_block_state {
     PBS_CONTACTOR_TYPE,
     PBS_CONTACTOR_CLOSE_TIME,
     PBS_CONTACTOR_OPEN_TIME,
+    PBS_CONTACTOR_HOLD_DUTY_CYCLE,
     PBS_ESTOPS,
     PBS_RCM_SCALAR,
     PBS_RCM_MAPPING,
@@ -257,6 +270,16 @@ enum param_block_state {
     PBS_RCM_TRIGGER_TIME,
     PBS_RCM_CHECK_TRIPPED_TIME,
     PBS_RCM_CHECK_NORMAL_TIME,
+    PBS_INLET_SCALAR,
+    PBS_INLET_MAPPING,
+    PBS_INLET_TYPE,
+    PBS_INLET_CLOSE_TIME,
+    PBS_INLET_OPEN_TIME,
+    PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN,
+    PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX,
+    PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN,
+    PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX,
+    PBS_MOTOR_DRIVER_FAULT,
     PBS_MAX,
 };
 
@@ -272,6 +295,7 @@ static const char *param_block_state_str[PBS_MAX] = {
     "PBS_CONTACTOR_TYPE",
     "PBS_CONTACTOR_CLOSE_TIME",
     "PBS_CONTACTOR_OPEN_TIME",
+    "PBS_CONTACTOR_HOLD_DUTY_CYCLE",
     "PBS_ESTOPS",
     "PBS_RCM_SCALAR",
     "PBS_RCM_MAPPING",
@@ -280,12 +304,22 @@ static const char *param_block_state_str[PBS_MAX] = {
     "PBS_RCM_TRIGGER_TIME",
     "PBS_RCM_CHECK_TRIPPED_TIME",
     "PBS_RCM_CHECK_NORMAL_TIME",
+    "PBS_INLET_SCALAR",
+    "PBS_INLET_MAPPING",
+    "PBS_INLET_TYPE",
+    "PBS_INLET_CLOSE_TIME",
+    "PBS_INLET_OPEN_TIME",
+    "PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN",
+    "PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX",
+    "PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN",
+    "PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX",
+    "PBS_MOTOR_DRIVER_FAULT",
 };
 
 int main(int argc, char *argv[])
 {
     enum param_block_state param_block_state = PBS_NONE;
-    enum param_block_version output_version = PB_VERSION_V2;
+    enum param_block_version output_version = PB_VERSION_V3;
     int rv = EXIT_FAILURE;
     int current_temperature_idx = -1;
     int current_contactor_idx = -1;
@@ -293,9 +327,17 @@ int main(int argc, char *argv[])
     bool parsing_done = false;
     uint16_t tmp_u16;
     int16_t tmp_i16;
-    bool rcm_config = false;
     bool yaml_has_version = false;
     uint16_t yaml_version = PARAMETER_BLOCK_VERSION;
+    bool inlet_seen = false;
+    bool inlet_type_set = false;
+    bool inlet_close_time_set = false;
+    bool inlet_open_time_set = false;
+    bool inlet_feedback_open_min_set = false;
+    bool inlet_feedback_open_max_set = false;
+    bool inlet_feedback_closed_min_set = false;
+    bool inlet_feedback_closed_max_set = false;
+    int write_result;
 
     /* handle command line options */
     parse_cli(argc, argv);
@@ -325,6 +367,13 @@ int main(int argc, char *argv[])
         }
 
         switch (event.type) {
+        case YAML_SEQUENCE_START_EVENT:
+            if (param_block_state == PBS_INLET_SCALAR) {
+                fprintf(stderr, "Error: invalid pluglock configuration: sequences are not allowed.\n");
+                goto err_out;
+            }
+            break;
+
         case YAML_SEQUENCE_END_EVENT:
             switch (param_block_state) {
             case PBS_PT1000S:
@@ -360,6 +409,9 @@ int main(int argc, char *argv[])
             case PBS_RCM_SCALAR:
                 param_block_state = PBS_RCM_MAPPING;
                 break;
+            case PBS_INLET_SCALAR:
+                param_block_state = PBS_INLET_MAPPING;
+                break;
 
             default:
                 /* nothing */;
@@ -375,7 +427,10 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_CONTACTORS;
                 break;
             case PBS_RCM_MAPPING:
-                param_block_state = PBS_RCM_SCALAR;
+                param_block_state = PBS_NONE;
+                break;
+            case PBS_INLET_MAPPING:
+                param_block_state = PBS_NONE;
                 break;
 
             default:
@@ -396,6 +451,12 @@ int main(int argc, char *argv[])
                     param_block_state = PBS_ESTOPS;
                 else if (strcasecmp(event.data.scalar.value, "rcm") == 0)
                     param_block_state = PBS_RCM_SCALAR;
+                else if (strcasecmp(event.data.scalar.value, "motor-driver-fault") == 0)
+                    param_block_state = PBS_MOTOR_DRIVER_FAULT;
+                else if (strcasecmp(event.data.scalar.value, "pluglock") == 0) {
+                    param_block_state = PBS_INLET_SCALAR;
+                    inlet_seen = true;
+                }
                 break;
             case PBS_VERSION:
                 param_block_state = PBS_NONE;
@@ -457,6 +518,8 @@ int main(int argc, char *argv[])
                     param_block_state = PBS_CONTACTOR_CLOSE_TIME;
                 else if (strcasecmp(event.data.scalar.value, "open-time") == 0)
                     param_block_state = PBS_CONTACTOR_OPEN_TIME;
+                else if (strcasecmp(event.data.scalar.value, "hold-duty-cycle") == 0)
+                    param_block_state = PBS_CONTACTOR_HOLD_DUTY_CYCLE;
                 break;
             case PBS_CONTACTORS:
                 current_contactor_idx++;
@@ -466,9 +529,9 @@ int main(int argc, char *argv[])
                             current_contactor_idx + 1, event.data.scalar.value);
                     break;
                 }
-                param_block.contactor_type[current_contactor_idx] =
+                param_block.contactor[current_contactor_idx].type =
                     str_to_contactor_type(event.data.scalar.value);
-                if (param_block.contactor_type[current_contactor_idx] == CONTACTOR_MAX) {
+                if (param_block.contactor[current_contactor_idx].type == CONTACTOR_MAX) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a contactor configuration.\n",
                             event.data.scalar.value);
                     goto err_out;
@@ -478,9 +541,9 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_CONTACTOR;
                 if (current_contactor_idx > CB_PROTO_MAX_CONTACTORS - 1)
                     break;
-                param_block.contactor_type[current_contactor_idx] =
+                param_block.contactor[current_contactor_idx].type =
                     str_to_contactor_type(event.data.scalar.value);
-                if (param_block.contactor_type[current_contactor_idx] == CONTACTOR_MAX) {
+                if (param_block.contactor[current_contactor_idx].type == CONTACTOR_MAX) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a contactor type configuration.\n",
                             event.data.scalar.value);
                     goto err_out;
@@ -490,7 +553,7 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_CONTACTOR;
                 if (current_contactor_idx > CB_PROTO_MAX_CONTACTORS - 1)
                     break;
-                if (str_to_contactor_time(event.data.scalar.value, &param_block.contactor_close_time[current_contactor_idx])) {
+                if (str_to_contactor_time(event.data.scalar.value, &param_block.contactor[current_contactor_idx].close_time)) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a valid contactor close time. Unit (ms) missing or wrong whitespace?\n",
                             event.data.scalar.value);
                     goto err_out;
@@ -500,8 +563,18 @@ int main(int argc, char *argv[])
                 param_block_state = PBS_CONTACTOR;
                 if (current_contactor_idx > CB_PROTO_MAX_CONTACTORS - 1)
                     break;
-                if (str_to_contactor_time(event.data.scalar.value, &param_block.contactor_open_time[current_contactor_idx])) {
+                if (str_to_contactor_time(event.data.scalar.value, &param_block.contactor[current_contactor_idx].open_time)) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a valid contactor open time. Unit (ms) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_CONTACTOR_HOLD_DUTY_CYCLE:
+                param_block_state = PBS_CONTACTOR;
+                if (current_contactor_idx > CB_PROTO_MAX_CONTACTORS - 1)
+                    break;
+                if (str_to_contactor_hold_duty_cycle(event.data.scalar.value, &param_block.contactor[current_contactor_idx].hold_duty_cycle)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid contactor hold duty cycle. Unit (%%) missing, invalid, or out of range?\n",
                             event.data.scalar.value);
                     goto err_out;
                 }
@@ -524,7 +597,7 @@ int main(int argc, char *argv[])
                 break;
             case PBS_RCM_SCALAR:
                 param_block_state = PBS_NONE;
-                if (str_to_disabled_flag(event.data.scalar.value, &rcm_config)) {
+                if (str_to_disabled_flag(event.data.scalar.value, &(bool){ false })) {
                     fprintf(stderr, "Error: Value '%s' not allowed in this context (expected a 'disabled' flag)\n",
                             event.data.scalar.value);
                     goto err_out;
@@ -584,6 +657,114 @@ int main(int argc, char *argv[])
                     goto err_out;
                 }
                 break;
+            case PBS_INLET_SCALAR:
+                if (str_to_disabled_flag(event.data.scalar.value, &(bool){ false })) {
+                    fprintf(stderr, "Error: Value '%s' not allowed in this context (expected a pluglock disabled flag)\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_type = INLET_NONE;
+                inlet_type_set = true;
+                param_block_state = PBS_NONE;
+                break;
+            case PBS_INLET_MAPPING:
+                if (strcasecmp(event.data.scalar.value, "type") == 0)
+                    param_block_state = PBS_INLET_TYPE;
+                else if (strcasecmp(event.data.scalar.value, "close-time") == 0)
+                    param_block_state = PBS_INLET_CLOSE_TIME;
+                else if (strcasecmp(event.data.scalar.value, "open-time") == 0)
+                    param_block_state = PBS_INLET_OPEN_TIME;
+                else if (strcasecmp(event.data.scalar.value, "feedback-open-voltage-min") == 0)
+                    param_block_state = PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN;
+                else if (strcasecmp(event.data.scalar.value, "feedback-open-voltage-max") == 0)
+                    param_block_state = PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX;
+                else if (strcasecmp(event.data.scalar.value, "feedback-closed-voltage-min") == 0)
+                    param_block_state = PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN;
+                else if (strcasecmp(event.data.scalar.value, "feedback-closed-voltage-max") == 0)
+                    param_block_state = PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX;
+                else {
+                    fprintf(stderr, "Error: Unknown pluglock configuration key '%s'.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_INLET_TYPE:
+                param_block_state = PBS_INLET_MAPPING;
+                param_block.inlet_type = str_to_inlet_type(event.data.scalar.value);
+                if (param_block.inlet_type == INLET_MAX) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a pluglock type configuration.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                inlet_type_set = true;
+                break;
+            case PBS_INLET_CLOSE_TIME:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_inlet_time(event.data.scalar.value, &param_block.inlet_close_time)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock close time. Unit (ms) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                inlet_close_time_set = true;
+                break;
+            case PBS_INLET_OPEN_TIME:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_inlet_time(event.data.scalar.value, &param_block.inlet_open_time)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock open time. Unit (ms) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                inlet_open_time_set = true;
+                break;
+            case PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MIN:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock feedback open minimum voltage. Unit (mV) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_feedback_open_valid_min_mv = tmp_u16;
+                inlet_feedback_open_min_set = true;
+                break;
+            case PBS_INLET_FEEDBACK_OPEN_VOLTAGE_MAX:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock feedback open maximum voltage. Unit (mV) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_feedback_open_valid_max_mv = tmp_u16;
+                inlet_feedback_open_max_set = true;
+                break;
+            case PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MIN:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock feedback closed minimum voltage. Unit (mV) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_feedback_closed_valid_min_mv = tmp_u16;
+                inlet_feedback_closed_min_set = true;
+                break;
+            case PBS_INLET_FEEDBACK_CLOSED_VOLTAGE_MAX:
+                param_block_state = PBS_INLET_MAPPING;
+                if (str_to_mv(event.data.scalar.value, &tmp_u16)) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a valid pluglock feedback closed maximum voltage. Unit (mV) missing or wrong whitespace?\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                param_block.inlet_feedback_closed_valid_max_mv = tmp_u16;
+                inlet_feedback_closed_max_set = true;
+                break;
+            case PBS_MOTOR_DRIVER_FAULT:
+                param_block_state = PBS_NONE;
+                param_block.inlet_motor_driver_fault = str_to_pin_polarity_type(event.data.scalar.value);
+                if (param_block.inlet_motor_driver_fault == PIN_POLARITY_MAX) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to a motor driver fault configuration.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
             }
             break;
 
@@ -614,6 +795,27 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Warning: only %d contactor configuration(s) set instead of expected %d.\n", current_contactor_idx + 1, CB_PROTO_MAX_CONTACTORS);
     if (current_estop_idx < CB_PROTO_MAX_ESTOPS - 1)
         fprintf(stderr, "Warning: only %d estop configuration(s) set instead of expected %d.\n", current_estop_idx + 1, CB_PROTO_MAX_ESTOPS);
+    if (inlet_seen && !inlet_type_set) {
+        fprintf(stderr, "Error: invalid pluglock configuration: type is required when pluglock is configured as mapping.\n");
+        goto err_out;
+    }
+    if (param_block.inlet_type == INLET_WITHOUT_FEEDBACK || param_block.inlet_type == INLET_WITH_FEEDBACK) {
+        if (!inlet_close_time_set) {
+            fprintf(stderr, "Error: invalid pluglock timing: close-time is required\n");
+            goto err_out;
+        }
+        if (!inlet_open_time_set) {
+            fprintf(stderr, "Error: invalid pluglock timing: open-time is required\n");
+            goto err_out;
+        }
+    }
+    if (param_block.inlet_type == INLET_WITH_FEEDBACK) {
+        if (!inlet_feedback_open_min_set || !inlet_feedback_open_max_set ||
+            !inlet_feedback_closed_min_set || !inlet_feedback_closed_max_set) {
+            fprintf(stderr, "Error: invalid pluglock feedback voltages: all four feedback voltages are required for with-feedback\n");
+            goto err_out;
+        }
+    }
     /* check RCM configuration for plausibility */
     if (param_block.rcm_fault_polarity == PIN_POLARITY_NONE && param_block.rcm_test_polarity != PIN_POLARITY_NONE) {
         fprintf(stderr, "Error: invalid RCM pin polarity configuration: RCM fault pin polarity is also required\n");
@@ -652,7 +854,12 @@ int main(int argc, char *argv[])
 
     print_downgrade_warnings(pb_get_downgrade_warnings(&param_block, output_version), output_version);
 
-    if (pb_write(&param_block, output_version, outfile)) {
+    if (wrong_crc)
+        write_result = pb_write_crc_override(&param_block, output_version, outfile, 0xa5);
+    else
+        write_result = pb_write(&param_block, output_version, outfile);
+
+    if (write_result) {
         fprintf(stderr, "Error while writing to '%s': %m\n", filename_out);
         goto err_out;
     } else {

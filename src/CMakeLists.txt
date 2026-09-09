@@ -39,6 +39,23 @@ target_link_libraries(ra-raw
 
 install(TARGETS ra-raw DESTINATION sbin)
 
+add_executable(ra-candump
+    ra-candump.c
+)
+
+target_include_directories(ra-candump
+    PRIVATE
+        ${LIBRAUTILS_INCLUDE_DIR}
+        ${LIBRAUTILS_INCLUDE_BINARY_DIR}
+)
+
+target_link_libraries(ra-candump
+    PRIVATE
+        ra-utils
+)
+
+install(TARGETS ra-candump DESTINATION sbin)
+
 add_executable(ra-pb-dump
     ra-pb-dump.c
     param_block.c

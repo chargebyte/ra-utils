@@ -1,8 +1,8 @@
 install(
     FILES
-        chargesom_fw_v_00_03_01.bin
+        chargesom_fw_v_00_04_00.bin
         chargesom_parameter-block_only-contactor.yaml
-        parsley_fw_v_00_03_01.bin
+        parsley_fw_v_00_04_00.bin
         parsley_parameter-block_factory-default.yaml
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}
 )
@@ -10,14 +10,14 @@ install(
 install(
     FILES
         ra-update@.service
-    DESTINATION /lib/systemd/system
+    DESTINATION ${SYSTEMD_SYSTEM_UNITDIR}
 )
 
 install(
     DIRECTORY
         ra-update@ttyLP1.service.d
         ra-update@ttyLP2.service.d
-    DESTINATION /lib/systemd/system
+    DESTINATION ${SYSTEMD_SYSTEM_UNITDIR}
     FILES_MATCHING
     PATTERN "*.conf"
 )
