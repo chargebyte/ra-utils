@@ -578,6 +578,9 @@ int main(int argc, char *argv[])
                             event.data.scalar.value);
                     goto err_out;
                 }
+                if (param_block.contactor[current_contactor_idx].hold_duty_cycle < 10) {
+                    fprintf(stderr, "Warning: a contactor hold duty cycle of %s (< 10 %%) looks suspicious, using anyway.\n", event.data.scalar.value);
+                }
                 break;
             case PBS_ESTOPS:
                 current_estop_idx++;
