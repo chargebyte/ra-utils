@@ -45,6 +45,25 @@ target_compile_features(test-tools PRIVATE cxx_std_17)
 
 gtest_discover_tests(test-tools NO_PRETTY_VALUES)
 
+add_executable(test-cb-uart
+    test-cb-uart.cpp
+)
+
+target_include_directories(test-cb-uart
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/lib
+)
+
+target_link_libraries(test-cb-uart
+    PRIVATE
+        GTest::gtest_main
+        ra-utils
+)
+
+target_compile_features(test-cb-uart PRIVATE cxx_std_17)
+
+gtest_discover_tests(test-cb-uart)
+
 add_executable(test-ra-pb-dump
     test-ra-pb-dump.cpp
     ${CMAKE_SOURCE_DIR}/src/param_block.c

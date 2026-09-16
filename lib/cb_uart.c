@@ -7,8 +7,10 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include "uart.h"
+#include "tools.h"
 #include "logging.h"
 #include "crc8_j1850.h"
 #include "cb_uart.h"
@@ -26,6 +28,83 @@ struct uart_frame {
     uint8_t crc;
     uint8_t eof;
 } __attribute__((packed));
+
+static int remaining_timeout_ms(const struct timespec *timeout)
+{
+    struct timespec now;
+    long long remaining;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &now))
+        return -1;
+
+    remaining = timespec_to_ms(timespec_sub(*timeout, now));
+    if (remaining <= 0) {
+        errno = ETIMEDOUT;
+        return -1;
+    }
+
+    return remaining;
+}
+
+static int cb_uart_read_frame(struct uart_ctx *uart, struct uart_frame *frame, int timeout_ms)
+{
+    uint8_t *buffer = (uint8_t *)frame;
+    struct timespec timeout;
+    size_t buffered = 0;
+    size_t discarded = 0;
+    int rv;
+
+    rv = clock_gettime(CLOCK_MONOTONIC, &timeout);
+    if (rv)
+        return rv;
+
+    timespec_add_ms(&timeout, timeout_ms);
+
+    for (;;) {
+        size_t sof_offset;
+        uint8_t crc;
+        ssize_t c;
+
+        rv = remaining_timeout_ms(&timeout);
+        if (rv < 0)
+            return rv;
+
+        c = uart_read_with_timeout(uart, &buffer[buffered], sizeof(*frame) - buffered, rv);
+        if (c < 0)
+            return c;
+        buffered += c;
+
+        for (sof_offset = 0; sof_offset < buffered; ++sof_offset) {
+            if (buffer[sof_offset] == CB_SOF)
+                break;
+        }
+
+        if (sof_offset) {
+            discarded += sof_offset;
+            buffered -= sof_offset;
+            memmove(buffer, &buffer[sof_offset], buffered);
+        }
+
+        if (buffered < sizeof(*frame))
+            continue;
+
+        crc = crc8_j1850(&frame->com, sizeof(frame->com) + sizeof(frame->data));
+        if (frame->eof == CB_EOF && frame->crc == crc)
+            break;
+
+        /* This SOF was part of corrupt data. Keep scanning the already read
+         * bytes so a following valid frame is not lost.
+         */
+        discarded++;
+        buffered--;
+        memmove(buffer, &buffer[1], buffered);
+    }
+
+    if (discarded)
+        debug("UART receive stream resynchronized after discarding %zu byte(s)", discarded);
+
+    return 0;
+}
 
 const char *cb_uart_com_to_str(enum cb_uart_com com)
 {
@@ -122,7 +201,7 @@ int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data)
      * of the safety controller. Thus we expect at least after the CB_UART_RECV_INTERVAL a fully UART frame.
      * We add half of the period as safety margin.
      */
-    c = uart_read_with_timeout(uart, (uint8_t *)&frame, sizeof(frame), CB_UART_RECV_INTERVAL + CB_UART_RECV_INTERVAL / 2);
+    c = cb_uart_read_frame(uart, &frame, CB_UART_RECV_INTERVAL + CB_UART_RECV_INTERVAL / 2);
     if (c < 0)
         return c;
 
@@ -130,11 +209,6 @@ int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data)
         uart_dump_frame(true, false, (uint8_t *)&frame, sizeof(frame));
 
     /* check field patterns */
-    if (frame.sof != CB_SOF) {
-        error("SOF pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, CB_SOF, frame.sof);
-        errno = EBADMSG;
-        return -1;
-    }
     if (frame.eof != CB_EOF) {
         error("EOF pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, CB_EOF, frame.eof);
         errno = EBADMSG;
