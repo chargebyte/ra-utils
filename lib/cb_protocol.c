@@ -179,9 +179,25 @@ bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx)
     return false;
 }
 
-enum rcm_state cb_proto_get_rcm_state(struct safety_controller *ctx)
+enum estop_state cb_proto_imd_get_state(struct safety_controller *ctx)
 {
     return DATA_GET_BITS(ctx->charge_state, 22, 2);
+}
+
+bool cb_proto_imd_is_enabled(struct safety_controller *ctx)
+{
+    return (cb_proto_imd_get_state(ctx) == ESTOP_STATE_NOT_TRIPPED) ||
+           (cb_proto_imd_get_state(ctx) == ESTOP_STATE_TRIPPED);
+}
+
+bool cb_proto_imd_is_tripped(struct safety_controller *ctx)
+{
+    return cb_proto_imd_get_state(ctx) == ESTOP_STATE_TRIPPED;
+}
+
+enum rcm_state cb_proto_get_rcm_state(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 36, 2);
 }
 
 enum inlet_state cb_proto_get_inlet_state(struct safety_controller *ctx)
@@ -1318,6 +1334,11 @@ int cb_proto_frame_to_str(char *buffer, size_t size, enum cb_uart_com com, uint6
                 return rv;
         }
 
+        rv = append_text(buffer, size, &offset, "; IMD=%s",
+                         cb_proto_estop_state_to_str(cb_proto_imd_get_state(&ctx)));
+        if (rv < 0)
+            return rv;
+
         return (int)offset;
     case COM_CHARGE_CONTROL:
         ctx.charge_control = data;
@@ -1529,10 +1550,11 @@ void cb_proto_dump(struct safety_controller *ctx)
         printfnl("Control Pilot: %-37s Proximity Pilot: %s", buffer,
                   cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
 
-        printf("Emergency Stop Tripped:");
+        printf("Emergency Inputs:");
         for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
             printf(" ESTOP%d=%-11s ", i + 1, cb_proto_estop_state_to_str(cb_proto_estopN_get_state(ctx, i)));
         }
+        printfnl("IMD=%-11s", cb_proto_estop_state_to_str(cb_proto_imd_get_state(ctx)));
         printfnl("");
 
         printfnl("HV Ready: %-20s RCM State: %-21s Inlet State: %s",

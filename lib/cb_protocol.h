@@ -305,6 +305,10 @@ bool cb_proto_estopN_is_enabled(struct safety_controller *ctx, unsigned int esto
 bool cb_proto_estopN_is_tripped(struct safety_controller *ctx, unsigned int estop);
 bool cb_proto_estop_has_any_tripped(struct safety_controller *ctx);
 
+enum estop_state cb_proto_imd_get_state(struct safety_controller *ctx);
+bool cb_proto_imd_is_enabled(struct safety_controller *ctx);
+bool cb_proto_imd_is_tripped(struct safety_controller *ctx);
+
 enum rcm_state cb_proto_get_rcm_state(struct safety_controller *ctx);
 enum inlet_state cb_proto_get_inlet_state(struct safety_controller *ctx);
 
