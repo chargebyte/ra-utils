@@ -245,6 +245,31 @@ TEST(RaPbDumpTest, DumpsNoInletAsCanonicalNone)
     EXPECT_NE(result.stdout_output.find("pluglock: none\n"), std::string::npos);
 }
 
+TEST(RaPbDumpTest, DumpsImdPolarity)
+{
+    const fs::path binary(RA_PB_DUMP_PATH);
+    TemporaryDirectory temp_dir;
+    const fs::path fixture = temp_dir.path() / "imd.bin";
+    struct param_block_v3 pb = {};
+
+    ASSERT_TRUE(fs::exists(binary)) << "Missing ra-pb-dump binary at " << binary;
+
+    pb_init_v3(&pb);
+    pb.imd = PIN_POLARITY_ACTIVE_HIGH;
+    pb_refresh_crc_v3(&pb);
+
+    FILE *file = std::fopen(fixture.c_str(), "wb");
+    ASSERT_NE(file, nullptr) << std::strerror(errno);
+    ASSERT_EQ(std::fwrite(&pb, sizeof(pb), 1, file), 1U);
+    ASSERT_EQ(std::fclose(file), 0);
+
+    const ProcessResult result = RunDump(binary, fixture);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_SUCCESS) << result.stderr_output;
+    EXPECT_NE(result.stdout_output.find("\nimd: active-high\n"), std::string::npos);
+}
+
 TEST(RaPbDumpTest, SuppressesStoredInletValuesWhenTypeIsNone)
 {
     const fs::path binary(RA_PB_DUMP_PATH);

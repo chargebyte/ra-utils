@@ -149,7 +149,10 @@ The configuration uses a fixed hardware-oriented layout:
 - `contactors`: exactly 3 entries are expected
 - `estops`: exactly 3 entries are expected
 
-If fewer entries are provided, `ra-pb-create` prints a warning and leaves the missing
+Parameter block versions 2 and 3 additionally accept `imd` as one scalar pin
+polarity value.
+
+If fewer array entries are provided, `ra-pb-create` prints a warning and leaves the missing
 entries at their defaults (here this means disabled).
 If more entries are provided, the surplus entries are ignored with a warning.
 
@@ -238,13 +241,16 @@ Notes for `v1`:
 
 ### Version 2
 
-Safety controller firmware v0.4.x added RCM support. So parameter block version
-`v2` extends `v1` by adding optional RCM configuration.
+Safety controller firmware v0.4.x added RCM and IMD support.
+So parameter block version `v2` extends `v1` by adding the IMD pin configuration
+and an optional RCM configuration.
 
 ```yaml
 version: 2
 
 ...
+
+imd: active-low
 
 rcm:
   fault-polarity: active-low
@@ -254,7 +260,12 @@ rcm:
   test-check-normal-time: 100 ms
 ```
 
-The new `rcm` top-level key  supports two forms:
+The new top-level `imd` key configures a single IMD input and accepts the same pin
+polarity values as one `estops` entry: `disabled`, `active-low`, or `active-high`.
+The aliases `disable`, `none`, and `off` are also accepted. If the key is omitted,
+the default is `none` (disabled).
+
+The new `rcm` top-level key supports two forms:
 
 - Scalar form:
   - `disabled`, `disable`, `none`, or `off`
@@ -323,6 +334,8 @@ in the mentioned two areas:
 version: 3
 
 ...
+
+imd: active-low
 
 contactors:
   - type: with-feedback

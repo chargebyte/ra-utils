@@ -29,6 +29,8 @@ estops:
   - active-high
   - disabled
 
+imd: active-low
+
 rcm:
   fault-polarity: active-low
   test-polarity: active-high

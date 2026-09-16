@@ -542,6 +542,11 @@ static void pb_dump_estops_v3(struct param_block_v3 *param_block)
         printf("  - %s\n", pin_polarity_type_to_str(param_block->estop[i]));
 }
 
+static void pb_dump_imd(uint8_t imd)
+{
+    printf("\nimd: %s\n", pin_polarity_type_to_str(imd));
+}
+
 static void pb_dump_inlet_v3(struct param_block_v3 *param_block)
 {
     char buffer[32];
@@ -736,6 +741,7 @@ void pb_dump(struct param_block *param_block)
         pb_dump_temperatures_v1((struct param_block_v1 *)&param_block->data.v2, true);
         pb_dump_contactors_v1((struct param_block_v1 *)&param_block->data.v2);
         pb_dump_estops_v1((struct param_block_v1 *)&param_block->data.v2);
+        pb_dump_imd(param_block->data.v2.imd);
         printf("\n");
         pb_dump_v2(&param_block->data.v2);
         printf("\n");
@@ -746,6 +752,7 @@ void pb_dump(struct param_block *param_block)
         pb_dump_temperatures_v1((struct param_block_v1 *)&param_block->data.v3, true);
         pb_dump_contactors_v3(&param_block->data.v3);
         pb_dump_estops_v3(&param_block->data.v3);
+        pb_dump_imd(param_block->data.v3.imd);
         printf("\n");
         pb_dump_v3(&param_block->data.v3);
         printf("\n");
@@ -788,6 +795,9 @@ unsigned int pb_get_downgrade_warnings(struct param_block_v3 *param_block, enum 
 
     if (version < PB_VERSION_V3 && pb_has_inlet_config(param_block))
         warnings |= PB_WARN_DROP_INLET;
+
+    if (version < PB_VERSION_V2 && param_block->imd != PIN_POLARITY_NONE)
+        warnings |= PB_WARN_DROP_IMD;
 
     if (version < PB_VERSION_V2 &&
         (param_block->rcm_fault_polarity != PIN_POLARITY_NONE ||
@@ -944,6 +954,7 @@ static int pb_write_internal(struct param_block_v3 *param_block, enum param_bloc
         memcpy(pb_v2.temperature_resistance_offset, param_block->temperature_resistance_offset,
                sizeof(pb_v2.temperature_resistance_offset));
         memcpy(pb_v2.estop, param_block->estop, sizeof(pb_v2.estop));
+        pb_v2.imd = param_block->imd;
         pb_v2.rcm_fault_polarity = param_block->rcm_fault_polarity;
         pb_v2.rcm_test_polarity = param_block->rcm_test_polarity;
         pb_v2.rcm_test_trigger_time = param_block->rcm_test_trigger_time;

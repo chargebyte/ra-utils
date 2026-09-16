@@ -53,6 +53,7 @@ struct param_block_v2 {
     uint8_t contactor_open_time[CB_PROTO_MAX_CONTACTORS]; // open time for HV contactor in multiples of 10ms
 
     uint8_t estop[CB_PROTO_MAX_ESTOPS];  // 0 = disabled, 1 = active-low, 2 = active-high
+    uint8_t imd;                         // 0 = disabled, 1 = active-low, 2 = active-high
 
     uint8_t rcm_fault_polarity; // 0 = disabled, 1 = active-low, 2 = active-high
     uint8_t rcm_test_polarity; // 0 = disabled, 1 = active-low, 2 = active-high
@@ -82,6 +83,7 @@ struct param_block_v3 {
     struct contactor_config contactor[CB_PROTO_MAX_CONTACTORS];
 
     uint8_t estop[CB_PROTO_MAX_ESTOPS];  // 0 = disabled, 1 = active-low, 2 = active-high
+    uint8_t imd;                         // 0 = disabled, 1 = active-low, 2 = active-high
 
     uint8_t rcm_fault_polarity; // 0 = disabled, 1 = active-low, 2 = active-high
     uint8_t rcm_test_polarity; // 0 = disabled, 1 = active-low, 2 = active-high
@@ -129,6 +131,7 @@ enum pb_downgrade_warning {
     PB_WARN_DROP_RCM = 1U << 2,
     PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC = 1U << 3,
     PB_WARN_DROP_INLET = 1U << 4,
+    PB_WARN_DROP_IMD = 1U << 5,
 };
 
 

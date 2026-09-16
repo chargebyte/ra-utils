@@ -140,6 +140,8 @@ static void print_downgrade_warnings(unsigned int warnings, enum param_block_ver
         fprintf(stderr, "Warning: dropping RCM configuration when creating parameter block version %u.\n", version);
     if (warnings & PB_WARN_DROP_INLET)
         fprintf(stderr, "Warning: dropping pluglock configuration when creating parameter block version %u.\n", version);
+    if (warnings & PB_WARN_DROP_IMD)
+        fprintf(stderr, "Warning: dropping IMD configuration when creating parameter block version %u.\n", version);
     if (warnings & PB_WARN_MAP_V0_CONTACTOR_WITH_FEEDBACK_NC)
         fprintf(stderr, "Warning: mapping 'with-feedback-normally-closed' to legacy unversioned contactor setting.\n");
 }
@@ -263,6 +265,7 @@ enum param_block_state {
     PBS_CONTACTOR_OPEN_TIME,
     PBS_CONTACTOR_HOLD_DUTY_CYCLE,
     PBS_ESTOPS,
+    PBS_IMD,
     PBS_RCM_SCALAR,
     PBS_RCM_MAPPING,
     PBS_RCM_FAULT_POLARITY,
@@ -297,6 +300,7 @@ static const char *param_block_state_str[PBS_MAX] = {
     "PBS_CONTACTOR_OPEN_TIME",
     "PBS_CONTACTOR_HOLD_DUTY_CYCLE",
     "PBS_ESTOPS",
+    "PBS_IMD",
     "PBS_RCM_SCALAR",
     "PBS_RCM_MAPPING",
     "PBS_RCM_FAULT_POLARITY",
@@ -449,6 +453,8 @@ int main(int argc, char *argv[])
                     param_block_state = PBS_CONTACTORS;
                 else if (strcasecmp(event.data.scalar.value, "estops") == 0)
                     param_block_state = PBS_ESTOPS;
+                else if (strcasecmp(event.data.scalar.value, "imd") == 0)
+                    param_block_state = PBS_IMD;
                 else if (strcasecmp(event.data.scalar.value, "rcm") == 0)
                     param_block_state = PBS_RCM_SCALAR;
                 else if (strcasecmp(event.data.scalar.value, "motor-driver-fault") == 0)
@@ -594,6 +600,15 @@ int main(int argc, char *argv[])
                     str_to_pin_polarity_type(event.data.scalar.value);
                 if (param_block.estop[current_estop_idx] == PIN_POLARITY_MAX) {
                     fprintf(stderr, "Error: Cannot convert '%s' to a estop configuration.\n",
+                            event.data.scalar.value);
+                    goto err_out;
+                }
+                break;
+            case PBS_IMD:
+                param_block_state = PBS_NONE;
+                param_block.imd = str_to_pin_polarity_type(event.data.scalar.value);
+                if (param_block.imd == PIN_POLARITY_MAX) {
+                    fprintf(stderr, "Error: Cannot convert '%s' to an IMD configuration.\n",
                             event.data.scalar.value);
                     goto err_out;
                 }

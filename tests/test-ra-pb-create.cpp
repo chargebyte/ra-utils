@@ -388,6 +388,47 @@ TEST(RaPbCreateTest, DefaultOutputUsesLatestSupportedVersion)
 
     const struct param_block param_block = ReadParamBlockOrFail(output);
     EXPECT_EQ(param_block.version, PB_VERSION_V3);
+    EXPECT_EQ(param_block.data.v3.imd, PIN_POLARITY_NONE);
+}
+
+TEST(RaPbCreateTest, ImdUsesPinPolarityAndIsStoredInVersionsTwoAndThree)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output_v2 = temp_dir.path() / "output-v2.bin";
+    const fs::path output_v3 = temp_dir.path() / "output-v3.bin";
+
+    WriteFile(input,
+              std::string(kYamlWithoutVersion) + "\nimd: active-high\n");
+
+    const ProcessResult result_v2 = RunCreate({"--version-override", "2"}, input, output_v2);
+    const ProcessResult result_v3 = RunCreate({"--version-override", "3"}, input, output_v3);
+
+    ASSERT_TRUE(result_v2.exited);
+    EXPECT_EQ(result_v2.exit_code, EXIT_SUCCESS) << result_v2.stderr_output;
+    ASSERT_TRUE(result_v3.exited);
+    EXPECT_EQ(result_v3.exit_code, EXIT_SUCCESS) << result_v3.stderr_output;
+
+    const struct param_block param_block_v2 = ReadParamBlockOrFail(output_v2);
+    const struct param_block param_block_v3 = ReadParamBlockOrFail(output_v3);
+    EXPECT_EQ(param_block_v2.data.v2.imd, PIN_POLARITY_ACTIVE_HIGH);
+    EXPECT_EQ(param_block_v3.data.v3.imd, PIN_POLARITY_ACTIVE_HIGH);
+}
+
+TEST(RaPbCreateTest, InvalidImdPolarityFails)
+{
+    TemporaryDirectory temp_dir;
+    const fs::path input = temp_dir.path() / "input.yaml";
+    const fs::path output = temp_dir.path() / "output.bin";
+
+    WriteFile(input,
+              std::string(kYamlWithoutVersion) + "\nimd: invalid\n");
+
+    const ProcessResult result = RunCreate({}, input, output);
+
+    ASSERT_TRUE(result.exited);
+    EXPECT_EQ(result.exit_code, EXIT_FAILURE);
+    EXPECT_NE(result.stderr_output.find("IMD configuration"), std::string::npos);
 }
 
 TEST(RaPbCreateTest, ContactorsStoreExplicitHoldDutyCycleInVersion3)
