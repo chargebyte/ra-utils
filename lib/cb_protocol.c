@@ -690,8 +690,8 @@ const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason)
         return "emergency input 2";
     case CS1_SAFESTATE_REASON_EMERGENCY_INPUT_3:
         return "emergency input 3";
-    case CS1_SAFESTATE_REASON_UNDEFINED_1:
-        return "undefined";
+    case CS1_SAFESTATE_REASON_EMERGENCY_INPUT_4_IMD:
+        return "IMD tripped";
     case CS1_SAFESTATE_REASON_RCM_ERROR:
         return "RCM tripped";
     case CS1_SAFESTATE_REASON_RCM_SELFTEST:
@@ -1555,7 +1555,6 @@ void cb_proto_dump(struct safety_controller *ctx)
             printf(" ESTOP%d=%-11s ", i + 1, cb_proto_estop_state_to_str(cb_proto_estopN_get_state(ctx, i)));
         }
         printfnl("IMD=%-11s", cb_proto_estop_state_to_str(cb_proto_imd_get_state(ctx)));
-        printfnl("");
 
         printfnl("HV Ready: %-20s RCM State: %-21s Inlet State: %s",
                  cb_proto_get_hv_ready(ctx) ? "yes" : "no",
