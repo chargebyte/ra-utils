@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 project(ra-utils
-    VERSION 0.19.0
+    VERSION 0.20.0
     DESCRIPTION "Command line tools related to the Renesas MCU (aka safety controller)"
     LANGUAGES C CXX
 )
@@ -29,11 +29,21 @@ endif()
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
-# latest firmware and example parameter blocks
-add_subdirectory(firmware)
-
 # search for package PkgConfig
 find_package(PkgConfig REQUIRED)
+
+# try to obtain install directory for systemd units...
+pkg_get_variable(SYSTEMD_SYSTEM_UNITDIR systemd systemdsystemunitdir)
+if(NOT SYSTEMD_SYSTEM_UNITDIR)
+    # fallback if not available
+    set(SYSTEMD_SYSTEM_UNITDIR "${CMAKE_INSTALL_FULL_LIBDIR}/systemd/system")
+endif()
+# ...but also allow to override via build variable
+set(SYSTEMD_SYSTEM_UNITDIR "${SYSTEMD_SYSTEM_UNITDIR}" CACHE PATH
+    "Directory for systemd system unit files")
+
+# latest firmware and example parameter blocks
+add_subdirectory(firmware)
 
 # search for libgpiod
 pkg_search_module(LIBGPIOD REQUIRED libgpiod)
