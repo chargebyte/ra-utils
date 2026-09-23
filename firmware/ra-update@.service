@@ -2,6 +2,7 @@
 Description=Check/upgrade Safety Controller firmware
 Before=everest.service
 RequiresMountsFor=/var/log
+Wants=ra-parameter-dump@%i.service
 
 [Service]
 Type=oneshot

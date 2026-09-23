@@ -1,0 +1,9 @@
+[Unit]
+Description=Dump Safety Controller Parameter Block
+After=ra-update@%i.service
+Before=everest.service
+
+[Service]
+Type=oneshot
+Environment="SAFETY_MCU_UART=/dev/%i"
+ExecStart=/usr/libexec/ra-parameter-dump.sh

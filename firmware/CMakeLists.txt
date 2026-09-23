@@ -10,7 +10,19 @@ install(
 install(
     FILES
         ra-update@.service
+        ra-parameter-dump@.service
     DESTINATION ${SYSTEMD_SYSTEM_UNITDIR}
+)
+
+pkg_get_variable(SYSTEMD_TMPFILESDIR systemd tmpfilesdir)
+if(NOT SYSTEMD_TMPFILESDIR)
+    set(SYSTEMD_TMPFILESDIR "${CMAKE_INSTALL_FULL_LIBDIR}/tmpfiles.d")
+endif()
+
+install(
+    FILES
+        ra-utils.conf
+    DESTINATION ${SYSTEMD_TMPFILESDIR}
 )
 
 install(
@@ -25,5 +37,6 @@ install(
 install(
     PROGRAMS
         ra-update.sh
+        ra-parameter-dump.sh
     DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}
 )
