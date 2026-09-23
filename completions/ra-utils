@@ -1,0 +1,109 @@
+# bash completion for ra-update and ra-pb-create
+
+_ra_update()
+{
+    local cur prev word command i
+    local -a commands options
+
+    commands=(
+        'reset'
+        'hold-in-reset'
+        'bootloader'
+        'fw-info'
+        'chipinfo'
+        'erase'
+        'flash'
+        'dump'
+    )
+    options=(
+        '--reset-gpio' '--md-gpio' '--uart' '--reset-period' '--flash-area'
+        '--no-verify' '--verbose' '--version' '--help'
+        '-r' '-m' '-d' '-p' '-a' '-N' '-v' '-V' '-h'
+    )
+
+    COMPREPLY=()
+    cur=${COMP_WORDS[COMP_CWORD]}
+    prev=${COMP_WORDS[COMP_CWORD - 1]}
+
+    case "$prev" in
+        --flash-area|-a)
+            COMPREPLY=( $(compgen -W 'code data' -- "$cur") )
+            return 0
+            ;;
+        --reset-gpio|-r|--md-gpio|-m|--uart|-d|--reset-period|-p)
+            return 0
+            ;;
+    esac
+
+    # Find the command, skipping options and their arguments.
+    for ((i = 1; i < COMP_CWORD; i++)); do
+        word=${COMP_WORDS[i]}
+        case "$word" in
+            --reset-gpio|--md-gpio|--uart|--reset-period|--flash-area|-r|-m|-d|-p|-a)
+                ((i++))
+                ;;
+            --)
+                ((i++))
+                command=${COMP_WORDS[i]}
+                break
+                ;;
+            -*)
+                ;;
+            *)
+                command=$word
+                break
+                ;;
+        esac
+    done
+
+    if [[ -z "$command" ]]; then
+        if [[ "$cur" == -* ]]; then
+            COMPREPLY=( $(compgen -W "${options[*]}" -- "$cur") )
+        else
+            COMPREPLY=( $(compgen -W "${commands[*]}" -- "$cur") )
+        fi
+        return 0
+    fi
+
+    case "$command" in
+        flash|fw-info|dump)
+            compopt -o filenames 2>/dev/null || true
+            COMPREPLY=( $(compgen -f -- "$cur") )
+            ;;
+    esac
+}
+
+_ra_pb_create()
+{
+    local cur prev
+    local -a options
+
+    options=(
+        '--infile' '--outfile' '--version-from-yaml' '--version-override'
+        '--wrong-crc' '--debug' '--version' '--help'
+        '-i' '-o' '-Y' '-O' '-W' '-D' '-V' '-h'
+    )
+
+    COMPREPLY=()
+    cur=${COMP_WORDS[COMP_CWORD]}
+    prev=${COMP_WORDS[COMP_CWORD - 1]}
+
+    case "$prev" in
+        --infile|-i|--outfile|-o)
+            compopt -o filenames 2>/dev/null || true
+            COMPREPLY=( $(compgen -f -- "$cur") )
+            return 0
+            ;;
+        --version-override|-O)
+            COMPREPLY=( $(compgen -W '1 2 3' -- "$cur") )
+            return 0
+            ;;
+    esac
+
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $(compgen -W "${options[*]}" -- "$cur") )
+    fi
+}
+
+complete -F _ra_update ra-update
+complete -F _ra_pb_create ra-pb-create

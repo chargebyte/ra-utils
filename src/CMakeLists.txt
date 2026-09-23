@@ -95,3 +95,9 @@ target_link_libraries(ra-pb-create
 )
 
 install(TARGETS ra-pb-create DESTINATION bin)
+
+install(
+    FILES
+        ${CMAKE_SOURCE_DIR}/completions/ra-utils
+    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/bash-completion/completions
+)
