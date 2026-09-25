@@ -29,6 +29,8 @@ install(
     DIRECTORY
         ra-update@ttyLP1.service.d
         ra-update@ttyLP2.service.d
+        ra-parameter-dump@ttyLP1.service.d
+        ra-parameter-dump@ttyLP2.service.d
     DESTINATION ${SYSTEMD_SYSTEM_UNITDIR}
     FILES_MATCHING
     PATTERN "*.conf"
