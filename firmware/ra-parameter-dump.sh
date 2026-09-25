@@ -36,6 +36,10 @@ ra-update -a data dump "$current_bin"
 ra-pb-dump "$current_bin" > "$yaml_file"
 mv -f "$yaml_file" "$output_file"
 
-# The YAML file is intentionally retained in /run for the remainder of the
-# runtime. The EXIT trap only removes the temporary file after the rename.
+# Retain the YAML file in /run for the remainder of the runtime, but remove
+# the temporary binary dump after the YAML conversion.
+rm -f "$current_bin"
+current_bin=
+
+# The EXIT trap is no longer needed after both temporary files are handled.
 trap - EXIT HUP INT TERM
