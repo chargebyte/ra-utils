@@ -5,6 +5,7 @@
 # and compares it with the data from the firmware bundle in the rootfs (TARGET_...).
 # If this differs, then the firmware is updated.
 #
+set -e
 
 LIBDIR="/usr/share/ra-utils"
 
@@ -195,7 +196,4 @@ fi
 
 echo -n "Updating Firmware..."
 ra-update flash "$FW_FILE"
-rv=$?
 echo "done."
-
-exit "$rv"

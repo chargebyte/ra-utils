@@ -3,11 +3,15 @@ Description=Check/upgrade Safety Controller firmware
 Before=everest.service
 RequiresMountsFor=/var/log
 Wants=ra-parameter-dump@%i.service
+StartLimitIntervalSec=120
+StartLimitBurst=3
+StartLimitAction=reboot
 
 [Service]
 Type=oneshot
 Environment="SAFETY_MCU_UART=/dev/%i"
 ExecStart=/usr/libexec/ra-update.sh
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
