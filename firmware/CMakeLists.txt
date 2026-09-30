@@ -1,7 +1,7 @@
 install(
     FILES
         chargesom_fw_v_00_04_01.bin
-        chargesom_parameter-block_only-contactor.yaml
+        chargesom_parameter-block_factory-default.yaml
         parsley_fw_v_00_05_00.bin
         parsley_parameter-block_factory-default.yaml
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}

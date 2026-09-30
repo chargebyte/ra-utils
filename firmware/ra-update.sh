@@ -9,13 +9,11 @@ set -e
 
 LIBDIR="/usr/share/ra-utils"
 
-FW_FILE="$(ls -1 $LIBDIR/*_fw_*.bin 2>/dev/null)"
+FW_FILE="$(ls -1 $LIBDIR/*_fw_*.bin 2>/dev/null || true)"
 if [ -z "$FW_FILE" ]; then
-    echo "No firmware file found." >&2
-    exit 1
+    echo "No firmware file found, exiting without update." >&2
+    exit 0
 fi
-
-PARAM_FILE="$(ls -1 $LIBDIR/*_parameter-block_only-contactor.yaml 2>/dev/null)"
 
 TARGET_VERSION="$(ra-update fw-info "$FW_FILE" 2>/dev/null)"
 CURRENT_VERSION="$(ra-update fw-info)"
@@ -90,9 +88,14 @@ EOF
 # when upgrading from 0.1.0 we need to install a parameter block for the first time;
 # later we assume that a valid parameter block is already installed and we don't touch it
 if cur_version_eq "0.1.0"; then
+    pbfile_factory_yaml="$(ls -1 $LIBDIR/*_parameter-block_factory-default.yaml 2>/dev/null || true)"
+    if [ -z "$pbfile_factory_yaml" ]; then
+        echo "No factory default parameter block found, exiting without update." >&2
+        exit 0
+    fi
     pbfile_target_bin=$(mktemp)
 
-    ra-pb-create -O "$TARGET_PB_VERSION" -i "$PARAM_FILE" -o "$pbfile_target_bin"
+    ra-pb-create -O "$TARGET_PB_VERSION" -i "$pbfile_factory_yaml" -o "$pbfile_target_bin"
 
     echo -n "Installing Parameter Block..."
     ra-update -a data flash "$pbfile_target_bin"
