@@ -32,7 +32,24 @@ trap 'cleanup; exit 1' HUP INT TERM
 current_bin=$(mktemp "$output_dir/.$interface.parameter-block.XXXXXX")
 yaml_file=$(mktemp "$output_dir/.$interface.yaml.XXXXXX")
 
-ra-update -a data dump "$current_bin"
+dump_attempt=1
+dump_attempts=3
+while [ "$dump_attempt" -le "$dump_attempts" ]; do
+    if ra-update -a data dump "$current_bin"; then
+        break
+    fi
+
+    if [ "$dump_attempt" -eq "$dump_attempts" ]; then
+        echo "Failed to dump parameter block after $dump_attempts attempts." >&2
+        exit 1
+    fi
+
+    echo "Parameter block dump failed, retrying ($((dump_attempt + 1))/$dump_attempts)..." >&2
+    rm -f "$current_bin"
+    current_bin=$(mktemp "$output_dir/.$interface.parameter-block.XXXXXX")
+    dump_attempt=$((dump_attempt + 1))
+done
+
 ra-pb-dump "$current_bin" > "$yaml_file"
 mv -f "$yaml_file" "$output_file"
 
