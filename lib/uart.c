@@ -329,13 +329,16 @@ ssize_t uart_read_with_timeout(struct uart_ctx *ctx, uint8_t *buf, size_t count,
 
         remaining_timeout = timespec_to_ms(timespec_sub(ts_timeout, ts_now));
         if (remaining_timeout <= 0) {
+            debug("UART read timeout after %zu/%zu bytes", bytes_read, count);
             errno = ETIMEDOUT;
             return -1;
         }
 
         rv = uart_wait_frame(ctx, remaining_timeout);
-        if (rv)
+        if (rv) {
+            debug("UART read aborted after %zu/%zu bytes", bytes_read, count);
             return rv;
+        }
 
         c = read(ctx->fd, &buf[bytes_read], count - bytes_read);
         if (c < 0)
