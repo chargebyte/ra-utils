@@ -798,9 +798,17 @@ int ra_read(struct uart_ctx *uart, uint8_t *buffer, uint32_t start_addr, size_t 
 {
     uint32_t end_addr = start_addr + len - 1;
     size_t already_read = 0;
+    bool retry_on_timeout = true;
     int rv;
 
-    rv = ra_rwe_cmd(uart, RWE_READ, start_addr, end_addr);
+retry_read:
+    /*
+     * If receiving one data packet times out, retry the complete READ
+     * command once.  The command must be sent again because the bootloader
+     * may still be waiting for the next packet; start at the first byte of
+     * the block which was not received successfully.
+     */
+    rv = ra_rwe_cmd(uart, RWE_READ, start_addr + already_read, end_addr);
     if (rv)
         return rv;
 
@@ -812,8 +820,14 @@ int ra_read(struct uart_ctx *uart, uint8_t *buffer, uint32_t start_addr, size_t 
         debug("reading  0x%08" PRIx32 "-0x%08" PRIx32, cur_addr, (uint32_t)(cur_addr + len_for_this_round - 1));
 
         rv = ra_read_data(uart, &buffer[already_read], len_for_this_round, !is_last_round);
-        if (rv)
+        if (rv) {
+            if (errno == ETIMEDOUT && retry_on_timeout) {
+                debug("hit timeout, retrying once");
+                retry_on_timeout = false;
+                goto retry_read;
+            }
             return rv;
+        }
 
         already_read += len_for_this_round;
     }
