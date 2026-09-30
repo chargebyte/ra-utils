@@ -27,6 +27,7 @@
  *         -d, --uart              UART interface (default: /dev/ttyLP2)
  *         -p, --reset-period      reset duration (in ms, default: 500)
  *         -a, --flash-area        target flash area (code or data, default: code)
+ *         -s, --size              number of bytes to dump (default: complete area)
  *         -N, --no-verify         don't verify during after flashing (default: read back flash and compare)
  *         -v, --verbose           verbose operation
  *         -V, --version           print version and exit
@@ -117,6 +118,7 @@ static const struct option long_options[] = {
     { "uart",               required_argument,      0,      'd' },
     { "reset-period",       required_argument,      0,      'p' },
     { "flash-area",         required_argument,      0,      'a' },
+    { "size",               required_argument,      0,      's' },
     { "no-verify",          no_argument,            0,      'N' },
 
     { "verbose",            no_argument,            0,      'v' },
@@ -125,7 +127,7 @@ static const struct option long_options[] = {
     {} /* stop condition for iterator */
 };
 
-static const char *short_options = "r:m:d:p:a:NvVh";
+static const char *short_options = "r:m:d:p:a:s:NvVh";
 
 /* descriptions for the command line options */
 static const char *long_options_descs[] = {
@@ -134,6 +136,7 @@ static const char *long_options_descs[] = {
     "UART interface (default: " DEFAULT_UART_INTERFACE ")",
     "reset duration (in ms, default: " __stringify(DEFAULT_RA_RESET_DELAY) ")",
     "target flash area (code or data, default: code)",
+    "number of bytes to dump (default: complete area)",
     "don't verify during after flashing (default: read back flash and compare)",
 
     "verbose operation",
@@ -194,6 +197,8 @@ static char *uart_device = DEFAULT_UART_INTERFACE;
 static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
 static enum cmd cmd = CMD_MAX;
 static bool verify = true;
+static bool dump_size_set = false;
+static size_t dump_size;
 static char *fw_filename = NULL;
 static struct ra_chipinfo chipinfo;
 static struct ra_flash_area_info *flash_area_info = &chipinfo.code; /* default to code */
@@ -277,6 +282,21 @@ void parse_cli(int argc, char *argv[])
                 usage(argv[0], rc);
             }
             break;
+        case 's': {
+            char *endptr;
+            unsigned long long value;
+
+            errno = 0;
+            value = strtoull(optarg, &endptr, 10);
+            if (errno || endptr == optarg || *endptr != '\0' || value == 0 || value > SIZE_MAX) {
+                fprintf(stderr, "Invalid dump size '%s'.\n", optarg);
+                usage(argv[0], rc);
+            }
+
+            dump_size = (size_t)value;
+            dump_size_set = true;
+            break;
+        }
         case 'N':
             verify = false;
             break;
@@ -322,6 +342,11 @@ void parse_cli(int argc, char *argv[])
     /* bail out if unknown command was given */
     if (i == CMD_MAX)
         usage(program_invocation_short_name, EXIT_FAILURE);
+
+    if (dump_size_set && cmd != CMD_DUMP) {
+        fprintf(stderr, "The dump size can only be used with the dump command.\n");
+        usage(program_invocation_short_name, EXIT_FAILURE);
+    }
 
     /* adjust command line stuff */
     argc -= 1;
@@ -606,8 +631,13 @@ int main(int argc, char *argv[])
             goto reset_to_normal_out;
         }
 
-        /* set filesize to whole area */
-        fw_filesize = flash_area_info->size;
+        /* set filesize to requested size or whole area */
+        fw_filesize = dump_size_set ? dump_size : flash_area_info->size;
+        if (fw_filesize > flash_area_info->size) {
+            xerror("Requested dump size (%zu bytes) exceeds the flash area size (%zu bytes).",
+                   fw_filesize, flash_area_info->size);
+            goto reset_to_normal_out;
+        }
 
         /* if a filename is given, try to create the file first with whole size */
         if (fw_filename) {

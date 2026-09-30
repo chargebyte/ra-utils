@@ -17,8 +17,8 @@ _ra_update()
     )
     options=(
         '--reset-gpio' '--md-gpio' '--uart' '--reset-period' '--flash-area'
-        '--no-verify' '--verbose' '--version' '--help'
-        '-r' '-m' '-d' '-p' '-a' '-N' '-v' '-V' '-h'
+        '--size' '--no-verify' '--verbose' '--version' '--help'
+        '-r' '-m' '-d' '-p' '-a' '-s' '-N' '-v' '-V' '-h'
     )
 
     COMPREPLY=()
@@ -30,7 +30,7 @@ _ra_update()
             COMPREPLY=( $(compgen -W 'code data' -- "$cur") )
             return 0
             ;;
-        --reset-gpio|-r|--md-gpio|-m|--uart|-d|--reset-period|-p)
+        --reset-gpio|-r|--md-gpio|-m|--uart|-d|--reset-period|-p|--size|-s)
             return 0
             ;;
     esac
@@ -39,7 +39,7 @@ _ra_update()
     for ((i = 1; i < COMP_CWORD; i++)); do
         word=${COMP_WORDS[i]}
         case "$word" in
-            --reset-gpio|--md-gpio|--uart|--reset-period|--flash-area|-r|-m|-d|-p|-a)
+            --reset-gpio|--md-gpio|--uart|--reset-period|--flash-area|--size|-r|-m|-d|-p|-a|-s)
                 ((i++))
                 ;;
             --)
