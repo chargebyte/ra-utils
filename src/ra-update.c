@@ -20,6 +20,7 @@
  *         erase                -- erase MCU's flash
  *         flash <filename>     -- write given filename to MCU's flash
  *         dump [<filename>]    -- dump the MCU's flash content to stdout or filename (if given)
+ *         dump-pb [<filename>] -- dump the parameter block in binary format to stdout or filename (if given)
  *
  * Options:
  *         -r, --reset-gpio        GPIO name for controlling RESET pin of MCU (default: nSAFETY_RESET_INT)
@@ -59,6 +60,7 @@
 #include "stringify.h"
 #include "gpio-defaults.h"
 #include "uart-defaults.h"
+#include "param_block.h"
 
 /* fallback if not set by build system */
 #ifndef PACKAGE_STRING
@@ -75,6 +77,7 @@ enum cmd {
     CMD_ERASE,
     CMD_FLASH,
     CMD_DUMP,
+    CMD_DUMP_PB,
     CMD_MAX
 };
 
@@ -87,6 +90,7 @@ static const char *cmd_strings[CMD_MAX] = {
     "erase",
     "flash",
     "dump",
+    "dump-pb",
 };
 
 static const char *cmd_args[CMD_MAX] = {
@@ -97,6 +101,7 @@ static const char *cmd_args[CMD_MAX] = {
     NULL,
     NULL,
     "<filename>",
+    "[<filename>]",
     "[<filename>]",
 };
 
@@ -109,6 +114,7 @@ static const char *cmd_descs[CMD_MAX] = {
     "erase MCU's flash",
     "write given filename to MCU's flash",
     "dump the MCU's flash content to stdout or filename (if given)",
+    "dump the parameter block in binary format to stdout or filename (if given)",
 };
 
 /* command line options */
@@ -348,6 +354,10 @@ void parse_cli(int argc, char *argv[])
         usage(program_invocation_short_name, EXIT_FAILURE);
     }
 
+    /* dump-pb always reads the largest parameter block from the data area */
+    if (cmd == CMD_DUMP_PB)
+        flash_area_info = &chipinfo.data;
+
     /* adjust command line stuff */
     argc -= 1;
     argv += 1;
@@ -370,7 +380,7 @@ void parse_cli(int argc, char *argv[])
             return;
     }
     /* for dump it is optional, too */
-    if (cmd == CMD_DUMP) {
+    if (cmd == CMD_DUMP || cmd == CMD_DUMP_PB) {
         if (argc == 1) {
             fw_filename = argv[0];
             return;
@@ -489,7 +499,7 @@ int main(int argc, char *argv[])
     }
 
     /* when not dumping flash content if fw_filename is set, then make the file content via mmap available */
-    if (cmd != CMD_DUMP && fw_filename) {
+    if (cmd != CMD_DUMP && cmd != CMD_DUMP_PB && fw_filename) {
         rv = fw_mmap_infile(fw_filename, &fw_content, &fw_filesize);
         if (rv) {
             xerror("Could not open '%s': %m", fw_filename);
@@ -619,6 +629,7 @@ int main(int argc, char *argv[])
         break;
 
     case CMD_DUMP:
+    case CMD_DUMP_PB:
         rv = setup_uart_communication(gpio, &uart);
         if (rv) {
             /* no error logging here required, already done */
@@ -632,7 +643,8 @@ int main(int argc, char *argv[])
         }
 
         /* set filesize to requested size or whole area */
-        fw_filesize = dump_size_set ? dump_size : flash_area_info->size;
+        fw_filesize = cmd == CMD_DUMP_PB ? sizeof(struct param_block_v3) :
+                       (dump_size_set ? dump_size : flash_area_info->size);
         if (fw_filesize > flash_area_info->size) {
             xerror("Requested dump size (%zu bytes) exceeds the flash area size (%zu bytes).",
                    fw_filesize, flash_area_info->size);
@@ -662,7 +674,7 @@ verify_after_flash:
             goto reset_to_normal_out;
         }
 
-        if (cmd == CMD_DUMP) {
+        if (cmd == CMD_DUMP || cmd == CMD_DUMP_PB) {
             if (fw_filename) {
                 rv = msync(flash_content, fw_filesize, MS_SYNC);
                 if (rv) {

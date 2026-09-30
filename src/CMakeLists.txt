@@ -6,6 +6,7 @@ add_executable(ra-update
 
 target_include_directories(ra-update
     PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${LIBRAUTILS_INCLUDE_DIR}
         ${LIBGPIOD_INCLUDE_DIRS}
         ${LIBRAUTILS_INCLUDE_BINARY_DIR}

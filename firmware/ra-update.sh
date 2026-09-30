@@ -118,7 +118,7 @@ if cur_version_gt "0.1.0" && cur_version_le "0.2.2"; then
     pbfile_target_bin=$(mktemp)
 
     # dump current parameter block to YAML file
-    ra-update -a data dump "$pbfile_current_bin"
+    ra-update dump-pb "$pbfile_current_bin"
     ra-pb-dump "$pbfile_current_bin" > "$pbfile_current_yaml"
 
     # dump it indented to stdout (for debug purpose only)
@@ -148,7 +148,7 @@ if cur_version_lt "0.2.6"; then
     pbfile_target_bin=$(mktemp)
 
     # dump current parameter block to YAML file
-    ra-update -a data dump "$pbfile_current_bin"
+    ra-update dump-pb "$pbfile_current_bin"
     ra-pb-dump "$pbfile_current_bin" > "$pbfile_current_yaml"
 
     # dump it indented to stdout (for debug purpose only)
@@ -177,7 +177,7 @@ if [ "$CURRENT_PB_VERSION" != "$TARGET_PB_VERSION" ]; then
     pbfile_target_bin=$(mktemp)
 
     # dump current parameter block to YAML file
-    ra-update -a data dump "$pbfile_current_bin"
+    ra-update dump-pb "$pbfile_current_bin"
     ra-pb-dump "$pbfile_current_bin" > "$pbfile_current_yaml"
 
     # dump it indented to stdout (for debug purpose only)

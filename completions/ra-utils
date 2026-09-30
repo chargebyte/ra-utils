@@ -14,6 +14,7 @@ _ra_update()
         'erase'
         'flash'
         'dump'
+        'dump-pb'
     )
     options=(
         '--reset-gpio' '--md-gpio' '--uart' '--reset-period' '--flash-area'
@@ -66,7 +67,7 @@ _ra_update()
     fi
 
     case "$command" in
-        flash|fw-info|dump)
+        flash|fw-info|dump|dump-pb)
             compopt -o filenames 2>/dev/null || true
             COMPREPLY=( $(compgen -f -- "$cur") )
             ;;

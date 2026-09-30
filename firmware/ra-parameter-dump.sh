@@ -35,7 +35,7 @@ yaml_file=$(mktemp "$output_dir/.$interface.yaml.XXXXXX")
 dump_attempt=1
 dump_attempts=3
 while [ "$dump_attempt" -le "$dump_attempts" ]; do
-    if ra-update -a data dump "$current_bin"; then
+    if ra-update dump-pb "$current_bin"; then
         break
     fi
 
