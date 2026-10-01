@@ -68,6 +68,27 @@ cur_version_eq() {
     [ "$CURRENT_VERSION_ONLY" = "$1" ]
 }
 
+dump_parameter_block() {
+    dump_file="$1"
+    dump_attempt=1
+    dump_attempts=3
+
+    while [ "$dump_attempt" -le "$dump_attempts" ]; do
+        if ra-update dump-pb "$dump_file"; then
+            return 0
+        fi
+
+        if [ "$dump_attempt" -eq "$dump_attempts" ]; then
+            echo "Failed to dump parameter block after $dump_attempts attempts." >&2
+            return 1
+        fi
+
+        echo "Parameter block dump failed, retrying ($((dump_attempt + 1))/$dump_attempts)..." >&2
+        rm -f "$dump_file"
+        dump_attempt=$((dump_attempt + 1))
+    done
+}
+
 # nothing to do when versions are equal
 [ "$CMP_TARGET_VERSION" = "$CMP_CURRENT_VERSION" ] && exit 0
 
@@ -118,7 +139,7 @@ if cur_version_gt "0.1.0" && cur_version_le "0.2.2"; then
     pbfile_target_bin=$(mktemp)
 
     # dump current parameter block to YAML file
-    ra-update dump-pb "$pbfile_current_bin"
+    dump_parameter_block "$pbfile_current_bin"
     ra-pb-dump "$pbfile_current_bin" > "$pbfile_current_yaml"
 
     # dump it indented to stdout (for debug purpose only)
@@ -148,7 +169,7 @@ if cur_version_lt "0.2.6"; then
     pbfile_target_bin=$(mktemp)
 
     # dump current parameter block to YAML file
-    ra-update dump-pb "$pbfile_current_bin"
+    dump_parameter_block "$pbfile_current_bin"
     ra-pb-dump "$pbfile_current_bin" > "$pbfile_current_yaml"
 
     # dump it indented to stdout (for debug purpose only)
@@ -177,7 +198,7 @@ if [ "$CURRENT_PB_VERSION" != "$TARGET_PB_VERSION" ]; then
     pbfile_target_bin=$(mktemp)
 
     # dump current parameter block to YAML file
-    ra-update dump-pb "$pbfile_current_bin"
+    dump_parameter_block "$pbfile_current_bin"
     ra-pb-dump "$pbfile_current_bin" > "$pbfile_current_yaml"
 
     # dump it indented to stdout (for debug purpose only)
