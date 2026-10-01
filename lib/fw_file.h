@@ -5,7 +5,12 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Structure of the application validation block.
@@ -35,6 +40,8 @@ struct version_app_infoblock {
 #define CODE_FIRMWARE_INFORMATION_START_ADDRESS 0x000003E0
 #define CODE_FIRMWARE_INFORMATION_END_ADDRESS   0x000003FF
 
+#define FW_VERSION_STRING_SIZE 16
+
 int fw_mmap_infile(const char *filename, uint8_t **content, unsigned long *filesize);
 int fw_mmap_outfile(const char *filename, uint8_t **content, unsigned long filesize);
 
@@ -59,3 +66,9 @@ bool fw_print_amended_version_app_infoblock(struct version_app_infoblock *p, con
 
 const char *fw_sw_platform_type_to_str(uint8_t type);
 const char *fw_sw_application_type_to_str(uint8_t type);
+
+int fw_get_version_from_file(const char *filename, char *version, size_t version_size);
+
+#ifdef __cplusplus
+}
+#endif

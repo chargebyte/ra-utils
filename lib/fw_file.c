@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <tools.h>
+#include "tools.h"
 #include "fw_file.h"
 
 const char *fw_sw_platform_type_to_str(uint8_t type)
@@ -118,6 +118,59 @@ err_out:
     errno = saved_errno;
 
     return rv;
+}
+
+int fw_get_version_from_file(const char *filename, char *version, size_t version_size)
+{
+    struct version_app_infoblock version_info;
+    uint8_t *content = NULL;
+    unsigned long filesize = 0;
+    int rv;
+    int saved_errno;
+
+    if (!filename || !version || version_size == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    rv = fw_mmap_infile(filename, &content, &filesize);
+    if (rv)
+        return -1;
+
+    if (filesize < CODE_FIRMWARE_INFORMATION_START_ADDRESS + sizeof(version_info)) {
+        errno = EBADMSG;
+        goto err_unmap;
+    }
+
+    memcpy(&version_info, &content[CODE_FIRMWARE_INFORMATION_START_ADDRESS], sizeof(version_info));
+    fw_version_app_infoblock_to_host_endianess(&version_info);
+
+    if (!fw_valid_version_app_infoblock(&version_info)) {
+        errno = EBADMSG;
+        goto err_unmap;
+    }
+
+    rv = snprintf(version, version_size, "%" PRIu8 ".%" PRIu8 ".%" PRIu8,
+                  version_info.sw_major_version,
+                  version_info.sw_minor_version,
+                  version_info.sw_build_version);
+    if (rv < 0)
+        goto err_unmap;
+    if ((size_t)rv >= version_size) {
+        errno = ENOSPC;
+        goto err_unmap;
+    }
+
+    saved_errno = errno;
+    munmap(content, filesize);
+    errno = saved_errno;
+    return 0;
+
+err_unmap:
+    saved_errno = errno;
+    munmap(content, filesize);
+    errno = saved_errno;
+    return -1;
 }
 
 void fw_version_app_infoblock_to_host_endianess(struct version_app_infoblock *p)

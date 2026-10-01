@@ -16,6 +16,7 @@ target_sources(ra-utils
         "cb_protocol.c"
         "ra_protocol.c"
         "crc8_j1850.c"
+        "fw_file.c"
         "logging.c"
         "tools.c"
         "uart.c"
@@ -26,6 +27,7 @@ install(
         "cb_can_mirror.h"
         "cb_uart.h"
         "cb_protocol.h"
+        "fw_file.h"
         "ra_protocol.h"
         "logging.h"
         "uart.h"
@@ -38,7 +40,7 @@ target_link_libraries(ra-utils m)
 set_target_properties(ra-utils
     PROPERTIES
        VERSION ${PROJECT_VERSION}
-       SOVERSION 6
+       SOVERSION 7
 )
 
 set(LIBRAUTILS_INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}")

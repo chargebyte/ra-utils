@@ -1,7 +1,6 @@
 add_executable(ra-update
     ra-update.c
     ra_gpio.c
-    fw_file.c
 )
 
 target_include_directories(ra-update
