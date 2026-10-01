@@ -99,6 +99,7 @@ install(TARGETS ra-pb-create DESTINATION bin)
 
 install(
     FILES
-        ${CMAKE_SOURCE_DIR}/completions/ra-utils
+        ${CMAKE_SOURCE_DIR}/completions/ra-update
+        ${CMAKE_SOURCE_DIR}/completions/ra-pb-create
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/bash-completion/completions
 )

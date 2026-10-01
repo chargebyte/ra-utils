@@ -1,4 +1,4 @@
-# bash completion for ra-update and ra-pb-create
+# bash completion for ra-update
 
 _ra_update()
 {
@@ -74,37 +74,4 @@ _ra_update()
     esac
 }
 
-_ra_pb_create()
-{
-    local cur prev
-    local -a options
-
-    options=(
-        '--infile' '--outfile' '--version-from-yaml' '--version-override'
-        '--wrong-crc' '--debug' '--version' '--help'
-        '-i' '-o' '-Y' '-O' '-W' '-D' '-V' '-h'
-    )
-
-    COMPREPLY=()
-    cur=${COMP_WORDS[COMP_CWORD]}
-    prev=${COMP_WORDS[COMP_CWORD - 1]}
-
-    case "$prev" in
-        --infile|-i|--outfile|-o)
-            compopt -o filenames 2>/dev/null || true
-            COMPREPLY=( $(compgen -f -- "$cur") )
-            return 0
-            ;;
-        --version-override|-O)
-            COMPREPLY=( $(compgen -W '1 2 3' -- "$cur") )
-            return 0
-            ;;
-    esac
-
-    if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "${options[*]}" -- "$cur") )
-    fi
-}
-
 complete -F _ra_update ra-update
-complete -F _ra_pb_create ra-pb-create
