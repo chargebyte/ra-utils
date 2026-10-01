@@ -5,7 +5,8 @@ RequiresMountsFor=/var/log
 Wants=ra-parameter-dump@%i.service
 StartLimitIntervalSec=120
 StartLimitBurst=3
-StartLimitAction=reboot
+# disable the reboot action for now until the fallback mechanism is working as expected
+#StartLimitAction=reboot
 
 [Service]
 Type=oneshot
