@@ -644,6 +644,10 @@ const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason)
         return "HV ready malfunction";
     case CS2_ESTOP_REASON_EMERGENCY_INPUT:
         return "emergency input";
+    case CS2_ESTOP_REASON_EMERGENCY_INPUT:
+        return "emergency input";
+    case CS2_ESTOP_REASON_PARAMETER_FAILURE:
+        return "parameter failure";
     default:
         return "unknown";
     }
@@ -696,6 +700,8 @@ const char *cb_proto_safestate_reason_to_str(enum cs1_safestate_reason reason)
         return "RCM tripped";
     case CS1_SAFESTATE_REASON_RCM_SELFTEST:
         return "RCM self-test failed";
+    case CS1_SAFESTATE_REASON_PARAMETER_FAILURE:
+        return "parameter failure";
     default:
         return "unknown";
     }
