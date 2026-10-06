@@ -644,8 +644,6 @@ const char *cb_proto_estop_reason_to_str(enum cs2_estop_reason reason)
         return "HV ready malfunction";
     case CS2_ESTOP_REASON_EMERGENCY_INPUT:
         return "emergency input";
-    case CS2_ESTOP_REASON_EMERGENCY_INPUT:
-        return "emergency input";
     case CS2_ESTOP_REASON_PARAMETER_FAILURE:
         return "parameter failure";
     default:
