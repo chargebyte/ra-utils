@@ -1590,6 +1590,7 @@ void cb_proto_dump(struct safety_controller *ctx)
         printfnl("== MCS ==");
         printfnl("ID State: %s", cb_proto_id_state_to_str(cb_proto_get_id_state(ctx)));
         printfnl("CE State: %s", cb_proto_ce_state_to_str(cb_proto_get_ce_state(ctx)));
+        printfnl("ESTOP: %s", cb_proto_estop_state_to_str(cb_proto_estopN_get_state(ctx, 0)));
         printfnl("Safe State Active: %-11s Reason: %s",
                  cb_proto_safe_state_active_to_str(cb_proto_get_safe_state_active(ctx)),
                  cb_proto_estop_reason_to_str(cb_proto_get_estop_reason(ctx)));
