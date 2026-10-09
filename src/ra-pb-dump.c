@@ -46,6 +46,43 @@ static const char *long_options_descs[] = {
     NULL /* stop condition for iterator */
 };
 
+static void dump_hex(FILE *stream)
+{
+    unsigned char buffer[16];
+    size_t offset = 0;
+    size_t bytes_read;
+
+    if (fseek(stream, 0, SEEK_SET) != 0) {
+        fprintf(stderr, "Error: cannot rewind input for hexdump: %m\n");
+        return;
+    }
+
+    fprintf(stderr, "Hexdump of invalid parameter block:\n");
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), stream)) > 0) {
+        size_t i;
+
+        fprintf(stderr, "%08zx  ", offset);
+        for (i = 0; i < sizeof(buffer); ++i) {
+            if (i < bytes_read)
+                fprintf(stderr, "%02x ", buffer[i]);
+            else
+                fprintf(stderr, "   ");
+            if (i == 7)
+                fprintf(stderr, " ");
+        }
+
+        fprintf(stderr, " |");
+        for (i = 0; i < bytes_read; ++i)
+            fprintf(stderr, "%c", buffer[i] >= 32 && buffer[i] <= 126 ? buffer[i] : '.');
+        fprintf(stderr, "|\n");
+
+        offset += bytes_read;
+    }
+
+    if (ferror(stream))
+        fprintf(stderr, "Error while reading input for hexdump: %m\n");
+}
+
 static void usage(char *p, int exitcode)
 {
     const char **desc = long_options_descs;
@@ -148,6 +185,7 @@ int main(int argc, char *argv[])
 
     case PB_READ_ERROR_MAGIC:
         fprintf(stderr, "Error: file does not look like a parameter block.\n");
+        dump_hex(f);
         goto err_out;
 
     default:

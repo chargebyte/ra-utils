@@ -488,6 +488,8 @@ TEST(RaPbDumpTest, InvalidInputReturnsFailureAndPrintsMagicError)
     ASSERT_TRUE(result.exited);
     EXPECT_EQ(result.exit_code, EXIT_FAILURE);
     EXPECT_NE(result.stderr_output.find("does not look like a parameter block"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("Hexdump of invalid parameter block:"), std::string::npos);
+    EXPECT_NE(result.stderr_output.find("00000000  76 65 72 73 69 6f 6e 3a"), std::string::npos);
 }
 
 }  // namespace
