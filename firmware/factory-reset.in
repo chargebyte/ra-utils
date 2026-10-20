@@ -1,0 +1,123 @@
+#!/bin/sh
+# Restore the factory parameter block on each matching Safety Controller.
+set -eu
+
+data_dir="@CMAKE_INSTALL_FULL_DATAROOTDIR@/ra-utils"
+unit_dir="@SYSTEMD_SYSTEM_UNITDIR@"
+
+# Return 0 for matching hardware, 1 for a mismatch, 2 for an evaluation error.
+matches_hardware() {
+    conditions_file="$unit_dir/ra-update@$1.service.d/ConditionFirmware.conf"
+    if [ ! -r "$conditions_file" ]; then
+        echo "$1: missing firmware conditions: $conditions_file" >&2
+        return 2
+    fi
+
+    set --
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            ConditionFirmware=?*) set -- "$@" "$line" ;;
+        esac
+    done < "$conditions_file"
+    if [ "$#" -eq 0 ]; then
+        echo "No firmware conditions in $conditions_file" >&2
+        return 2
+    fi
+
+    if condition_output=$(LC_ALL=C SYSTEMD_LOG_COLOR=0 SYSTEMD_LOG_LEVEL=info \
+        SYSTEMD_LOG_TARGET=console systemd-analyze condition "$@" 2>&1); then
+        return 0
+    fi
+    # systemd-analyze also returns nonzero for invocation/parse errors. Only
+    # its completed negative evaluation means this controller can be skipped.
+    if printf '%s\n' "$condition_output" | grep -Fxq 'Conditions failed.'; then
+        return 1
+    fi
+    printf '%s\n' "$condition_output" >&2
+    return 2
+}
+
+restore_instance() (
+    # Isolate both imported GPIO settings and temporary files per controller.
+    unset SAFETY_MCU_RESET_GPIO SAFETY_MCU_MD_GPIO SAFETY_MCU_UART
+    set -a
+    # The installed .env files contain trusted, shell-compatible assignments.
+    # shellcheck disable=SC1090
+    . "$env_file" || return 1
+    set +a
+    if [ -z "${SAFETY_MCU_UART:-}" ]; then
+        echo "$instance: SAFETY_MCU_UART must be set in $env_file" >&2
+        return 1
+    fi
+
+    parameter_bin=$(mktemp) || return 1
+    trap 'rm -f "$parameter_bin"' EXIT
+    trap 'exit 1' HUP INT TERM
+
+    firmware_info=$(ra-update fw-info) || return 1
+    parameter_version=$(printf '%s\n' "$firmware_info" |
+        awk -F ': *' '/^Parameter Block Version:/ {print $2}')
+    case "$parameter_version" in
+        ''|*[!0-9]*)
+            echo "$instance: invalid or missing firmware parameter block version" >&2
+            return 1
+            ;;
+    esac
+
+    ra-pb-create --version-override "$parameter_version" \
+        -i "$factory_yaml" -o "$parameter_bin" || return 1
+    ra-update -a data flash "$parameter_bin" || return 1
+)
+
+status=0
+set --
+for env_file in "$data_dir"/*.env; do
+    [ -f "$env_file" ] || continue
+    instance=${env_file##*/}
+    instance=${instance%.env}
+    if matches_hardware "$instance"; then
+        set -- "$@" "$env_file"
+    else
+        condition_status=$?
+        if [ "$condition_status" -eq 1 ]; then
+            echo "$instance: hardware conditions not met, skipping."
+        else
+            status=1
+        fi
+    fi
+done
+
+if [ "$#" -eq 0 ]; then
+    echo "No matching Safety Controllers to reset."
+    exit "$status"
+fi
+
+factory_yaml=
+for candidate in "$data_dir"/*_parameter-block_factory-default.yaml; do
+    [ -f "$candidate" ] || continue
+    if [ -n "$factory_yaml" ]; then
+        echo "Multiple factory parameter block YAML files found in $data_dir" >&2
+        exit 1
+    fi
+    factory_yaml=$candidate
+done
+if [ -z "$factory_yaml" ]; then
+    echo "No factory parameter block YAML file found in $data_dir" >&2
+    exit 1
+fi
+
+# we need UART access, so stop EVerest
+systemctl stop everest.service || true
+
+for env_file do
+    instance=${env_file##*/}
+    instance=${instance%.env}
+    echo "$instance: restoring factory parameter block from $factory_yaml"
+    if restore_instance; then
+        echo "$instance: factory parameter block restored."
+    else
+        echo "$instance: failed to restore factory parameter block." >&2
+        status=1
+    fi
+done
+exit "$status"

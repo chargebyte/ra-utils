@@ -70,6 +70,49 @@ Remember, that the tool is already pre-installed on chargebyte's distributions.
 The very same procedure can be used on a host system, e.g. when the tools are
 needed to create parameter block files on the host system.
 
+## Safety Controller Service Environment
+
+The `ra-update@.service` and `ra-parameter-dump@.service` units load UART and GPIO settings
+from a shared file per UART instance, for example `/usr/share/ra-utils/ttyLP1.env`:
+
+```ini
+SAFETY_MCU_UART=/dev/ttyLP1
+SAFETY_MCU_RESET_GPIO=nSAFETY2_RESET_INT
+SAFETY_MCU_MD_GPIO=SAFETY2_BOOTMODE_SET
+```
+
+Files for `ttyLP1` and `ttyLP2` are installed. Each service instance requires its
+corresponding `.env` file; a missing file prevents the service from starting.
+Each `.env` file must set `SAFETY_MCU_UART` to its controller's device path.
+
+The environment files are installed under `${CMAKE_INSTALL_DATAROOTDIR}/ra-utils`.
+
+These environment files are also handy when developing on the systems, just
+source such files using e.g. `source /usr/share/ra-utils/ttyLP1.env`.
+Tools like `ra-update` and `ra-raw` are using these environment variables
+unless command line parameters override them again.
+
+## Restoring Factory Parameter Blocks
+
+The hook `/usr/libexec/factory-reset.d/50_ra-utils` restores the factory
+parameter block on all matching Safety Controllers. It can also be called
+directly as root. After selecting controllers and validating the YAML selection,
+the hook stops `everest.service` once before accessing any controller.
+
+For each installed TTY `.env` file, the hook evaluates the corresponding
+`ra-update@<tty>.service.d/ConditionFirmware.conf` with `systemd-analyze condition`.
+This works before the services have started, including during early boot.
+Nonmatching instances are skipped; missing conditions or evaluation errors are
+reported as errors.
+
+Exactly one `*_parameter-block_factory-default.yaml` must be installed in the
+configured data directory when any controller matches. The hook reads each
+controller's firmware information, converts the YAML to its expected parameter
+block version, and writes it with `ra-update`'s default readback verification.
+An instance failure does not prevent attempts on the remaining controllers;
+the hook returns a nonzero status if any instance fails. No matching controllers
+is a successful no-op.
+
 ## Using the UART Trace Feature
 
 During testing and bugfixing it is sometimes desired to create a communication protocol

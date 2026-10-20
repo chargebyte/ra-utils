@@ -10,8 +10,8 @@ StartLimitBurst=3
 
 [Service]
 Type=oneshot
-Environment="SAFETY_MCU_UART=/dev/%i"
-ExecStart=/usr/libexec/ra-update.sh
+EnvironmentFile=@CMAKE_INSTALL_FULL_DATAROOTDIR@/ra-utils/%i.env
+ExecStart=@CMAKE_INSTALL_FULL_LIBEXECDIR@/ra-update.sh
 Restart=on-failure
 
 [Install]

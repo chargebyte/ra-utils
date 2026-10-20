@@ -4,13 +4,26 @@ install(
         chargesom_parameter-block_factory-default.yaml
         parsley_fw_v_00_05_01.bin
         parsley_parameter-block_factory-default.yaml
+        ttyLP1.env
+        ttyLP2.env
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}
+)
+
+foreach(service ra-update ra-parameter-dump)
+    configure_file(${service}@.service.in ${service}@.service @ONLY)
+endforeach()
+
+configure_file(factory-reset.in factory-reset @ONLY)
+install(
+    PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/factory-reset
+    DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/factory-reset.d
+    RENAME 50_ra-utils
 )
 
 install(
     FILES
-        ra-update@.service
-        ra-parameter-dump@.service
+        ${CMAKE_CURRENT_BINARY_DIR}/ra-update@.service
+        ${CMAKE_CURRENT_BINARY_DIR}/ra-parameter-dump@.service
     DESTINATION ${SYSTEMD_SYSTEM_UNITDIR}
 )
 
