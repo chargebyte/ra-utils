@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stddef.h>
 
 /* we expect at least one UART frame within this period, in ms */
 #define CB_UART_RECV_INTERVAL 1000 /* FIXME */
@@ -53,6 +54,21 @@ const char *cb_uart_com_to_str(enum cb_uart_com com);
 int cb_uart_send(struct uart_ctx *uart, enum cb_uart_com com, uint64_t data);
 
 int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data);
+
+/* Initialize to zero; retain across calls, clear when resetting the controller. */
+struct cb_uart_rx_state {
+    uint8_t bytes[12];
+    size_t buffered;
+    size_t discarded;
+};
+
+/* Read only currently available bytes from a UART opened by uart_open().
+ * The caller must be the sole reader. Partial frames are retained in state.
+ * Returns 1 for a valid frame, 0 if none is complete yet, -1 on I/O error.
+ * Work per call is bounded so a continuous corrupt stream cannot starve timers.
+ */
+int cb_uart_recv_available(struct uart_ctx *uart, struct cb_uart_rx_state *state,
+                           enum cb_uart_com *com, uint64_t *data);
 
 int cb_uart_recv_and_sync(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data);
 
