@@ -5,6 +5,7 @@
 #include <endian.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <poll.h>
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
@@ -46,64 +47,58 @@ static int remaining_timeout_ms(const struct timespec *timeout)
     return remaining;
 }
 
+/* Shared stream parser for blocking and incremental receive. */
+static bool extract_frame(struct cb_uart_rx_state *state, struct uart_frame *frame)
+{
+    size_t sof = 0;
+
+    while (sof < state->buffered && state->bytes[sof] != CB_SOF)
+        ++sof;
+    state->discarded += sof;
+    state->buffered -= sof;
+    memmove(state->bytes, state->bytes + sof, state->buffered);
+    if (state->buffered < sizeof(*frame))
+        return false;
+
+    memcpy(frame, state->bytes, sizeof(*frame));
+    if (frame->eof == CB_EOF &&
+        frame->crc == crc8_j1850(&frame->com, sizeof(frame->com) + sizeof(frame->data))) {
+        state->buffered = 0;
+        if (state->discarded)
+            debug("UART receive stream resynchronized after discarding %zu byte(s)", state->discarded);
+        state->discarded = 0;
+        return true;
+    }
+    /* Keep bytes after a false SOF, including any following real SOF. */
+    ++state->discarded;
+    --state->buffered;
+    memmove(state->bytes, state->bytes + 1, state->buffered);
+    return false;
+}
+
 static int cb_uart_read_frame(struct uart_ctx *uart, struct uart_frame *frame, int timeout_ms)
 {
-    uint8_t *buffer = (uint8_t *)frame;
+    struct cb_uart_rx_state state = { 0 };
     struct timespec timeout;
-    size_t buffered = 0;
-    size_t discarded = 0;
-    int rv;
 
-    rv = clock_gettime(CLOCK_MONOTONIC, &timeout);
-    if (rv)
-        return rv;
-
+    if (clock_gettime(CLOCK_MONOTONIC, &timeout))
+        return -1;
     timespec_add_ms(&timeout, timeout_ms);
-
     for (;;) {
-        size_t sof_offset;
-        uint8_t crc;
-        ssize_t c;
+        int remaining;
+        ssize_t count;
 
-        rv = remaining_timeout_ms(&timeout);
-        if (rv < 0)
-            return rv;
-
-        c = uart_read_with_timeout(uart, &buffer[buffered], sizeof(*frame) - buffered, rv);
-        if (c < 0)
-            return c;
-        buffered += c;
-
-        for (sof_offset = 0; sof_offset < buffered; ++sof_offset) {
-            if (buffer[sof_offset] == CB_SOF)
-                break;
-        }
-
-        if (sof_offset) {
-            discarded += sof_offset;
-            buffered -= sof_offset;
-            memmove(buffer, &buffer[sof_offset], buffered);
-        }
-
-        if (buffered < sizeof(*frame))
-            continue;
-
-        crc = crc8_j1850(&frame->com, sizeof(frame->com) + sizeof(frame->data));
-        if (frame->eof == CB_EOF && frame->crc == crc)
-            break;
-
-        /* This SOF was part of corrupt data. Keep scanning the already read
-         * bytes so a following valid frame is not lost.
-         */
-        discarded++;
-        buffered--;
-        memmove(buffer, &buffer[1], buffered);
+        if (extract_frame(&state, frame))
+            return 0;
+        remaining = remaining_timeout_ms(&timeout);
+        if (remaining < 0)
+            return -1;
+        count = uart_read_with_timeout(uart, state.bytes + state.buffered,
+                                       sizeof(state.bytes) - state.buffered, remaining);
+        if (count < 0)
+            return -1;
+        state.buffered += count;
     }
-
-    if (discarded)
-        debug("UART receive stream resynchronized after discarding %zu byte(s)", discarded);
-
-    return 0;
 }
 
 const char *cb_uart_com_to_str(enum cb_uart_com com)
@@ -191,50 +186,71 @@ int cb_uart_send(struct uart_ctx *uart, enum cb_uart_com com, uint64_t data)
     return 0;
 }
 
+static void deliver_frame(struct uart_ctx *uart, struct uart_frame *frame,
+                          enum cb_uart_com *com, uint64_t *data)
+{
+    if (uart->trace)
+        uart_dump_frame(true, false, (uint8_t *)frame, sizeof(*frame));
+    debug("received frame: %s", cb_uart_com_to_str(frame->com));
+    if (uart_can_mirror_enabled(uart))
+        cb_can_mirror_write(uart->fd_can_mirror, frame->com, frame->data);
+    if (com)
+        *com = frame->com;
+    if (data)
+        *data = be64toh(frame->data);
+}
+
 int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data)
 {
     struct uart_frame frame;
-    uint8_t crc;
-    ssize_t c;
 
-    /* Regarding the timeout: when this function is called, it it usually async to the interval/periodicity
-     * of the safety controller. Thus we expect at least after the CB_UART_RECV_INTERVAL a fully UART frame.
-     * We add half of the period as safety margin.
-     */
-    c = cb_uart_read_frame(uart, &frame, CB_UART_RECV_INTERVAL + CB_UART_RECV_INTERVAL / 2);
-    if (c < 0)
-        return c;
-
-    if (uart->trace)
-        uart_dump_frame(true, false, (uint8_t *)&frame, sizeof(frame));
-
-    /* check field patterns */
-    if (frame.eof != CB_EOF) {
-        error("EOF pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, CB_EOF, frame.eof);
-        errno = EBADMSG;
+    if (cb_uart_read_frame(uart, &frame, CB_UART_RECV_INTERVAL + CB_UART_RECV_INTERVAL / 2))
         return -1;
+    deliver_frame(uart, &frame, com, data);
+    return 0;
+}
+
+int cb_uart_recv_available(struct uart_ctx *uart, struct cb_uart_rx_state *state,
+                           enum cb_uart_com *com, uint64_t *data)
+{
+    struct uart_frame frame;
+    unsigned int reads;
+
+    for (reads = 0; reads < 32; ++reads) {
+        struct pollfd pfd = { .fd = uart->fd, .events = POLLIN };
+        ssize_t count;
+        int rv;
+
+        if (extract_frame(state, &frame)) {
+            deliver_frame(uart, &frame, com, data);
+            return 1;
+        }
+        rv = poll(&pfd, 1, 0);
+        if (rv < 0)
+            return -1;
+        if (!rv)
+            return 0;
+        if (!(pfd.revents & POLLIN)) {
+            errno = EIO;
+            return -1;
+        }
+        count = read(uart->fd, state->bytes + state->buffered,
+                     sizeof(state->bytes) - state->buffered);
+        if (count < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                return 0;
+            return -1;
+        }
+        if (!count) {
+            errno = EPIPE;
+            return -1;
+        }
+        state->buffered += count;
     }
-
-    /* check crc */
-    crc = crc8_j1850(&frame.com, sizeof(frame.com) + sizeof(frame.data));
-    if (crc != frame.crc) {
-        error("CRC pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, crc, frame.crc);
-        errno = EBADMSG;
-        return -1;
+    if (extract_frame(state, &frame)) {
+        deliver_frame(uart, &frame, com, data);
+        return 1;
     }
-
-    debug("received frame looks valid (SOF, EOF, CRC)");
-
-    debug("received frame: %s", cb_uart_com_to_str(frame.com));
-
-    if (uart_can_mirror_enabled(uart))
-        cb_can_mirror_write(uart->fd_can_mirror, frame.com, frame.data);
-
-    if (com)
-        *com = frame.com;
-    if (data)
-        *data = be64toh(frame.data);
-
     return 0;
 }
 

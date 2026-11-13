@@ -13,6 +13,10 @@ Tools included here:
 - **ra-raw**: This tools uses chargebyte's UART protocol to control the
   MCU and/or check the current state. It is only intended for testing and
   debug purposes.
+- **ra-eol**: Communicates with EOL variant of safety controller firmware.
+  Only for chargebyte internal development purposes.
+- **ra-candump**: Decodes safety-controller UART messages mirrored to CAN,
+  similar to the well-known **candump** tool.
 - **ra-pb-create**: This tools creates a binary parameter block file
   from a YAML file/stdin.
 - **ra-pb-dump**: This tools dumps a binary parameter block file as YAML.
@@ -89,7 +93,7 @@ The environment files are installed under `${CMAKE_INSTALL_DATAROOTDIR}/ra-utils
 
 These environment files are also handy when developing on the systems, just
 source such files using e.g. `source /usr/share/ra-utils/ttyLP1.env`.
-Tools like `ra-update` and `ra-raw` are using these environment variables
+Tools like `ra-update`, `ra-raw` and `ra-eol` are using these environment variables
 unless command line parameters override them again.
 
 ## Restoring Factory Parameter Blocks

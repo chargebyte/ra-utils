@@ -667,7 +667,7 @@ send_charge_control_frame:
 
             printf("\r\n");
             if (!cb_proto_is_mcs_mode(&ctx)) {
-                printf("== Available commands ==\r\n"
+                printf("== Available Commands ==\r\n"
                        "  e -- enable PWM                   E  -- disable PWM\r\n"
                        "  r -- enable PWM with 5%%           t  -- enable PWM with 10%%          z -- enable PWM with 100%%\r\n"
                        "  0 -- set PWM duty cycle to 0%%     5  -- set PWM duty cycle to 5%%     9 -- set PWM duty cycle to 100%%\r\n"
@@ -677,7 +677,7 @@ send_charge_control_frame:
                        "  s -- toggle auto sending of Charge Control frames (auto-sending: %s)\r\n"
                        "  q -- quit the program\r\n", send_charge_control ? "on" : "off");
             } else {
-                printf("== Available commands ==\r\n"
+                printf("== Available Commands ==\r\n"
                        "  r -- set CCS Ready to Ready       R -- set CCS Ready to Not Ready\r\n"
                        "  e -- set CCS Ready to Emergency Stop\r\n"
                        "  c -- (manually) send a Charge Control frame\r\n"
