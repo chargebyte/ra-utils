@@ -101,4 +101,60 @@ TEST_F(CbUartReceiveTest, ContinuesAfterFalseStartOfFrame)
     ReceiveAndExpect(stream, COM_CHARGE_STATE, data);
 }
 
+TEST_F(CbUartReceiveTest, IncrementalReceiveRetainsEveryFragment)
+{
+    struct cb_uart_rx_state state = {};
+    enum cb_uart_com com = COM_MAX;
+    uint64_t data = 0;
+    const auto frame = MakeFrame(COM_ANALOG_INPUT_02, 0x0123a5ff456789abULL);
+    EXPECT_EQ(cb_uart_recv_available(&uart_, &state, &com, &data), 0);
+    for (unsigned i = 0; i < frame.size(); ++i) {
+        WriteAll(fds_[1], {frame[i]});
+        ASSERT_EQ(cb_uart_recv_available(&uart_, &state, &com, &data), i == frame.size() - 1 ? 1 : 0);
+    }
+    EXPECT_EQ(com, COM_ANALOG_INPUT_02);
+    EXPECT_EQ(data, 0x0123a5ff456789abULL);
+    EXPECT_EQ(cb_uart_recv_available(&uart_, &state, &com, &data), 0);
+}
+
+TEST_F(CbUartReceiveTest, IncrementalReceiveRecoversAfterCorruptFramesAndBoundsWork)
+{
+    struct cb_uart_rx_state state = {};
+    enum cb_uart_com com = COM_MAX;
+    uint64_t data = 0;
+    auto bad = MakeFrame(COM_DIGITAL_INPUT, 0);
+    bad[10] ^= 1;
+    auto good = MakeFrame(COM_ANALOG_INPUT_04, 42);
+    std::vector<uint8_t> bytes(512, 0xa5);
+    bytes.insert(bytes.end(), bad.begin(), bad.end());
+    bytes.insert(bytes.end(), good.begin(), good.end());
+    WriteAll(fds_[1], bytes);
+    // One call must return to the event loop even while garbage remains available.
+    ASSERT_EQ(cb_uart_recv_available(&uart_, &state, &com, &data), 0);
+    int rv = 0;
+    for (unsigned i = 0; i < 64 && !rv; ++i)
+        rv = cb_uart_recv_available(&uart_, &state, &com, &data);
+    ASSERT_EQ(rv, 1);
+    EXPECT_EQ(com, COM_ANALOG_INPUT_04);
+    EXPECT_EQ(data, 42);
+}
+
+TEST_F(CbUartReceiveTest, IncrementalReceiveKeepsBackToBackFramesSeparate)
+{
+    struct cb_uart_rx_state state = {};
+    auto first = MakeFrame(COM_DIGITAL_INPUT, 1);
+    auto second = MakeFrame(COM_ANALOG_INPUT_01, 2);
+    std::vector<uint8_t> bytes(first.begin(), first.end());
+    bytes.insert(bytes.end(), second.begin(), second.end());
+    WriteAll(fds_[1], bytes);
+    enum cb_uart_com com;
+    uint64_t data;
+    ASSERT_EQ(cb_uart_recv_available(&uart_, &state, &com, &data), 1);
+    EXPECT_EQ(com, COM_DIGITAL_INPUT);
+    EXPECT_EQ(data, 1);
+    ASSERT_EQ(cb_uart_recv_available(&uart_, &state, &com, &data), 1);
+    EXPECT_EQ(com, COM_ANALOG_INPUT_01);
+    EXPECT_EQ(data, 2);
+}
+
 }  // namespace
