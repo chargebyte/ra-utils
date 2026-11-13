@@ -16,6 +16,7 @@
 #include "cb_uart.h"
 #include "cb_protocol.h"
 #include "logging.h"
+#include "tools.h"
 
 #define BITMASK(len) \
     ((1 << (len)) - 1)
@@ -1283,6 +1284,125 @@ static int append_pt1000_summary(char *buffer, size_t size, size_t *offset, stru
     return 0;
 }
 
+/* Charge SOM EOL signal layout, matching uart_com.dbc (Motorola byte order). */
+struct eol_signal {
+    const char *name;
+    unsigned int shift;
+    unsigned int width;
+    const char *unit;
+};
+
+static int append_eol_signals(char *buffer, size_t size, enum cb_uart_com com, uint64_t data)
+{
+    const struct eol_signal *signals;
+    size_t count, i, offset = 0;
+    int rv;
+
+    switch (com) {
+    case COM_DIGITAL_OUTPUT: {
+        static const struct eol_signal fields[] = {
+            { "DO_CP_INVERT", 59, 1, "" },
+            { "DO_CP_Dutycycle", 32, 8, "%" },
+            { "DO_HV_SW1_Dutycycle", 24, 8, "%" },
+            { "DO_HV_SW2_Dutycycle", 16, 8, "%" },
+            { "DO_HV_SW3_Dutycycle", 8, 8, "%" },
+            { "DO_PP_SAE_IEC", 55, 1, "" },
+            { "DO_SAFETY_CP_STATE_C", 42, 1, "" },
+            { "DO_SAFETY_GPIO_EXP", 52, 1, "" },
+            { "DO_SAFETY_IMD_OD_EN", 51, 1, "" },
+            { "DO_SAFETY_MOTOR_OUT2", 61, 1, "" },
+            { "DO_SAFETY_MOTOR_OUT1", 62, 1, "" },
+            { "DO_PT1000_CTRLEN4", 50, 1, "" },
+            { "DO_PT1000_CTRLEN3", 43, 1, "" },
+            { "DO_PT1000_CTRLEN2", 44, 1, "" },
+            { "DO_PT1000_CTRLEN1", 45, 1, "" },
+        };
+        signals = fields;
+        count = ARRAY_SIZE(fields);
+        break;
+    }
+    case COM_DIGITAL_INPUT: {
+        static const struct eol_signal fields[] = {
+            { "DI_SAFETY_CP_STATE_C", 43, 1, "" },
+            { "DI_SAFETY_MOTOR_OUT1", 62, 1, "" },
+            { "DI_SAFETY_MOTOR_OUT2", 61, 1, "" },
+            { "DI_SAFETY_MOTOR_FAULT", 60, 1, "" },
+            { "DI_PP_SAE_IEC", 55, 1, "" },
+            { "DI_EV_CP_EDGE", 58, 1, "" },
+            { "DI_CP_INVERT", 59, 1, "" },
+            { "DI_SAFETY_K1_IN", 63, 1, "" },
+            { "DI_PT4_EN", 50, 1, "" },
+            { "DI_PT3_EN", 44, 1, "" },
+            { "DI_PT2_EN", 45, 1, "" },
+            { "DI_PT1_EN", 46, 1, "" },
+            { "DI_SAFETY_IMD_OD_EN", 51, 1, "" },
+            { "DI_SAFETY_GPIO_EXP", 52, 1, "" },
+            { "DI_ESTOP3", 40, 1, "" },
+            { "DI_ESTOP2", 41, 1, "" },
+            { "DI_ESTOP1", 42, 1, "" },
+            { "DI_SAFETY_K2_IN", 48, 1, "" },
+        };
+        signals = fields;
+        count = ARRAY_SIZE(fields);
+        break;
+    }
+    case COM_ANALOG_INPUT_01: {
+        static const struct eol_signal fields[] = {
+            { "AI_PT1000_LEAD1_4", 0, 16, "" },
+            { "AI_PT1000_LEAD1_3", 16, 16, "" },
+            { "AI_PT1000_LEAD1_2", 32, 16, "" },
+            { "AI_PT1000_LEAD1_1", 48, 16, "" },
+        };
+        signals = fields;
+        count = ARRAY_SIZE(fields);
+        break;
+    }
+    case COM_ANALOG_INPUT_02: {
+        static const struct eol_signal fields[] = {
+            { "AI_SAFETY_MOTOR_CAPS_SENSE", 0, 16, "" },
+            { "AI_PP_VALUE_ADC", 16, 16, "" },
+            { "AI_CP_BUFFERED_POS_ADC", 32, 16, "" },
+            { "AI_CP_BUFFERED_NEG_ADC", 48, 16, "" },
+        };
+        signals = fields;
+        count = ARRAY_SIZE(fields);
+        break;
+    }
+    case COM_ANALOG_INPUT_03: {
+        static const struct eol_signal fields[] = {
+            { "AI_SAFETY_INLET_FB", 16, 16, "" },
+            { "AI_SAFETY_DEV1_ADC", 32, 16, "" },
+            { "AI_SAFETY_DEV2_ADC", 48, 16, "" },
+            { "AI_PT1000_CFB1_2", 0, 16, "" },
+        };
+        signals = fields;
+        count = ARRAY_SIZE(fields);
+        break;
+    }
+    case COM_ANALOG_INPUT_04: {
+        static const struct eol_signal fields[] = {
+            { "AI_PT1000_CFB3_4", 48, 16, "" },
+        };
+        signals = fields;
+        count = ARRAY_SIZE(fields);
+        break;
+    }
+    default:
+        return -1;
+    }
+    rv = append_text(buffer, size, &offset, "%s:", cb_uart_com_to_str(com));
+    if (rv < 0)
+        return rv;
+    for (i = 0; i < count; ++i) {
+        unsigned int value = (data >> signals[i].shift) & ((1u << signals[i].width) - 1);
+        rv = append_text(buffer, size, &offset, "%s%s=%u%s", i ? "; " : " ",
+                         signals[i].name, value, signals[i].unit);
+        if (rv < 0)
+            return rv;
+    }
+    return (int)offset;
+}
+
 int cb_proto_frame_to_str(char *buffer, size_t size, enum cb_uart_com com, uint64_t data)
 {
     struct safety_controller ctx = { 0 };
@@ -1298,6 +1418,13 @@ int cb_proto_frame_to_str(char *buffer, size_t size, enum cb_uart_com com, uint6
     buffer[0] = '\0';
 
     switch (com) {
+    case COM_DIGITAL_OUTPUT:
+    case COM_DIGITAL_INPUT:
+    case COM_ANALOG_INPUT_01:
+    case COM_ANALOG_INPUT_02:
+    case COM_ANALOG_INPUT_03:
+    case COM_ANALOG_INPUT_04:
+        return append_eol_signals(buffer, size, com, data);
     case COM_CHARGE_STATE:
         ctx.charge_state = data;
         rv = append_text(buffer, size, &offset, "%s: PWM=%s/%u.%u%%; CP=%s",
@@ -1658,6 +1785,6 @@ void cb_proto_dump(struct safety_controller *ctx)
     printfnl("== Timestamps ==");
     for (i = 0; i < COM_MAX; ++i) {
         if (strlen(ctx->ts_str_recv_com[i]))
-            printfnl("%-29s: %s", cb_uart_com_to_str(i), ctx->ts_str_recv_com[i]);
+            printfnl("%-29s [0x%02x]: %s", cb_uart_com_to_str(i), i, ctx->ts_str_recv_com[i]);
     }
 }
