@@ -2,7 +2,7 @@
  * Copyright © 2026 chargebyte GmbH
  * SPDX-License-Identifier: Apache-2.0
  *
- * Charge SOM interactive EOL monitor, initial CP PWM 5%.
+ * Charge SOM interactive monitor for EoL firmware
  *
  * Usage: ra-eol [options]
  *
@@ -11,6 +11,7 @@
  *          -r, --reset-gpio NAME    RESET GPIO (default: nSAFETY_RESET_INT)
  *          -m, --md-gpio NAME       MD GPIO (default: SAFETY_BOOTMODE_SET)
  *          -p, --reset-period MS    Reset duration (default: 500 ms)
+ *          -c, --duty-cycle PERCENT Initial CP PWM duty cycle (0-100, default: 5%)
  *          -R, --no-reset           Skip initial controller reset
  *          -M, --can-mirror IFACE   Mirror RX/TX to CAN
  *          -D, --no-dump            Suppress state overview
@@ -56,6 +57,7 @@ static volatile sig_atomic_t interrupted;
 static bool verbose, no_dump, no_reset;
 static const char *uart_device, *reset_gpioname, *md_gpioname, *can_mirror_device;
 static unsigned int reset_duration = DEFAULT_RA_RESET_DELAY;
+static unsigned int initial_duty_cycle = 5;
 
 static void handle_signal(int signum)
 {
@@ -87,12 +89,13 @@ static const char *env_default(const char *key, const char *fallback)
 static void usage(const char *program)
 {
     fprintf(stderr,
-        "%s (%s) -- Charge SOM interactive EOL monitor, initial CP PWM 5%%\n"
+        "%s (%s) -- Charge SOM interactive monitor for EoL firmware\n"
         "Usage: %s [options]\n"
         "  -d, --uart DEVICE        UART (default: " DEFAULT_UART_INTERFACE ")\n"
         "  -r, --reset-gpio NAME    RESET GPIO (default: " DEFAULT_RA_GPIO_RESET_PIN ")\n"
         "  -m, --md-gpio NAME       MD GPIO (default: " DEFAULT_RA_GPIO_MD_PIN ")\n"
         "  -p, --reset-period MS    Reset duration (default: 500 ms)\n"
+        "  -c, --duty-cycle PERCENT Initial CP PWM duty cycle (0-100, default: 5%%)\n"
         "  -R, --no-reset           Skip initial controller reset\n"
         "  -M, --can-mirror IFACE   Mirror RX/TX to CAN\n"
         "  -D, --no-dump            Suppress state overview\n"
@@ -129,6 +132,7 @@ static void parse_cli(int argc, char **argv)
         { "reset-gpio", required_argument, NULL, 'r' },
         { "md-gpio", required_argument, NULL, 'm' },
         { "reset-period", required_argument, NULL, 'p' },
+        { "duty-cycle", required_argument, NULL, 'c' },
         { "no-reset", no_argument, NULL, 'R' },
         { "can-mirror", required_argument, NULL, 'M' },
         { "no-dump", no_argument, NULL, 'D' },
@@ -142,7 +146,7 @@ static void parse_cli(int argc, char **argv)
     uart_device = env_default(GETENV_UART_KEY, DEFAULT_UART_INTERFACE);
     reset_gpioname = env_default(GETENV_RESET_PIN_KEY, DEFAULT_RA_GPIO_RESET_PIN);
     md_gpioname = env_default(GETENV_MD_PIN_KEY, DEFAULT_RA_GPIO_MD_PIN);
-    while ((c = getopt_long(argc, argv, "d:r:m:p:RM:DvVh", options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "d:r:m:p:c:RM:DvVh", options, NULL)) != -1) {
         switch (c) {
         case 'd': uart_device = optarg; break;
         case 'r': reset_gpioname = optarg; break;
@@ -157,6 +161,19 @@ static void parse_cli(int argc, char **argv)
                 exit(EXIT_FAILURE);
             }
             reset_duration = value;
+            break;
+        }
+        case 'c': {
+            char *end;
+            unsigned long value;
+            errno = 0;
+            value = strtoul(optarg, &end, 10);
+            if (errno || *end || end == optarg ||
+                strspn(optarg, "0123456789") != strlen(optarg) || value > 100) {
+                fprintf(stderr, "Invalid duty cycle (expected 0-100): %s\n", optarg);
+                exit(EXIT_FAILURE);
+            }
+            initial_duty_cycle = value;
             break;
         }
         case 'R': no_reset = true; break;
@@ -237,6 +254,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
     eol_state_init(&controller);
+    controller.duty_cycle = initial_duty_cycle;
     if (uart_open(&uart, uart_device, 115200))
         return EXIT_FAILURE;
     fds[1].fd = uart.fd;

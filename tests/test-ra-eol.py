@@ -34,11 +34,12 @@ def frame(com, data):
 
 
 class Controller:
-    def __init__(self, firmware=b'\x00\x05\x01\x81\x04\x00\x00\x00', extras=True, mirror=None, terminal=False, resettable=False, measurements=False):
+    def __init__(self, firmware=b'\x00\x05\x01\x81\x04\x00\x00\x00', extras=True, mirror=None, terminal=False, resettable=False, measurements=False, cli_args=()):
         self.firmware = firmware
         self.extras = extras
         self.master, self.slave = pty.openpty()
         args = [EOL_TEST_GPIO if resettable else EOL, '-R', '-d', os.ttyname(self.slave)]
+        args += cli_args
         if mirror:
             args += ['-M', mirror]
         self.output = tempfile.TemporaryFile()
@@ -168,6 +169,21 @@ class EolIntegration(unittest.TestCase):
         self.assertNotIn('Warning:', err)
         self.assertNotIn('Error:', err)
 
+    def test_initial_duty_cycle(self):
+        for args, expected in ((['-c', '25'], 25), (['--duty-cycle', '73'], 73),
+                               (['--duty-cycle=0'], 0), (['-c', '100'], 100),
+                               (['-c', '10', '--duty-cycle', '42'], 42)):
+            with self.subTest(args=args):
+                controller = self.controller(cli_args=args)
+                controller.pump(0.35)
+                code, out, err = controller.finish()
+                self.assertEqual(code, 0, err)
+                outputs = [data for _, com, data in controller.frames if com == 0]
+                self.assertGreaterEqual(len(outputs), 2)
+                self.assertTrue(all(data[3] == expected for data in outputs))
+                self.assertTrue(all(data[0] == 8 for data in outputs))
+                self.assertIn(f'Requested: {expected:3d}%', out)
+
     def test_silent_receiver_does_not_stop_output_and_sigint_keeps_5_percent(self):
         controller = self.controller(extras=False)
         controller.pump(1.9)  # Beyond the receiver's 1500-ms timeout.
@@ -278,9 +294,9 @@ class EolIntegration(unittest.TestCase):
         self.assertGreaterEqual(sum(com == 0 for _, com, _ in controller.frames), 6)
 
     def test_ctrl_r_clears_observations_and_reinitializes_with_saved_pwm(self):
-        controller = self.controller(resettable=True)
+        controller = self.controller(resettable=True, cli_args=['--duty-cycle', '25'])
         controller.pump(0.6)
-        controller.command('t+++')
+        controller.command('+++')
         controller.pump(0.2)
         controller.extras = False
         before = len(controller.frames)
@@ -294,7 +310,7 @@ class EolIntegration(unittest.TestCase):
         after = after[restart:]
         self.assertTrue(any(com == 0 for _, com, _ in after))
         self.assertEqual(next(data for _, com, data in after if com == 0)[2], 0x28)
-        self.assertTrue(all(data[3] == 13 for _, com, data in after if com == 0))
+        self.assertTrue(all(data[3] == 28 for _, com, data in after if com == 0))
         last = out.split('== PWM ==')[-1]
         self.assertIn('MCU Version: not received', last)
         self.assertIn('COM_ANALOG_INPUT_02:\r\n  not received', last)
@@ -338,6 +354,19 @@ class EolIntegration(unittest.TestCase):
             self.assertEqual(subprocess.run([EOL, option], capture_output=True).returncode, 0)
         for args in (['--reset-period', '-1'], ['--reset-period', 'abc'], ['unexpected'], ['--unknown']):
             self.assertNotEqual(subprocess.run([EOL] + args, capture_output=True).returncode, 0)
+
+    def test_invalid_duty_cycle(self):
+        for option in ('-c', '--duty-cycle'):
+            for value in ('', '-1', '-0', '101', '999999999999999999999999999999',
+                          'abc', '5.5', '25%', ' 25', '+25'):
+                with self.subTest(option=option, value=value):
+                    result = subprocess.run([EOL, option, value], capture_output=True, timeout=2)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(b'Invalid duty cycle', result.stderr)
+            with self.subTest(option=option, value=None):
+                result = subprocess.run([EOL, option], capture_output=True, timeout=2)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b'requires an argument', result.stderr)
 
     def test_can_mirror_and_candump(self):
         try:
