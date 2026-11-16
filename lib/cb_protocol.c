@@ -1284,7 +1284,7 @@ static int append_pt1000_summary(char *buffer, size_t size, size_t *offset, stru
     return 0;
 }
 
-/* Charge SOM EOL signal layout, matching uart_com.dbc (Motorola byte order). */
+/* Charge SOM EoL (End of Line test firmware) signal layout, matching uart_com.dbc (Motorola byte order). */
 struct eol_signal {
     const char *name;
     unsigned int shift;
