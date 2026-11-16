@@ -52,18 +52,18 @@ static bool extract_frame(struct cb_uart_rx_state *state, struct uart_frame *fra
 {
     size_t sof = 0;
 
-    while (sof < state->buffered && state->bytes[sof] != CB_SOF)
+    while (sof < state->count && state->buffer[sof] != CB_SOF)
         ++sof;
     state->discarded += sof;
-    state->buffered -= sof;
-    memmove(state->bytes, state->bytes + sof, state->buffered);
-    if (state->buffered < sizeof(*frame))
+    state->count -= sof;
+    memmove(state->buffer, state->buffer + sof, state->count);
+    if (state->count < sizeof(*frame))
         return false;
 
-    memcpy(frame, state->bytes, sizeof(*frame));
+    memcpy(frame, state->buffer, sizeof(*frame));
     if (frame->eof == CB_EOF &&
         frame->crc == crc8_j1850(&frame->com, sizeof(frame->com) + sizeof(frame->data))) {
-        state->buffered = 0;
+        state->count = 0;
         if (state->discarded)
             debug("UART receive stream resynchronized after discarding %zu byte(s)", state->discarded);
         state->discarded = 0;
@@ -71,8 +71,8 @@ static bool extract_frame(struct cb_uart_rx_state *state, struct uart_frame *fra
     }
     /* Keep bytes after a false SOF, including any following real SOF. */
     ++state->discarded;
-    --state->buffered;
-    memmove(state->bytes, state->bytes + 1, state->buffered);
+    --state->count;
+    memmove(state->buffer, state->buffer + 1, state->count);
     return false;
 }
 
@@ -93,11 +93,11 @@ static int cb_uart_read_frame(struct uart_ctx *uart, struct uart_frame *frame, i
         remaining = remaining_timeout_ms(&timeout);
         if (remaining < 0)
             return -1;
-        count = uart_read_with_timeout(uart, state.bytes + state.buffered,
-                                       sizeof(state.bytes) - state.buffered, remaining);
+        count = uart_read_with_timeout(uart, state.buffer + state.count,
+                                       sizeof(state.buffer) - state.count, remaining);
         if (count < 0)
             return -1;
-        state.buffered += count;
+        state.count += count;
     }
 }
 
@@ -234,8 +234,8 @@ int cb_uart_recv_available(struct uart_ctx *uart, struct cb_uart_rx_state *state
             errno = EIO;
             return -1;
         }
-        count = read(uart->fd, state->bytes + state->buffered,
-                     sizeof(state->bytes) - state->buffered);
+        count = read(uart->fd, state->buffer + state->count,
+                     sizeof(state->buffer) - state->count);
         if (count < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
                 return 0;
@@ -245,7 +245,7 @@ int cb_uart_recv_available(struct uart_ctx *uart, struct cb_uart_rx_state *state
             errno = EPIPE;
             return -1;
         }
-        state->buffered += count;
+        state->count += count;
     }
     if (extract_frame(state, &frame)) {
         deliver_frame(uart, &frame, com, data);

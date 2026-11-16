@@ -57,8 +57,8 @@ int cb_uart_recv(struct uart_ctx *uart, enum cb_uart_com *com, uint64_t *data);
 
 /* Initialize to zero; retain across calls, clear when resetting the controller. */
 struct cb_uart_rx_state {
-    uint8_t bytes[12];
-    size_t buffered;
+    uint8_t buffer[12];
+    size_t count;
     size_t discarded;
 };
 
