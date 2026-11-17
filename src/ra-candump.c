@@ -165,7 +165,7 @@ static bool compact_skip(struct last_frame last_frames[256], const struct can_fr
 static void print_frame(const char *ifname, const struct can_frame *frame, const struct timeval *tv)
 {
     char timestamp[64];
-    char decoded[512];
+    char decoded[2048];
     canid_t id = frame->can_id & CAN_EFF_MASK;
     uint64_t payload = 0;
     unsigned int i;

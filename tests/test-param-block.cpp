@@ -9,6 +9,7 @@
 
 extern "C" {
 #include "param_block.h"
+#include "tools.h"
 }
 
 namespace {
@@ -263,7 +264,7 @@ TEST(ParamBlockTest, InitFunctionsSetMarkersDefaultsAndValidCrc)
     EXPECT_EQ(le32toh(pb_v1.eob), MARKER);
     EXPECT_EQ(pb_v1.version, 1);
     EXPECT_TRUE(pb_check_crc_v1(&pb_v1));
-    for (size_t i = 0; i < sizeof(pb_v1.temperature) / sizeof(pb_v1.temperature[0]); ++i)
+    for (size_t i = 0; i < ARRAY_SIZE(pb_v1.temperature); ++i)
         EXPECT_EQ(le16toh(pb_v1.temperature[i]), CHANNEL_DISABLE_VALUE);
 
     EXPECT_EQ(le32toh(pb_v2.sob), MARKER);
@@ -271,7 +272,7 @@ TEST(ParamBlockTest, InitFunctionsSetMarkersDefaultsAndValidCrc)
     EXPECT_EQ(pb_v2.version, 2);
     EXPECT_EQ(pb_v2.imd, PIN_POLARITY_NONE);
     EXPECT_TRUE(pb_check_crc_v2(&pb_v2));
-    for (size_t i = 0; i < sizeof(pb_v2.temperature) / sizeof(pb_v2.temperature[0]); ++i)
+    for (size_t i = 0; i < ARRAY_SIZE(pb_v2.temperature); ++i)
         EXPECT_EQ(le16toh(pb_v2.temperature[i]), CHANNEL_DISABLE_VALUE);
 
     EXPECT_EQ(le32toh(pb_v3.sob), MARKER);
@@ -279,9 +280,9 @@ TEST(ParamBlockTest, InitFunctionsSetMarkersDefaultsAndValidCrc)
     EXPECT_EQ(pb_v3.version, 3);
     EXPECT_EQ(pb_v3.imd, PIN_POLARITY_NONE);
     EXPECT_TRUE(pb_check_crc_v3(&pb_v3));
-    for (size_t i = 0; i < sizeof(pb_v3.temperature) / sizeof(pb_v3.temperature[0]); ++i)
+    for (size_t i = 0; i < ARRAY_SIZE(pb_v3.temperature); ++i)
         EXPECT_EQ(le16toh(pb_v3.temperature[i]), CHANNEL_DISABLE_VALUE);
-    for (size_t i = 0; i < sizeof(pb_v3.contactor) / sizeof(pb_v3.contactor[0]); ++i)
+    for (size_t i = 0; i < ARRAY_SIZE(pb_v3.contactor); ++i)
         EXPECT_EQ(pb_v3.contactor[i].hold_duty_cycle, 100);
     EXPECT_EQ(pb_v3.inlet_type, INLET_NONE);
     EXPECT_EQ(pb_v3.inlet_open_time, 0);

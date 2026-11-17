@@ -126,3 +126,29 @@ target_compile_definitions(test-ra-pb-create
 add_dependencies(test-ra-pb-create ra-pb-create ra-pb-dump)
 
 gtest_discover_tests(test-ra-pb-create)
+
+add_executable(test-eol-decoder test-eol-decoder.cpp)
+target_include_directories(test-eol-decoder PRIVATE ${LIBRAUTILS_INCLUDE_DIR})
+target_link_libraries(test-eol-decoder PRIVATE GTest::gtest_main ra-utils)
+target_compile_features(test-eol-decoder PRIVATE cxx_std_17)
+gtest_discover_tests(test-eol-decoder)
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME ra-eol-integration
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test-ra-eol.py
+            $<TARGET_FILE:ra-eol> $<TARGET_FILE:ra-candump> $<TARGET_FILE:ra-eol-test-gpio>)
+set_tests_properties(ra-eol-integration PROPERTIES TIMEOUT 45)
+
+add_executable(test-eol-state test-eol-state.cpp ${CMAKE_SOURCE_DIR}/src/eol_state.c)
+target_include_directories(test-eol-state PRIVATE ${CMAKE_SOURCE_DIR}/src ${LIBRAUTILS_INCLUDE_DIR})
+target_link_libraries(test-eol-state PRIVATE GTest::gtest_main ra-utils)
+target_compile_features(test-eol-state PRIVATE cxx_std_17)
+gtest_discover_tests(test-eol-state)
+
+add_executable(ra-eol-test-gpio
+    ${CMAKE_SOURCE_DIR}/src/ra-eol.c
+    ${CMAKE_SOURCE_DIR}/src/eol_state.c
+    fake-eol-gpio.c)
+target_include_directories(ra-eol-test-gpio PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LIBRAUTILS_INCLUDE_DIR} ${LIBRAUTILS_INCLUDE_BINARY_DIR} ${LIBGPIOD_INCLUDE_DIRS})
+target_link_libraries(ra-eol-test-gpio PRIVATE ra-utils)

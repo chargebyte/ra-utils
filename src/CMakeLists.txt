@@ -102,3 +102,13 @@ install(
         ${CMAKE_SOURCE_DIR}/completions/ra-pb-create
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/bash-completion/completions
 )
+
+add_executable(ra-eol ra-eol.c ra_gpio.c eol_state.c)
+target_include_directories(ra-eol PRIVATE
+    ${LIBRAUTILS_INCLUDE_DIR}
+    ${LIBRAUTILS_INCLUDE_BINARY_DIR}
+    ${LIBGPIOD_INCLUDE_DIRS}
+)
+target_compile_features(ra-eol PRIVATE c_std_11)
+target_link_libraries(ra-eol PRIVATE ra-utils ${LIBGPIOD_LIBRARIES})
+install(TARGETS ra-eol DESTINATION sbin)
