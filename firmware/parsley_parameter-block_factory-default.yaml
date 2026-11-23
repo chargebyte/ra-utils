@@ -1,8 +1,8 @@
 pt1000s:
-  - 85.0 °C
-  - 85.0 °C
-  - 85.0 °C
-  - 85.0 °C
+  - 90.0 °C
+  - 90.0 °C
+  - disabled
+  - disabled
 
 contactors:
   - with-feedback-normally-open
