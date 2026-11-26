@@ -34,6 +34,8 @@ struct eol_state {
     char sent_timestamp[TS_STR_RECV_COM_BUFSIZE];
     unsigned int duty_cycle;
     bool pwm_active;
+    bool cp_state_c;
+    bool hv_switch_active[3];
     bool auto_send;
     bool sent;
     uint64_t last_output;

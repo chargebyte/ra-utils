@@ -23,7 +23,9 @@
  * CP_INVERT and PP_SAE_IEC follow normal firmware. Exit leaves the last outputs unchanged.
  * PT1000 measurement alternates automatically between channels 1+3 and 2+4.
  * Keys: r/t/z enable at 5/10/100%; 0/5/6/9 select 0/5/10/100%; +/- change by 1%.
- *       e/E enable/disable; s toggle auto-send; c send once; Ctrl-R reset; q/Ctrl-C quit.
+ *       e/E enable/disable PWM; 1/2/3 toggle HV switch PWM between 0/100%.
+ *       c/C enable/disable CP State C; s toggle auto-send; d send once.
+ *       Ctrl-R reset; q/Ctrl-C quit.
  */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -106,7 +108,9 @@ static void usage(const char *program)
         "CP_INVERT and PP_SAE_IEC follow normal firmware. Exit leaves the last outputs unchanged.\n"
         "PT1000 measurement alternates automatically between channels 1+3 and 2+4.\n"
         "Keys: r/t/z enable at 5/10/100%%; 0/5/6/9 select 0/5/10/100%%; +/- change by 1%%.\n"
-        "      e/E enable/disable; s toggle auto-send; c send once; Ctrl-R reset; q/Ctrl-C quit.\n",
+        "      e/E enable/disable PWM; 1/2/3 toggle HV switch PWM between 0/100%%.\n"
+        "      c/C enable/disable CP State C; s toggle auto-send; d send once.\n"
+        "      Ctrl-R reset; q/Ctrl-C quit.\n",
         program, PACKAGE_STRING, program);
 }
 
@@ -208,7 +212,12 @@ static enum command handle_command(struct eol_state *state, char cmd)
     case 'e': state->pwm_active = true; break;
     case 'E': state->pwm_active = false; break;
     case 's': eol_set_auto_send(state, !state->auto_send); break;
-    case 'c': return COMMAND_SEND;
+    case 'c': state->cp_state_c = true; break;
+    case 'C': state->cp_state_c = false; break;
+    case '1': case '2': case '3':
+        state->hv_switch_active[cmd - '1'] = !state->hv_switch_active[cmd - '1'];
+        break;
+    case 'd': return COMMAND_SEND;
     case 'q': case 0x03: return COMMAND_QUIT;
     case 0x12: return COMMAND_RESET;
     case 'h': case '?': case '\r': case '\n': break; /* redraw command list */
@@ -283,14 +292,19 @@ restart_reset:
             goto close_out;
         }
     }
-    /* Ctrl-R retains desired PWM settings but clears all old observations. */
+    /* Ctrl-R retains desired outputs but clears all old observations. */
     {
         unsigned int duty = controller.duty_cycle;
         bool active = controller.pwm_active, automatic = controller.auto_send;
+        bool cp_state_c = controller.cp_state_c;
+        bool hv_switch_active[3];
+        memcpy(hv_switch_active, controller.hv_switch_active, sizeof(hv_switch_active));
         eol_state_init(&controller);
         controller.duty_cycle = duty;
         controller.pwm_active = active;
         controller.auto_send = automatic;
+        controller.cp_state_c = cp_state_c;
+        memcpy(controller.hv_switch_active, hv_switch_active, sizeof(hv_switch_active));
     }
     memset(&rx, 0, sizeof(rx));
     if (uart_flush_input(&uart)) {

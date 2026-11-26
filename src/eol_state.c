@@ -181,6 +181,10 @@ uint64_t eol_output(const struct eol_state *state)
 {
     /* CP_INVERT follows normal firmware PWM enable. PP uses IEC mode. */
     return pt_output_masks[state->pt_group] | (UINT64_C(1) << 55) |
+           (state->cp_state_c ? UINT64_C(1) << 42 : 0) |
+           (state->hv_switch_active[0] ? UINT64_C(100) << 24 : 0) |
+           (state->hv_switch_active[1] ? UINT64_C(100) << 16 : 0) |
+           (state->hv_switch_active[2] ? UINT64_C(100) << 8 : 0) |
            (state->pwm_active ? (UINT64_C(1) << 59) | ((uint64_t)state->duty_cycle << 32) : 0);
 }
 
@@ -539,6 +543,8 @@ void eol_dump(FILE *out, const struct eol_state *state)
     }
     line("\r\n== Available Commands ==");
     line("r/t/z: enable PWM at 5/10/100%%   0/5/6/9: set duty cycle to 0/5/10/100%%   +/-: duty +/-1%%");
-    line("e/E: enable/disable PWM   s: toggle automatic sending   c: send Digital Output");
+    line("e/E: enable/disable PWM          1/2/3: toggle HW switch output 1/2/3 between 0 and 100%%");
+    line("c/C: enable/disable CP State C signal");
+    line("s: toggle automatic sending      d: send Digital Output");
     line("Ctrl-R: reset and reinitialize   q / Ctrl-C: quit (leave last outputs unchanged)");
 }

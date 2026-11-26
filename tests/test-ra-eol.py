@@ -226,12 +226,12 @@ class EolIntegration(unittest.TestCase):
         controller.pump(0.6)
         controller.command('s')
         controller.pump(0.05)
-        for cmd, expected in [('c', 5), ('r', 5), ('t', 10), ('z', 100),
+        for cmd, expected in [('d', 5), ('r', 5), ('t', 10), ('z', 100),
                               ('+', 100), ('0', 0), ('-', 0), ('5', 5), ('6', 10),
                               ('9', 100), ('0', 0), ('+++++', 5), ('-', 4), ('E', 0), ('e', 4)]:
-            # Auto sending is paused, so a manual c is the only output source.
+            # Auto sending is paused, so a manual d is the only output source.
             before = len([1 for _, com, _ in controller.frames if com == 0])
-            controller.command(cmd + ('' if cmd == 'c' else 'c'))
+            controller.command(cmd + ('' if cmd == 'd' else 'd'))
             controller.pump(0.04)
             outputs = [data for _, com, data in controller.frames if com == 0]
             self.assertEqual(len(outputs), before + 1, cmd)
@@ -248,6 +248,62 @@ class EolIntegration(unittest.TestCase):
         code, _, err = controller.finish()
         self.assertEqual(code, 0, err)
         self.assertEqual(len([1 for _, com, _ in controller.frames if com == 0]), before)
+
+    def test_cp_state_c_and_hv_switch_keys(self):
+        controller = self.controller()
+        controller.pump(0.6)
+        controller.command('s')
+        controller.pump(0.1)
+        initial = controller.last_output
+        expected = initial
+        steps = [('c', 1 << 42), ('c', 1 << 42), ('1', 100 << 24),
+                 ('2', 100 << 16), ('3', 100 << 8), ('C', 1 << 42),
+                 ('C', 1 << 42), ('1', 100 << 24), ('2', 100 << 16),
+                 ('3', 100 << 8)]
+        for cmd, mask in steps:
+            if cmd == 'c':
+                expected |= mask
+            elif cmd == 'C':
+                expected &= ~mask
+            else:
+                expected ^= mask
+            before = sum(com == 0 for _, com, _ in controller.frames)
+            controller.command(cmd)
+            controller.pump(0.04)
+            self.assertEqual(sum(com == 0 for _, com, _ in controller.frames), before, cmd)
+            controller.command('d')
+            controller.pump(0.04)
+            self.assertEqual(sum(com == 0 for _, com, _ in controller.frames), before + 1, cmd)
+            self.assertEqual(controller.last_output, expected, cmd)
+        self.assertEqual(expected, initial)
+
+        # The new outputs remain active when CP PWM is disabled.
+        controller.command('c123Es')
+        controller.pump(0.3)
+        expected = (initial & ~((1 << 59) | (255 << 32))) | (1 << 42)
+        expected |= (100 << 24) | (100 << 16) | (100 << 8)
+        self.assertEqual(controller.last_output, expected)
+        controller.command('C123')
+        controller.pump(0.3)
+        self.assertEqual(controller.last_output, initial & ~((1 << 59) | (255 << 32)))
+        controller.command('c123')
+        controller.pump(0.3)
+        self.assertEqual(controller.last_output, expected)
+        before = sum(com == 0 for _, com, _ in controller.frames)
+        controller.command('q')
+        controller.pump(0.1)
+        code, out, err = controller.finish()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(sum(com == 0 for _, com, _ in controller.frames), before)
+        self.assertEqual(controller.last_output, expected)
+        commands = ('== Available Commands ==\r\n'
+                    'r/t/z: enable PWM at 5/10/100%   0/5/6/9: set duty cycle to 0/5/10/100%   +/-: duty +/-1%\r\n'
+                    'e/E: enable/disable PWM          1/2/3: toggle HW switch output 1/2/3 between 0 and 100%\r\n'
+                    'c/C: enable/disable CP State C signal\r\n'
+                    's: toggle automatic sending      d: send Digital Output\r\n'
+                    'Ctrl-R: reset and reinitialize   q / Ctrl-C: quit (leave last outputs unchanged)\r\n')
+        self.assertIn(commands, out)
+        self.assertNotIn('Error:', err)
 
     def test_partial_and_corrupt_uart_does_not_block_keyboard_or_timers(self):
         controller = self.controller(extras=False)
@@ -296,7 +352,7 @@ class EolIntegration(unittest.TestCase):
     def test_ctrl_r_clears_observations_and_reinitializes_with_saved_pwm(self):
         controller = self.controller(resettable=True, cli_args=['--duty-cycle', '25'])
         controller.pump(0.6)
-        controller.command('+++')
+        controller.command('+++c13')
         controller.pump(0.2)
         controller.extras = False
         before = len(controller.frames)
@@ -309,8 +365,10 @@ class EolIntegration(unittest.TestCase):
         restart = next(i for i, (_, com, data) in enumerate(after) if com == 0xff and data[0] == 0x0a)
         after = after[restart:]
         self.assertTrue(any(com == 0 for _, com, _ in after))
-        self.assertEqual(next(data for _, com, data in after if com == 0)[2], 0x28)
+        self.assertEqual(next(data for _, com, data in after if com == 0)[2], 0x2c)
         self.assertTrue(all(data[3] == 28 for _, com, data in after if com == 0))
+        self.assertTrue(all(data[2] == 0x2c and data[4:] == bytes([100, 0, 100, 0])
+                            for _, com, data in after if com == 0))
         last = out.split('== PWM ==')[-1]
         self.assertIn('MCU Version: not received', last)
         self.assertIn('COM_ANALOG_INPUT_02:\r\n  not received', last)
@@ -333,7 +391,7 @@ class EolIntegration(unittest.TestCase):
         group = controller.last_output & ((1 << 45) | (1 << 44) | (1 << 43) | (1 << 50))
         controller.pump(0.3)
         self.assertEqual(sum(com == 0 for _, com, _ in controller.frames), count)
-        controller.command('c')
+        controller.command('d')
         controller.pump(0.05)
         self.assertEqual(controller.last_output & ((1 << 45) | (1 << 44) | (1 << 43) | (1 << 50)), group)
         controller.command('s')

@@ -84,6 +84,29 @@ TEST(EolState, OutputEnableAndRememberedSetpoint)
     EXPECT_EQ(eol_output(&state), UINT64_C(0x0880281700000000));
 }
 
+TEST(EolState, CpStateCAndHvSwitchOutputsAreIndependent)
+{
+    for (unsigned int combination = 0; combination < 16; ++combination) {
+        eol_state state;
+        eol_state_init(&state);
+        state.cp_state_c = combination & 1;
+        uint64_t expected = UINT64_C(0x0880280500000000);
+        if (state.cp_state_c) expected |= UINT64_C(1) << 42;
+        for (unsigned int i = 0; i < 3; ++i) {
+            state.hv_switch_active[i] = combination & (2u << i);
+            if (state.hv_switch_active[i]) expected |= UINT64_C(100) << (24 - 8 * i);
+        }
+        EXPECT_EQ(eol_output(&state), expected) << combination;
+        state.pwm_active = false;
+        expected &= ~((UINT64_C(1) << 59) | (UINT64_C(255) << 32));
+        EXPECT_EQ(eol_output(&state), expected) << combination;
+        state.pt_group = 1;
+        expected &= ~((UINT64_C(1) << 45) | (UINT64_C(1) << 43));
+        expected |= (UINT64_C(1) << 44) | (UINT64_C(1) << 50);
+        EXPECT_EQ(eol_output(&state), expected) << combination;
+    }
+}
+
 std::string Dump(const eol_state &state)
 {
     FILE *file = tmpfile();
